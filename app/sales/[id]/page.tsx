@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,10 +10,9 @@ import {
   useUpdateSale,
   useDeleteSale,
 } from "@/lib/hooks/use-sales";
-import { useShipmentsBySale } from "@/lib/hooks/use-shipments";
+import { useDeliveriesBySale } from "@/lib/hooks/use-deliveries";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
-import { useWarehouses } from "@/lib/hooks/use-warehouses";
 import type { SaleStatus } from "@/lib/types/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,8 +40,8 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { formatCurrency, formatDate } from "@/lib/utils/format";
-import { ShipmentSection } from "@/components/forms/shipment-section";
+import { formatCurrency, formatDate, formatWeight, formatPercent } from "@/lib/utils/format";
+import { DeliverySection } from "@/components/forms/delivery-section";
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
   draft: "Taslak",
@@ -52,7 +51,7 @@ const STATUS_LABELS: Record<SaleStatus, string> = {
 };
 
 const STATUS_COLORS: Record<SaleStatus, string> = {
-  draft: "bg-gray-100 text-gray-800",
+  draft: "bg-amber-100 text-amber-800",
   confirmed: "bg-blue-100 text-blue-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
@@ -67,13 +66,12 @@ export default function SaleDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const { data: sale, isLoading } = useSale(id);
-  const { data: shipments, isLoading: shipmentsLoading } = useShipmentsBySale(id);
+  const { data: deliveries, isLoading: deliveriesLoading } = useDeliveriesBySale(id);
   const updateSale = useUpdateSale();
   const deleteSale = useDeleteSale();
 
   const { data: contacts } = useContacts("customer");
   const { data: feedTypes } = useFeedTypes(true);
-  const { data: warehouses } = useWarehouses(true);
 
   const {
     register,
@@ -90,14 +88,23 @@ export default function SaleDetailPage() {
   const unitPrice = useWatch({ control, name: "unit_price" });
   const editTotal = (parseFloat(quantity || "0") * parseFloat(unitPrice || "0"));
 
+  // Compute delivery totals
+  const deliveryStats = useMemo(() => {
+    if (!deliveries) return { totalDelivered: 0, totalFreight: 0, customerFreight: 0 };
+    const totalDelivered = deliveries.reduce((sum, d) => sum + d.net_weight, 0);
+    const totalFreight = deliveries.reduce((sum, d) => sum + (d.freight_cost || 0), 0);
+    const customerFreight = deliveries
+      .filter((d) => d.freight_payer === "customer")
+      .reduce((sum, d) => sum + (d.freight_cost || 0), 0);
+    return { totalDelivered, totalFreight, customerFreight };
+  }, [deliveries]);
+
   function startEditing() {
     if (!sale) return;
     reset({
       contact_id: sale.contact_id,
       feed_type_id: sale.feed_type_id,
-      warehouse_id: sale.warehouse_id || "",
       quantity: String(sale.quantity),
-      unit: sale.unit,
       unit_price: String(sale.unit_price),
       sale_date: sale.sale_date,
       due_date: sale.due_date || "",
@@ -112,9 +119,8 @@ export default function SaleDetailPage() {
         id,
         contact_id: values.contact_id,
         feed_type_id: values.feed_type_id,
-        warehouse_id: values.warehouse_id || null,
         quantity: Number(values.quantity),
-        unit: values.unit,
+        unit: "kg",
         unit_price: Number(values.unit_price),
         sale_date: values.sale_date,
         due_date: values.due_date || null,
@@ -165,8 +171,12 @@ export default function SaleDetailPage() {
     ? STATUS_FLOW[currentStatusIdx + 1]
     : null;
 
+  const deliveredQty = deliveryStats.totalDelivered || sale.delivered_quantity || 0;
+  const progress = sale.quantity > 0 ? Math.min((deliveredQty / sale.quantity) * 100, 100) : 0;
+
   return (
     <div className="space-y-4 p-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
@@ -176,9 +186,11 @@ export default function SaleDetailPage() {
           </Button>
           <div>
             <h1 className="text-xl font-bold">{sale.sale_no}</h1>
-            <Badge variant="secondary" className={STATUS_COLORS[sale.status]}>
-              {STATUS_LABELS[sale.status]}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className={STATUS_COLORS[sale.status]}>
+                {STATUS_LABELS[sale.status]}
+              </Badge>
+            </div>
           </div>
         </div>
         {!editing && sale.status !== "cancelled" && (
@@ -282,30 +294,16 @@ export default function SaleDetailPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="quantity">Miktar *</Label>
+                  <Label htmlFor="quantity">Miktar (kg) *</Label>
                   <Input id="quantity" type="number" step="0.01" {...register("quantity")} />
                   {errors.quantity && (
                     <p className="text-sm text-destructive">{errors.quantity.message}</p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label>Birim</Label>
-                  <Select
-                    defaultValue={sale.unit}
-                    onValueChange={(val) => setValue("unit", val)}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="ton">ton</SelectItem>
-                      <SelectItem value="balya">balya</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unit_price">Birim Fiyat *</Label>
+                  <Label htmlFor="unit_price">Birim Fiyat (₺/kg) *</Label>
                   <Input id="unit_price" type="number" step="0.01" {...register("unit_price")} />
                   {errors.unit_price && (
                     <p className="text-sm text-destructive">{errors.unit_price.message}</p>
@@ -316,23 +314,6 @@ export default function SaleDetailPage() {
               <div className="rounded-lg bg-muted p-3 text-center">
                 <p className="text-sm text-muted-foreground">Toplam Tutar</p>
                 <p className="text-xl font-bold">{formatCurrency(editTotal)}</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Depo</Label>
-                <Select
-                  defaultValue={sale.warehouse_id || ""}
-                  onValueChange={(val) => setValue("warehouse_id", val)}
-                >
-                  <SelectTrigger><SelectValue placeholder="Depo seçiniz" /></SelectTrigger>
-                  <SelectContent>
-                    {warehouses?.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name} {w.location ? `(${w.location})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -365,75 +346,117 @@ export default function SaleDetailPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Müşteri</span>
-              <Link href={`/contacts/${sale.contact_id}`} className="text-sm font-medium text-primary">
-                {sale.contact?.name || "—"}
-              </Link>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Yem Türü</span>
-              <span className="text-sm font-medium">{sale.feed_type?.name || "—"}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Miktar</span>
-              <span className="text-sm font-medium">{sale.quantity} {sale.unit}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Birim Fiyat</span>
-              <span className="text-sm font-medium">{formatCurrency(sale.unit_price)}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Toplam Tutar</span>
-              <span className="text-sm font-bold">{formatCurrency(sale.total_amount)}</span>
-            </div>
-            <Separator />
-            {sale.warehouse && (
-              <>
+        <>
+          {/* Sale Info */}
+          <Card>
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Müşteri</span>
+                <Link href={`/contacts/${sale.contact_id}`} className="text-sm font-medium text-primary">
+                  {sale.contact?.name || "—"}
+                </Link>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Yem Türü</span>
+                <span className="text-sm font-medium">{sale.feed_type?.name || "—"}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Miktar</span>
+                <span className="text-sm font-medium">{formatWeight(sale.quantity)}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Birim Fiyat</span>
+                <span className="text-sm font-medium">{formatCurrency(sale.unit_price)}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Toplam Tutar</span>
+                <span className="text-sm font-bold">{formatCurrency(sale.total_amount)}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Satış Tarihi</span>
+                <span className="text-sm font-medium">{formatDate(sale.sale_date)}</span>
+              </div>
+              {sale.due_date && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Tahsilat Vadesi</span>
+                    <span className="text-sm font-medium">{formatDate(sale.due_date)}</span>
+                  </div>
+                </>
+              )}
+              {sale.notes && (
+                <>
+                  <Separator />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-muted-foreground">Notlar</span>
+                    <span className="text-sm">{sale.notes}</span>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Progress Card */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Teslimat İlerlemesi</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-center">
+                <p className="text-2xl font-bold">{formatWeight(deliveredQty)}</p>
+                <p className="text-sm text-muted-foreground">
+                  / {formatWeight(sale.quantity)} sipariş
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{formatPercent(progress)} tamamlandı</span>
+                  <span>{formatWeight(sale.quantity - deliveredQty)} kalan</span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Nakliye Özeti */}
+          {deliveries && deliveries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Nakliye Özeti</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Depo</span>
-                  <span className="text-sm font-medium">{sale.warehouse.name}</span>
+                  <span className="text-muted-foreground">Toplam Nakliye</span>
+                  <span className="font-medium">{formatCurrency(deliveryStats.totalFreight)}</span>
                 </div>
-                <Separator />
-              </>
-            )}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Satış Tarihi</span>
-              <span className="text-sm font-medium">{formatDate(sale.sale_date)}</span>
-            </div>
-            {sale.due_date && (
-              <>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Tahsilat Vadesi</span>
-                  <span className="text-sm font-medium">{formatDate(sale.due_date)}</span>
-                </div>
-              </>
-            )}
-            {sale.notes && (
-              <>
-                <Separator />
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-muted-foreground">Notlar</span>
-                  <span className="text-sm">{sale.notes}</span>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                {deliveryStats.customerFreight > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Müşteri Ödediği</span>
+                    <span className="font-medium">{formatCurrency(deliveryStats.customerFreight)}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
-      {/* Shipments */}
+      {/* Deliveries */}
       {!editing && (
-        <ShipmentSection
-          shipments={shipments}
-          isLoading={shipmentsLoading}
+        <DeliverySection
+          deliveries={deliveries}
+          isLoading={deliveriesLoading}
           saleId={id}
         />
       )}

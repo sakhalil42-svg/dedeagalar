@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Search, Loader2 } from "lucide-react";
-import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { formatCurrency, formatDateShort, formatWeight, formatPercent } from "@/lib/utils/format";
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
   draft: "Taslak",
@@ -19,7 +19,7 @@ const STATUS_LABELS: Record<SaleStatus, string> = {
 };
 
 const STATUS_COLORS: Record<SaleStatus, string> = {
-  draft: "bg-gray-100 text-gray-800",
+  draft: "bg-amber-100 text-amber-800",
   confirmed: "bg-blue-100 text-blue-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
@@ -97,43 +97,58 @@ export default function SalesPage() {
         </div>
       ) : filtered.length > 0 ? (
         <div className="space-y-2">
-          {filtered.map((s) => (
-            <Link key={s.id} href={`/sales/${s.id}`}>
-              <Card className="transition-colors hover:bg-muted/50">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-muted-foreground">
-                          {s.sale_no}
-                        </span>
-                        <Badge
-                          variant="secondary"
-                          className={STATUS_COLORS[s.status]}
-                        >
-                          {STATUS_LABELS[s.status]}
-                        </Badge>
+          {filtered.map((s) => {
+            const deliveredQty = s.delivered_quantity || 0;
+            const progress = s.quantity > 0 ? Math.min((deliveredQty / s.quantity) * 100, 100) : 0;
+
+            return (
+              <Link key={s.id} href={`/sales/${s.id}`}>
+                <Card className="transition-colors hover:bg-muted/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate font-semibold">
+                            {s.contact?.name || "—"}
+                          </p>
+                          <Badge
+                            variant="secondary"
+                            className={STATUS_COLORS[s.status]}
+                          >
+                            {STATUS_LABELS[s.status]}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {s.feed_type?.name || "—"}
+                        </p>
+                        {/* Progress */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{formatWeight(deliveredQty)} / {formatWeight(s.quantity)}</span>
+                            <span>{formatPercent(progress)}</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-primary transition-all"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <p className="font-medium">
-                        {s.contact?.name || "—"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {s.feed_type?.name || "—"} · {s.quantity} {s.unit}
-                      </p>
+                      <div className="ml-3 shrink-0 text-right">
+                        <p className="font-semibold">
+                          {formatCurrency(s.total_amount)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateShort(s.sale_date)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold">
-                        {formatCurrency(s.total_amount)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDateShort(s.sale_date)}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <div className="py-12 text-center text-sm text-muted-foreground">

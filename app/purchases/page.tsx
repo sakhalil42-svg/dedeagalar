@@ -19,10 +19,15 @@ const STATUS_LABELS: Record<PurchaseStatus, string> = {
 };
 
 const STATUS_COLORS: Record<PurchaseStatus, string> = {
-  draft: "bg-gray-100 text-gray-800",
+  draft: "bg-amber-100 text-amber-800",
   confirmed: "bg-blue-100 text-blue-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
+};
+
+const PRICING_LABELS: Record<string, string> = {
+  nakliye_dahil: "Nakliye Dahil",
+  tir_ustu: "Tır Üstü",
 };
 
 const FILTER_OPTIONS: { label: string; value: PurchaseStatus | "all" }[] = [
@@ -113,6 +118,11 @@ export default function PurchasesPage() {
                         >
                           {STATUS_LABELS[p.status]}
                         </Badge>
+                        {p.pricing_model && (
+                          <Badge variant="outline" className="text-xs">
+                            {PRICING_LABELS[p.pricing_model] || p.pricing_model}
+                          </Badge>
+                        )}
                       </div>
                       <p className="font-medium">
                         {p.contact?.name || "—"}

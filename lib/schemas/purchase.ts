@@ -9,6 +9,7 @@ export const purchaseSchema = z.object({
   unit_price: z.string().min(1, "Birim fiyat giriniz"),
   purchase_date: z.string().min(1, "Alım tarihi giriniz"),
   due_date: z.string().optional().or(z.literal("")),
+  pricing_model: z.enum(["nakliye_dahil", "tir_ustu"]),
   notes: z.string().optional().or(z.literal("")),
 });
 

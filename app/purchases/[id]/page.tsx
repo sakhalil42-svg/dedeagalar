@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +10,7 @@ import {
   useUpdatePurchase,
   useDeletePurchase,
 } from "@/lib/hooks/use-purchases";
-import { useShipmentsByPurchase } from "@/lib/hooks/use-shipments";
+import { useDeliveriesByPurchase } from "@/lib/hooks/use-deliveries";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
 import { useWarehouses } from "@/lib/hooks/use-warehouses";
@@ -41,8 +41,8 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { formatCurrency, formatDate } from "@/lib/utils/format";
-import { ShipmentSection } from "@/components/forms/shipment-section";
+import { formatCurrency, formatDate, formatWeight, formatPercent } from "@/lib/utils/format";
+import { DeliverySection } from "@/components/forms/delivery-section";
 
 const STATUS_LABELS: Record<PurchaseStatus, string> = {
   draft: "Taslak",
@@ -52,10 +52,15 @@ const STATUS_LABELS: Record<PurchaseStatus, string> = {
 };
 
 const STATUS_COLORS: Record<PurchaseStatus, string> = {
-  draft: "bg-gray-100 text-gray-800",
+  draft: "bg-amber-100 text-amber-800",
   confirmed: "bg-blue-100 text-blue-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
+};
+
+const PRICING_MODEL_LABELS: Record<string, string> = {
+  nakliye_dahil: "Nakliye Dahil",
+  tir_ustu: "Tır Üstü",
 };
 
 const STATUS_FLOW: PurchaseStatus[] = ["draft", "confirmed", "delivered"];
@@ -67,7 +72,7 @@ export default function PurchaseDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const { data: purchase, isLoading } = usePurchase(id);
-  const { data: shipments, isLoading: shipmentsLoading } = useShipmentsByPurchase(id);
+  const { data: deliveries, isLoading: deliveriesLoading } = useDeliveriesByPurchase(id);
   const updatePurchase = useUpdatePurchase();
   const deletePurchase = useDeletePurchase();
 
@@ -80,6 +85,7 @@ export default function PurchaseDetailPage() {
     handleSubmit,
     setValue,
     reset,
+    watch,
     control,
     formState: { errors },
   } = useForm<PurchaseFormValues>({
@@ -89,6 +95,13 @@ export default function PurchaseDetailPage() {
   const quantity = useWatch({ control, name: "quantity" });
   const unitPrice = useWatch({ control, name: "unit_price" });
   const editTotal = (parseFloat(quantity || "0") * parseFloat(unitPrice || "0"));
+  const editPricingModel = watch("pricing_model");
+
+  // Delivery totals
+  const totalDelivered = useMemo(() => {
+    if (!deliveries) return 0;
+    return deliveries.reduce((sum, d) => sum + d.net_weight, 0);
+  }, [deliveries]);
 
   function startEditing() {
     if (!purchase) return;
@@ -101,6 +114,7 @@ export default function PurchaseDetailPage() {
       unit_price: String(purchase.unit_price),
       purchase_date: purchase.purchase_date,
       due_date: purchase.due_date || "",
+      pricing_model: purchase.pricing_model || "nakliye_dahil",
       notes: purchase.notes || "",
     });
     setEditing(true);
@@ -118,6 +132,7 @@ export default function PurchaseDetailPage() {
         unit_price: Number(values.unit_price),
         purchase_date: values.purchase_date,
         due_date: values.due_date || null,
+        pricing_model: values.pricing_model as "nakliye_dahil" | "tir_ustu",
         notes: values.notes || null,
       });
       toast.success("Alım güncellendi");
@@ -165,6 +180,8 @@ export default function PurchaseDetailPage() {
     ? STATUS_FLOW[currentStatusIdx + 1]
     : null;
 
+  const progress = purchase.quantity > 0 ? Math.min((totalDelivered / purchase.quantity) * 100, 100) : 0;
+
   return (
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between">
@@ -176,9 +193,16 @@ export default function PurchaseDetailPage() {
           </Button>
           <div>
             <h1 className="text-xl font-bold">{purchase.purchase_no}</h1>
-            <Badge variant="secondary" className={STATUS_COLORS[purchase.status]}>
-              {STATUS_LABELS[purchase.status]}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className={STATUS_COLORS[purchase.status]}>
+                {STATUS_LABELS[purchase.status]}
+              </Badge>
+              {purchase.pricing_model && (
+                <Badge variant="outline">
+                  {PRICING_MODEL_LABELS[purchase.pricing_model] || purchase.pricing_model}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
         {!editing && purchase.status !== "cancelled" && (
@@ -252,9 +276,7 @@ export default function PurchaseDetailPage() {
                   defaultValue={purchase.contact_id}
                   onValueChange={(val) => setValue("contact_id", val)}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {contacts?.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
@@ -272,9 +294,7 @@ export default function PurchaseDetailPage() {
                   defaultValue={purchase.feed_type_id}
                   onValueChange={(val) => setValue("feed_type_id", val)}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {feedTypes?.map((ft) => (
                       <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>
@@ -284,6 +304,35 @@ export default function PurchaseDetailPage() {
                 {errors.feed_type_id && (
                   <p className="text-sm text-destructive">{errors.feed_type_id.message}</p>
                 )}
+              </div>
+
+              {/* Pricing Model */}
+              <div className="space-y-2">
+                <Label>Fiyatlandırma Modeli</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setValue("pricing_model", "nakliye_dahil")}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      editPricingModel === "nakliye_dahil"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Nakliye Dahil
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setValue("pricing_model", "tir_ustu")}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      editPricingModel === "tir_ustu"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Tır Üstü
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -369,75 +418,115 @@ export default function PurchaseDetailPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Üretici</span>
-              <Link href={`/contacts/${purchase.contact_id}`} className="text-sm font-medium text-primary">
-                {purchase.contact?.name || "—"}
-              </Link>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Yem Türü</span>
-              <span className="text-sm font-medium">{purchase.feed_type?.name || "—"}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Miktar</span>
-              <span className="text-sm font-medium">{purchase.quantity} {purchase.unit}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Birim Fiyat</span>
-              <span className="text-sm font-medium">{formatCurrency(purchase.unit_price)}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Toplam Tutar</span>
-              <span className="text-sm font-bold">{formatCurrency(purchase.total_amount)}</span>
-            </div>
-            <Separator />
-            {purchase.warehouse && (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Depo</span>
-                  <span className="text-sm font-medium">{purchase.warehouse.name}</span>
+        <>
+          <Card>
+            <CardContent className="space-y-3 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Üretici</span>
+                <Link href={`/contacts/${purchase.contact_id}`} className="text-sm font-medium text-primary">
+                  {purchase.contact?.name || "—"}
+                </Link>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Yem Türü</span>
+                <span className="text-sm font-medium">{purchase.feed_type?.name || "—"}</span>
+              </div>
+              <Separator />
+              {purchase.pricing_model && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Fiyatlandırma</span>
+                    <Badge variant="outline">
+                      {PRICING_MODEL_LABELS[purchase.pricing_model] || purchase.pricing_model}
+                    </Badge>
+                  </div>
+                  <Separator />
+                </>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Miktar</span>
+                <span className="text-sm font-medium">{formatWeight(purchase.quantity)}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Birim Fiyat</span>
+                <span className="text-sm font-medium">{formatCurrency(purchase.unit_price)}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Toplam Tutar</span>
+                <span className="text-sm font-bold">{formatCurrency(purchase.total_amount)}</span>
+              </div>
+              <Separator />
+              {purchase.warehouse && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Depo</span>
+                    <span className="text-sm font-medium">{purchase.warehouse.name}</span>
+                  </div>
+                  <Separator />
+                </>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Alım Tarihi</span>
+                <span className="text-sm font-medium">{formatDate(purchase.purchase_date)}</span>
+              </div>
+              {purchase.due_date && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Ödeme Vadesi</span>
+                    <span className="text-sm font-medium">{formatDate(purchase.due_date)}</span>
+                  </div>
+                </>
+              )}
+              {purchase.notes && (
+                <>
+                  <Separator />
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-muted-foreground">Notlar</span>
+                    <span className="text-sm">{purchase.notes}</span>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Progress Card */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Teslimat İlerlemesi</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-center">
+                <p className="text-2xl font-bold">{formatWeight(totalDelivered)}</p>
+                <p className="text-sm text-muted-foreground">
+                  / {formatWeight(purchase.quantity)} sipariş
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{formatPercent(progress)} tamamlandı</span>
+                  <span>{formatWeight(purchase.quantity - totalDelivered)} kalan</span>
                 </div>
-                <Separator />
-              </>
-            )}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Alım Tarihi</span>
-              <span className="text-sm font-medium">{formatDate(purchase.purchase_date)}</span>
-            </div>
-            {purchase.due_date && (
-              <>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Ödeme Vadesi</span>
-                  <span className="text-sm font-medium">{formatDate(purchase.due_date)}</span>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
-              </>
-            )}
-            {purchase.notes && (
-              <>
-                <Separator />
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-muted-foreground">Notlar</span>
-                  <span className="text-sm">{purchase.notes}</span>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
 
-      {/* Shipments */}
+      {/* Deliveries */}
       {!editing && (
-        <ShipmentSection
-          shipments={shipments}
-          isLoading={shipmentsLoading}
+        <DeliverySection
+          deliveries={deliveries}
+          isLoading={deliveriesLoading}
           purchaseId={id}
         />
       )}

@@ -4,21 +4,21 @@ import Link from "next/link";
 import {
   useDashboardKpis,
   useMonthlyChart,
-  useRecentTransactions,
+  useRecentDeliveries,
   useDueItems,
 } from "@/lib/hooks/use-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
-  ShoppingCart,
   TrendingUp,
-  Package,
   Wallet,
   Loader2,
   AlertTriangle,
+  Truck,
+  CircleDollarSign,
 } from "lucide-react";
-import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import {
   BarChart,
   Bar,
@@ -71,7 +71,7 @@ const tooltipFormatter = (value: number | undefined) => formatCurrency(value ?? 
 export function DashboardContent() {
   const { data: kpis, isLoading: kpisLoading } = useDashboardKpis();
   const { data: chartData, isLoading: chartLoading } = useMonthlyChart();
-  const { data: recent, isLoading: recentLoading } = useRecentTransactions();
+  const { data: recentDeliveries, isLoading: deliveriesLoading } = useRecentDeliveries();
   const { data: dueItems, isLoading: dueLoading } = useDueItems();
 
   return (
@@ -79,29 +79,30 @@ export function DashboardContent() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3">
         <KpiCard
-          title="Alım (Bu Ay)"
-          value={kpis ? formatCurrency(kpis.totalPurchases) : "--"}
-          icon={ShoppingCart}
-          loading={kpisLoading}
-        />
-        <KpiCard
-          title="Satış (Bu Ay)"
-          value={kpis ? formatCurrency(kpis.totalSales) : "--"}
+          title="Aktif Satışlar"
+          value={kpis ? String(kpis.activeSalesCount) : "--"}
           icon={TrendingUp}
           loading={kpisLoading}
         />
         <KpiCard
-          title="Stok"
-          value={kpis ? `${(kpis.totalStock / 1000).toFixed(1)} ton` : "--"}
-          icon={Package}
+          title="Bu Ay Ciro"
+          value={kpis ? formatCurrency(kpis.monthlyRevenue) : "--"}
+          icon={Wallet}
           loading={kpisLoading}
         />
         <KpiCard
-          title="Net Bakiye"
-          value={kpis ? formatCurrency(kpis.netBalance) : "--"}
-          icon={Wallet}
+          title="Bekleyen Tahsilat"
+          value={kpis ? formatCurrency(kpis.pendingReceivables) : "--"}
+          icon={CircleDollarSign}
           loading={kpisLoading}
-          color={kpis ? (kpis.netBalance >= 0 ? "text-green-600" : "text-red-600") : ""}
+          color="text-amber-600"
+        />
+        <KpiCard
+          title="Bekleyen Ödeme"
+          value={kpis ? formatCurrency(kpis.pendingPayables) : "--"}
+          icon={CircleDollarSign}
+          loading={kpisLoading}
+          color="text-red-600"
         />
       </div>
 
@@ -130,8 +131,8 @@ export function DashboardContent() {
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="purchases" name="Alım" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="sales" name="Satış" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="purchases" name="Alım" fill="#166534" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="sales" name="Satış" fill="#d97706" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -180,22 +181,25 @@ export function DashboardContent() {
         </Card>
       )}
 
-      {/* Recent Transactions */}
+      {/* Recent Deliveries */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Son İşlemler</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Truck className="h-4 w-4" />
+            Son Sevkiyatlar
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-0 p-0">
-          {recentLoading ? (
+          {deliveriesLoading ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : recent && recent.length > 0 ? (
-            recent.map((item, i) => (
-              <div key={`${item.type}-${item.id}`}>
+          ) : recentDeliveries && recentDeliveries.length > 0 ? (
+            recentDeliveries.map((item, i) => (
+              <div key={item.id}>
                 {i > 0 && <Separator />}
                 <Link
-                  href={item.type === "purchase" ? `/purchases/${item.id}` : `/sales/${item.id}`}
+                  href={item.type === "sale" ? "/sales" : "/purchases"}
                   className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-muted/50"
                 >
                   <div className="min-w-0">
@@ -204,28 +208,30 @@ export function DashboardContent() {
                         variant="secondary"
                         className={`shrink-0 text-xs ${
                           item.type === "purchase"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-green-100 text-green-800"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-amber-100 text-amber-800"
                         }`}
                       >
                         {item.type === "purchase" ? "Alım" : "Satış"}
                       </Badge>
-                      <span className="truncate text-xs text-muted-foreground font-mono">
-                        {item.no}
-                      </span>
+                      {item.vehicle_plate && (
+                        <span className="truncate text-xs text-muted-foreground font-mono">
+                          {item.vehicle_plate}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-0.5 truncate text-sm">{item.contact_name}</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold">{formatCurrency(item.amount)}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateShort(item.date)}</p>
+                    <p className="text-sm font-bold">{formatWeight(item.net_weight)}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateShort(item.delivery_date)}</p>
                   </div>
                 </Link>
               </div>
             ))
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Henüz işlem kaydı yok.
+              Henüz sevkiyat kaydı yok.
             </p>
           )}
         </CardContent>

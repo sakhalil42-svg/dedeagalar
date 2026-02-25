@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
 
 const tabs = [
   { href: "/", label: "Ana Sayfa", icon: LayoutDashboard },
-  { href: "/purchases", label: "Alım", icon: ShoppingCart },
-  { href: "/sales", label: "Satış", icon: TrendingUp },
+  { href: "/sales", label: "Satışlar", icon: TrendingUp },
+  { href: "/purchases", label: "Alımlar", icon: ShoppingCart },
   { href: "/contacts", label: "Kişiler", icon: Users },
   { href: "/finance", label: "Finans", icon: Wallet },
 ] as const;

@@ -8,7 +8,6 @@ import { saleSchema, type SaleFormValues } from "@/lib/schemas/sale";
 import { useCreateSale } from "@/lib/hooks/use-sales";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
-import { useWarehouses } from "@/lib/hooks/use-warehouses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +31,6 @@ export default function NewSalePage() {
 
   const { data: contacts } = useContacts("customer");
   const { data: feedTypes } = useFeedTypes(true);
-  const { data: warehouses } = useWarehouses(true);
 
   const {
     register,
@@ -45,9 +43,7 @@ export default function NewSalePage() {
     defaultValues: {
       contact_id: "",
       feed_type_id: "",
-      warehouse_id: "",
       quantity: "",
-      unit: "kg",
       unit_price: "",
       sale_date: new Date().toISOString().split("T")[0],
       due_date: "",
@@ -69,9 +65,8 @@ export default function NewSalePage() {
       await createSale.mutateAsync({
         contact_id: values.contact_id,
         feed_type_id: values.feed_type_id,
-        warehouse_id: values.warehouse_id || null,
         quantity: Number(values.quantity),
-        unit: values.unit,
+        unit: "kg",
         unit_price: Number(values.unit_price),
         sale_date: values.sale_date,
         due_date: values.due_date || null,
@@ -139,9 +134,9 @@ export default function NewSalePage() {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="quantity">Miktar *</Label>
+                <Label htmlFor="quantity">Miktar (kg) *</Label>
                 <Input
                   id="quantity"
                   type="number"
@@ -154,23 +149,7 @@ export default function NewSalePage() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Birim</Label>
-                <Select
-                  defaultValue="kg"
-                  onValueChange={(val) => setValue("unit", val)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="kg">kg</SelectItem>
-                    <SelectItem value="ton">ton</SelectItem>
-                    <SelectItem value="balya">balya</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="unit_price">Birim Fiyat *</Label>
+                <Label htmlFor="unit_price">Birim Fiyat (₺/kg) *</Label>
                 <Input
                   id="unit_price"
                   type="number"
@@ -187,22 +166,6 @@ export default function NewSalePage() {
             <div className="rounded-lg bg-muted p-3 text-center">
               <p className="text-sm text-muted-foreground">Toplam Tutar</p>
               <p className="text-xl font-bold">{formatCurrency(totalAmount)}</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Depo (Çıkış Deposu)</Label>
-              <Select onValueChange={(val) => setValue("warehouse_id", val)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Depo seçiniz (opsiyonel)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses?.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name} {w.location ? `(${w.location})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { Purchase, Sale, Check, MonthlyData } from "@/lib/types/database.types";
+import type { MonthlyData } from "@/lib/types/database.types";
 
 export function useDashboardKpis() {
   const supabase = createClient();
@@ -13,36 +13,41 @@ export function useDashboardKpis() {
       const now = new Date();
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
-      // This month purchases
-      const { data: purchases } = await supabase
-        .from("purchases")
-        .select("total_amount")
-        .gte("purchase_date", monthStart)
+      // Active sales count (not cancelled)
+      const { count: activeSalesCount } = await supabase
+        .from("sales")
+        .select("*", { count: "exact", head: true })
         .neq("status", "cancelled");
 
-      // This month sales
+      // This month revenue (sales)
       const { data: sales } = await supabase
         .from("sales")
         .select("total_amount")
         .gte("sale_date", monthStart)
         .neq("status", "cancelled");
 
-      // Total stock (from inventory table)
-      const { data: inventory } = await supabase
-        .from("inventory")
-        .select("quantity_kg");
-
-      // Net balance (from accounts)
-      const { data: accounts } = await supabase
+      // Pending receivables (positive balances = customers owe us)
+      const { data: receivableAccounts } = await supabase
         .from("accounts")
-        .select("balance");
+        .select("balance")
+        .gt("balance", 0);
 
-      const totalPurchases = (purchases || []).reduce((sum, p) => sum + (p.total_amount || 0), 0);
-      const totalSales = (sales || []).reduce((sum, s) => sum + (s.total_amount || 0), 0);
-      const totalStock = (inventory || []).reduce((sum, i) => sum + (i.quantity_kg || 0), 0);
-      const netBalance = (accounts || []).reduce((sum, a) => sum + (a.balance || 0), 0);
+      // Pending payables (negative balances = we owe suppliers)
+      const { data: payableAccounts } = await supabase
+        .from("accounts")
+        .select("balance")
+        .lt("balance", 0);
 
-      return { totalPurchases, totalSales, totalStock, netBalance };
+      const monthlyRevenue = (sales || []).reduce((sum, s) => sum + (s.total_amount || 0), 0);
+      const pendingReceivables = (receivableAccounts || []).reduce((sum, a) => sum + (a.balance || 0), 0);
+      const pendingPayables = Math.abs((payableAccounts || []).reduce((sum, a) => sum + (a.balance || 0), 0));
+
+      return {
+        activeSalesCount: activeSalesCount || 0,
+        monthlyRevenue,
+        pendingReceivables,
+        pendingPayables,
+      };
     },
   });
 }
@@ -90,62 +95,59 @@ export function useMonthlyChart() {
   });
 }
 
-export function useRecentTransactions() {
+export function useRecentDeliveries() {
   const supabase = createClient();
 
   return useQuery({
-    queryKey: ["dashboard", "recent"],
+    queryKey: ["dashboard", "recent_deliveries"],
     queryFn: async () => {
-      const { data: purchases } = await supabase
-        .from("purchases")
-        .select("id, purchase_no, total_amount, purchase_date, status, contact:contacts(name)")
-        .order("purchase_date", { ascending: false })
+      const { data, error } = await supabase
+        .from("deliveries")
+        .select(`
+          id,
+          delivery_date,
+          net_weight,
+          vehicle_plate,
+          sale_id,
+          purchase_id
+        `)
+        .order("delivery_date", { ascending: false })
         .limit(5);
 
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("id, sale_no, total_amount, sale_date, status, contact:contacts(name)")
-        .order("sale_date", { ascending: false })
-        .limit(5);
+      if (error) throw error;
 
-      const items: Array<{
-        id: string;
-        type: "purchase" | "sale";
-        no: string;
-        amount: number;
-        date: string;
-        status: string;
-        contact_name: string;
-      }> = [];
-
-      (purchases || []).forEach((p) => {
-        const contact = p.contact as unknown as { name: string } | null;
+      // Fetch related sale/purchase contacts separately
+      const items = [];
+      for (const d of data || []) {
+        let contactName = "—";
+        if (d.sale_id) {
+          const { data: sale } = await supabase
+            .from("sales")
+            .select("contact:contacts(name)")
+            .eq("id", d.sale_id)
+            .single();
+          const c = sale?.contact as unknown as { name: string } | null;
+          contactName = c?.name || "—";
+        } else if (d.purchase_id) {
+          const { data: purchase } = await supabase
+            .from("purchases")
+            .select("contact:contacts(name)")
+            .eq("id", d.purchase_id)
+            .single();
+          const c = purchase?.contact as unknown as { name: string } | null;
+          contactName = c?.name || "—";
+        }
         items.push({
-          id: p.id,
-          type: "purchase",
-          no: p.purchase_no,
-          amount: p.total_amount,
-          date: p.purchase_date,
-          status: p.status,
-          contact_name: contact?.name || "—",
+          id: d.id,
+          delivery_date: d.delivery_date,
+          net_weight: d.net_weight,
+          vehicle_plate: d.vehicle_plate,
+          type: d.sale_id ? ("sale" as const) : ("purchase" as const),
+          contact_name: contactName,
         });
-      });
+      }
 
-      (sales || []).forEach((s) => {
-        const contact = s.contact as unknown as { name: string } | null;
-        items.push({
-          id: s.id,
-          type: "sale",
-          no: s.sale_no,
-          amount: s.total_amount,
-          date: s.sale_date,
-          status: s.status,
-          contact_name: contact?.name || "—",
-        });
-      });
-
-      items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      return items.slice(0, 5);
+      return items;
     },
   });
 }
@@ -161,7 +163,6 @@ export function useDueItems() {
       next30.setDate(next30.getDate() + 30);
       const next30Str = next30.toISOString().split("T")[0];
 
-      // Checks due soon
       const { data: checks } = await supabase
         .from("checks")
         .select("id, amount, due_date, status, check_type, contact:contacts(name)")

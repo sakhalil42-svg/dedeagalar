@@ -38,6 +38,7 @@ export default function NewPurchasePage() {
     register,
     handleSubmit,
     setValue,
+    watch,
     control,
     formState: { errors },
   } = useForm<PurchaseFormValues>({
@@ -51,12 +52,14 @@ export default function NewPurchasePage() {
       unit_price: "",
       purchase_date: new Date().toISOString().split("T")[0],
       due_date: "",
+      pricing_model: "nakliye_dahil",
       notes: "",
     },
   });
 
   const quantity = useWatch({ control, name: "quantity" });
   const unitPrice = useWatch({ control, name: "unit_price" });
+  const pricingModel = watch("pricing_model");
 
   const totalAmount = useMemo(() => {
     const q = parseFloat(quantity || "0");
@@ -75,6 +78,7 @@ export default function NewPurchasePage() {
         unit_price: Number(values.unit_price),
         purchase_date: values.purchase_date,
         due_date: values.due_date || null,
+        pricing_model: values.pricing_model as "nakliye_dahil" | "tir_ustu",
         notes: values.notes || null,
       });
       toast.success("Alım kaydı oluşturuldu");
@@ -137,6 +141,35 @@ export default function NewPurchasePage() {
               {errors.feed_type_id && (
                 <p className="text-sm text-destructive">{errors.feed_type_id.message}</p>
               )}
+            </div>
+
+            {/* Pricing Model */}
+            <div className="space-y-2">
+              <Label>Fiyatlandırma Modeli</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setValue("pricing_model", "nakliye_dahil")}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    pricingModel === "nakliye_dahil"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-foreground hover:bg-muted"
+                  }`}
+                >
+                  Nakliye Dahil
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setValue("pricing_model", "tir_ustu")}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    pricingModel === "tir_ustu"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-foreground hover:bg-muted"
+                  }`}
+                >
+                  Tır Üstü
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">

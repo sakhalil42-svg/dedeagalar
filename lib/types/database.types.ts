@@ -67,6 +67,47 @@ export interface WarehouseInsert {
 
 export interface WarehouseUpdate extends Partial<WarehouseInsert> {}
 
+// --- Delivery (Kantar Fişi / Sevkiyat) ---
+
+export type FreightPayer = "customer" | "me" | "supplier";
+export type PricingModel = "nakliye_dahil" | "tir_ustu";
+
+export interface Delivery {
+  id: string;
+  sale_id: string | null;
+  purchase_id: string | null;
+  delivery_date: string;
+  ticket_no: string | null;
+  gross_weight: number | null;
+  tare_weight: number | null;
+  net_weight: number;
+  vehicle_plate: string | null;
+  driver_name: string | null;
+  carrier_name: string | null;
+  freight_cost: number | null;
+  freight_payer: FreightPayer | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface DeliveryInsert {
+  sale_id?: string | null;
+  purchase_id?: string | null;
+  delivery_date: string;
+  ticket_no?: string | null;
+  gross_weight?: number | null;
+  tare_weight?: number | null;
+  net_weight: number;
+  vehicle_plate?: string | null;
+  driver_name?: string | null;
+  carrier_name?: string | null;
+  freight_cost?: number | null;
+  freight_payer?: FreightPayer | null;
+  notes?: string | null;
+}
+
+export interface DeliveryUpdate extends Partial<DeliveryInsert> {}
+
 // --- Purchases ---
 
 export type PurchaseStatus = "draft" | "confirmed" | "delivered" | "cancelled";
@@ -84,6 +125,7 @@ export interface Purchase {
   status: PurchaseStatus;
   purchase_date: string;
   due_date: string | null;
+  pricing_model: PricingModel | null;
   notes: string | null;
   created_at: string;
   // joined
@@ -102,6 +144,7 @@ export interface PurchaseInsert {
   status?: PurchaseStatus;
   purchase_date: string;
   due_date?: string | null;
+  pricing_model?: PricingModel | null;
   notes?: string | null;
 }
 
@@ -121,6 +164,8 @@ export interface Sale {
   unit: string;
   unit_price: number;
   total_amount: number;
+  delivered_quantity: number;
+  is_freight_deducted: boolean;
   status: SaleStatus;
   sale_date: string;
   due_date: string | null;
@@ -146,52 +191,6 @@ export interface SaleInsert {
 }
 
 export interface SaleUpdate extends Partial<SaleInsert> {}
-
-// --- Shipments ---
-
-export type ShipmentStatus = "pending" | "in_transit" | "delivered" | "cancelled";
-
-export interface Shipment {
-  id: string;
-  purchase_id: string | null;
-  sale_id: string | null;
-  carrier_name: string;
-  carrier_phone: string | null;
-  vehicle_plate: string | null;
-  origin: string | null;
-  destination: string | null;
-  distance_km: number | null;
-  loaded_quantity: number;
-  delivered_quantity: number | null;
-  transport_cost: number | null;
-  cost_payer: string | null;
-  status: ShipmentStatus;
-  shipment_date: string;
-  delivery_date: string | null;
-  notes: string | null;
-  created_at: string;
-}
-
-export interface ShipmentInsert {
-  purchase_id?: string | null;
-  sale_id?: string | null;
-  carrier_name: string;
-  carrier_phone?: string | null;
-  vehicle_plate?: string | null;
-  origin?: string | null;
-  destination?: string | null;
-  distance_km?: number | null;
-  loaded_quantity: number;
-  delivered_quantity?: number | null;
-  transport_cost?: number | null;
-  cost_payer?: string | null;
-  status?: ShipmentStatus;
-  shipment_date: string;
-  delivery_date?: string | null;
-  notes?: string | null;
-}
-
-export interface ShipmentUpdate extends Partial<ShipmentInsert> {}
 
 // --- Account Transactions ---
 
