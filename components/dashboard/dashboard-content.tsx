@@ -53,6 +53,15 @@ import { useState } from "react";
 // SHARED COMPONENTS
 // ═══════════════════════════════════════════════════════════
 
+/** Format currency compactly for mobile KPI cards */
+function formatMobileAmount(amount: number): string {
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(abs >= 100_000 ? 0 : 1)}K`;
+  return `${sign}${abs.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}`;
+}
+
 function KpiCard({
   title,
   value,
@@ -72,17 +81,17 @@ function KpiCard({
 }) {
   const content = (
     <Card className={href ? "transition-colors hover:bg-muted/50" : ""}>
-      <CardContent className="p-3">
+      <CardContent className="p-2 sm:p-3">
         <div className="flex items-center justify-between">
-          <p className="text-[10px] text-muted-foreground leading-tight">{title}</p>
-          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+          <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight">{title}</p>
+          <Icon className="hidden sm:block h-3.5 w-3.5 text-muted-foreground" />
         </div>
         {loading ? (
           <Loader2 className="mt-1 h-4 w-4 animate-spin text-muted-foreground" />
         ) : (
           <>
-            <p className={`mt-0.5 text-base font-bold leading-tight ${color || ""}`}>{value}</p>
-            {subtitle && <p className="text-[10px] text-muted-foreground">{subtitle}</p>}
+            <p className={`mt-0.5 text-sm sm:text-base font-bold leading-tight truncate ${color || ""}`}>{value}</p>
+            {subtitle && <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">{subtitle}</p>}
           </>
         )}
       </CardContent>
@@ -122,6 +131,8 @@ export function DashboardContent() {
   const { data: dueItems, isLoading: dueLoading } = useDueItems();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
+  /** Compact version for KPI cards — shows "142K" on mobile */
+  const maskedCompact = (amount: number) => (isVisible ? formatMobileAmount(amount) : "••••");
   const tooltipFormatter = (value: number | undefined) => masked(value ?? 0);
 
   const [showFab, setShowFab] = useState(false);
@@ -129,7 +140,7 @@ export function DashboardContent() {
   return (
     <div className="space-y-4">
       {/* ═══ 6.1 — Günlük Özet Kartları (Üst sıra 4) ═══ */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <KpiCard
           title="Bugün Tır"
           value={kpis ? String(kpis.todayTruckCount) : "--"}
@@ -145,7 +156,7 @@ export function DashboardContent() {
         />
         <KpiCard
           title="Bugün Kâr"
-          value={kpis ? masked(kpis.todayProfit) : "--"}
+          value={kpis ? maskedCompact(kpis.todayProfit) : "--"}
           icon={TrendingUp}
           loading={kpisLoading}
           color={kpis ? (kpis.todayProfit >= 0 ? "text-green-600" : "text-red-600") : ""}
@@ -153,7 +164,7 @@ export function DashboardContent() {
         />
         <KpiCard
           title="Bu Ay Kâr"
-          value={kpis ? masked(kpis.monthProfit) : "--"}
+          value={kpis ? maskedCompact(kpis.monthProfit) : "--"}
           icon={TrendingUp}
           loading={kpisLoading}
           color={kpis ? (kpis.monthProfit >= 0 ? "text-green-600" : "text-red-600") : ""}
@@ -162,10 +173,10 @@ export function DashboardContent() {
       </div>
 
       {/* Alt sıra (4 kart) */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <KpiCard
           title="Toplam Alacak"
-          value={kpis ? masked(kpis.pendingReceivables) : "--"}
+          value={kpis ? maskedCompact(kpis.pendingReceivables) : "--"}
           icon={CircleDollarSign}
           loading={kpisLoading}
           color="text-red-600"
@@ -173,7 +184,7 @@ export function DashboardContent() {
         />
         <KpiCard
           title="Toplam Borç"
-          value={kpis ? masked(kpis.pendingPayables) : "--"}
+          value={kpis ? maskedCompact(kpis.pendingPayables) : "--"}
           icon={CircleDollarSign}
           loading={kpisLoading}
           color="text-amber-600"
@@ -182,7 +193,7 @@ export function DashboardContent() {
         <KpiCard
           title="Vadesi Gelen"
           value={kpis ? `${kpis.dueCheckCount} adet` : "--"}
-          subtitle={kpis && kpis.dueCheckTotal > 0 ? masked(kpis.dueCheckTotal) : undefined}
+          subtitle={kpis && kpis.dueCheckTotal > 0 ? maskedCompact(kpis.dueCheckTotal) : undefined}
           icon={FileText}
           loading={kpisLoading}
           color={kpis && kpis.overdueCheckCount > 0 ? "text-red-600" : "text-amber-600"}
@@ -190,7 +201,7 @@ export function DashboardContent() {
         />
         <KpiCard
           title="Nakliye (Ay)"
-          value={kpis ? masked(kpis.monthlyFreight) : "--"}
+          value={kpis ? maskedCompact(kpis.monthlyFreight) : "--"}
           icon={Truck}
           loading={kpisLoading}
           color="text-orange-600"
@@ -220,14 +231,14 @@ export function DashboardContent() {
                         href={`/finance/${b.contactId}`}
                         className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
                       >
-                        <div className="flex items-center gap-2">
-                          <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0 shrink-0`}>
                             {level.label}
                           </Badge>
-                          <p className="text-sm truncate">{b.name}</p>
+                          <p className="text-xs sm:text-sm truncate">{b.name}</p>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <p className={`text-sm font-bold ${level.color}`}>{masked(b.balance)}</p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <p className={`text-xs sm:text-sm font-bold ${level.color}`}>{maskedCompact(b.balance)}</p>
                           <ArrowRight className="h-3 w-3 text-muted-foreground" />
                         </div>
                       </Link>
@@ -254,14 +265,14 @@ export function DashboardContent() {
                         href={`/finance/${b.contactId}`}
                         className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
                       >
-                        <div className="flex items-center gap-2">
-                          <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0 shrink-0`}>
                             {level.label}
                           </Badge>
-                          <p className="text-sm truncate">{b.name}</p>
+                          <p className="text-xs sm:text-sm truncate">{b.name}</p>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <p className={`text-sm font-bold ${level.color}`}>{masked(b.balance)}</p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <p className={`text-xs sm:text-sm font-bold ${level.color}`}>{maskedCompact(b.balance)}</p>
                           <ArrowRight className="h-3 w-3 text-muted-foreground" />
                         </div>
                       </Link>
@@ -556,12 +567,12 @@ export function DashboardContent() {
                 </div>
                 <div className="rounded-lg bg-muted/50 p-2">
                   <p className="text-[10px] text-muted-foreground">Toplam Ciro</p>
-                  <p className="text-sm font-bold">{masked(season.totalRevenue)}</p>
+                  <p className="text-xs sm:text-sm font-bold truncate">{maskedCompact(season.totalRevenue)}</p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-2">
                   <p className="text-[10px] text-muted-foreground">Toplam Kâr</p>
-                  <p className={`text-sm font-bold ${season.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {masked(season.totalProfit)}
+                  <p className={`text-xs sm:text-sm font-bold truncate ${season.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {maskedCompact(season.totalProfit)}
                   </p>
                 </div>
               </div>
@@ -613,7 +624,7 @@ export function DashboardContent() {
       </Card>
 
       {/* ═══ 6.4 — Floating Action Button ═══ */}
-      <div className="fixed bottom-20 right-4 z-50">
+      <div className="fixed bottom-24 sm:bottom-20 right-4 z-50">
         {showFab && (
           <div className="mb-2 flex flex-col gap-2 items-end animate-in fade-in slide-in-from-bottom-2 duration-200">
             <Link href="/sales/new">
