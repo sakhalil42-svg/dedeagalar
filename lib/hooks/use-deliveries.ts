@@ -87,6 +87,35 @@ export function useUpdateDelivery() {
   });
 }
 
+// Today's deliveries with sale info (customer, feed type, price)
+export interface TodayDelivery extends Delivery {
+  sale?: {
+    contact_id: string;
+    unit_price: number;
+    feed_type_id: string;
+    contact?: { id: string; name: string; phone: string | null };
+    feed_type?: { id: string; name: string };
+  } | null;
+}
+
+export function useTodayDeliveries() {
+  const supabase = createClient();
+  const today = new Date().toISOString().split("T")[0];
+
+  return useQuery({
+    queryKey: [...DELIVERIES_KEY, "today", today],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("deliveries")
+        .select("*, sale:sales(contact_id, unit_price, feed_type_id, contact:contacts(id, name, phone), feed_type:feed_types(id, name))")
+        .eq("delivery_date", today)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as TodayDelivery[];
+    },
+  });
+}
+
 export function useDeleteDelivery() {
   const supabase = createClient();
   const queryClient = useQueryClient();

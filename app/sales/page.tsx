@@ -4,7 +4,8 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useSales, useCreateSale } from "@/lib/hooks/use-sales";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
-import { useDeliveriesBySale, useUpdateDelivery } from "@/lib/hooks/use-deliveries";
+import { useDeliveriesBySale, useUpdateDelivery, useTodayDeliveries } from "@/lib/hooks/use-deliveries";
+import type { TodayDelivery } from "@/lib/hooks/use-deliveries";
 import {
   useCreateDeliveryWithTransactions,
   useCancelSale,
@@ -514,6 +515,268 @@ function ActiveOrderView({
             )}
           </>
         )}
+
+        {/* ─── BUGÜNKÜ SEVKİYATLAR ─── */}
+        <TodayDeliveriesList masked={masked} />
+      </div>
+    </div>
+  );
+}
+
+// ─── TODAY'S DELIVERIES LIST ─────────────────────────────────────
+function TodayDeliveriesList({ masked }: { masked: (amount: number) => string }) {
+  const { data: todayDeliveries, isLoading } = useTodayDeliveries();
+  const deleteDelivery = useDeleteDelivery();
+  const updateDelivery = useUpdateDelivery();
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editWeight, setEditWeight] = useState("");
+  const [editPlate, setEditPlate] = useState("");
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Bu sevkiyatı silmek istediğinize emin misiniz?")) return;
+    try {
+      await deleteDelivery.mutateAsync(id);
+      toast.success("Fiş silindi");
+    } catch {
+      toast.error("Silme hatası");
+    }
+  };
+
+  const startEdit = (d: TodayDelivery) => {
+    setEditingId(d.id);
+    setEditWeight(String(d.net_weight));
+    setEditPlate(d.vehicle_plate || "");
+  };
+
+  const saveEdit = async (d: TodayDelivery) => {
+    const w = parseInt(editWeight);
+    if (!w || w <= 0) {
+      toast.error("Geçerli ağırlık giriniz");
+      return;
+    }
+    try {
+      await updateDelivery.mutateAsync({
+        id: d.id,
+        net_weight: w,
+        vehicle_plate: editPlate || null,
+      });
+      toast.success("Güncellendi");
+      setEditingId(null);
+    } catch {
+      toast.error("Güncelleme hatası");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-6">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Filter only positive weight (exclude returns)
+  const deliveries = (todayDeliveries || []).filter((d) => d.net_weight > 0);
+
+  if (deliveries.length === 0) return null;
+
+  const totalKg = deliveries.reduce((s, d) => s + d.net_weight, 0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2 pt-3 px-3">
+        <CardTitle className="text-sm flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Scale className="h-4 w-4" />
+            Bugünkü Sevkiyatlar ({deliveries.length})
+          </span>
+          <Badge variant="secondary">{(totalKg / 1000).toFixed(1)} ton</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0 divide-y">
+        {deliveries.map((d) => {
+          const customerName = d.sale?.contact?.name || "—";
+          const customerPhone = d.sale?.contact?.phone || null;
+          const feedName = d.sale?.feed_type?.name || "";
+          const unitPrice = d.sale?.unit_price || 0;
+          const amount = d.net_weight * unitPrice;
+          const isEditing = editingId === d.id;
+
+          const waUrl = customerPhone
+            ? buildWhatsAppUrl(customerPhone, customerName, d, unitPrice, feedName)
+            : null;
+
+          return (
+            <TodayDeliveryRow
+              key={d.id}
+              delivery={d}
+              customerName={customerName}
+              feedName={feedName}
+              amount={amount}
+              waUrl={waUrl}
+              masked={masked}
+              isEditing={isEditing}
+              editWeight={editWeight}
+              editPlate={editPlate}
+              onEditWeight={setEditWeight}
+              onEditPlate={setEditPlate}
+              onStartEdit={() => startEdit(d)}
+              onSaveEdit={() => saveEdit(d)}
+              onCancelEdit={() => setEditingId(null)}
+              onDelete={() => handleDelete(d.id)}
+              isDeleting={deleteDelivery.isPending}
+              isSaving={updateDelivery.isPending}
+            />
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── TODAY DELIVERY ROW ──────────────────────────────────────────
+function TodayDeliveryRow({
+  delivery,
+  customerName,
+  feedName,
+  amount,
+  waUrl,
+  masked,
+  isEditing,
+  editWeight,
+  editPlate,
+  onEditWeight,
+  onEditPlate,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onDelete,
+  isDeleting,
+  isSaving,
+}: {
+  delivery: TodayDelivery;
+  customerName: string;
+  feedName: string;
+  amount: number;
+  waUrl: string | null;
+  masked: (amount: number) => string;
+  isEditing: boolean;
+  editWeight: string;
+  editPlate: string;
+  onEditWeight: (v: string) => void;
+  onEditPlate: (v: string) => void;
+  onStartEdit: () => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+  isSaving: boolean;
+}) {
+  const [waSent, setWaSent] = useState(() => isWhatsAppSent(delivery.id));
+
+  if (isEditing) {
+    return (
+      <div className="px-3 py-2.5 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs">Ağırlık (kg)</Label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={editWeight}
+              onChange={(e) => onEditWeight(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Plaka</Label>
+            <Input
+              value={editPlate}
+              onChange={(e) => onEditPlate(e.target.value.toUpperCase())}
+              className="h-8 text-sm font-mono"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={onSaveEdit} disabled={isSaving} className="h-7 text-xs">
+            {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="mr-1 h-3 w-3" />}
+            Kaydet
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onCancelEdit} className="h-7 text-xs">
+            İptal
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-semibold truncate">{customerName}</p>
+          {feedName && (
+            <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0">
+              {feedName}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-bold text-foreground">
+            {delivery.net_weight.toLocaleString("tr-TR")} kg
+          </span>
+          {delivery.vehicle_plate && (
+            <span className="font-mono">{delivery.vehicle_plate}</span>
+          )}
+          {delivery.ticket_no && (
+            <span className="font-mono">#{delivery.ticket_no}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Amount */}
+      <p className="text-sm font-bold shrink-0">{masked(amount)}</p>
+
+      {/* Actions */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        {waUrl && (
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+              waSent
+                ? "text-muted-foreground/50 hover:bg-muted/50"
+                : "text-green-600 hover:bg-green-50"
+            }`}
+            title={waSent ? "WhatsApp gönderildi" : "WhatsApp ile bildir"}
+            onClick={() => {
+              markWhatsAppSent(delivery.id);
+              setWaSent(true);
+            }}
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            {waSent && (
+              <Check className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-green-600" />
+            )}
+          </a>
+        )}
+        <button
+          onClick={onStartEdit}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"
+          title="Düzenle"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-red-500 hover:bg-red-50 transition-colors"
+          title="Sil"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );
