@@ -89,7 +89,7 @@ export function useCreatePaymentWithTransaction() {
         const { error: chkErr } = await supabase.from("checks").insert({
           contact_id: values.contact_id,
           check_type: values.method === "check" ? "check" : "promissory_note",
-          direction: values.direction,
+          direction: values.direction === "inbound" ? "received" : "given",
           check_no: check_no || null,
           bank_name: bank_name || null,
           amount: values.amount,

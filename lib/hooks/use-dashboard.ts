@@ -163,13 +163,27 @@ export function useDueItems() {
       next30.setDate(next30.getDate() + 30);
       const next30Str = next30.toISOString().split("T")[0];
 
+      // Fetch checks and contacts separately to avoid FK join issues
       const { data: checks } = await supabase
         .from("checks")
-        .select("id, amount, due_date, status, check_type, contact:contacts(name)")
+        .select("*")
         .in("status", ["pending", "deposited"])
         .lte("due_date", next30Str)
         .order("due_date")
-        .limit(5);
+        .limit(10);
+
+      // Get contact names for these checks
+      const contactIds = [...new Set((checks || []).map((c) => c.contact_id).filter(Boolean))];
+      let contactMap = new Map<string, string>();
+      if (contactIds.length > 0) {
+        const { data: contacts } = await supabase
+          .from("contacts")
+          .select("id, name")
+          .in("id", contactIds);
+        if (contacts) {
+          contactMap = new Map(contacts.map((c) => [c.id, c.name]));
+        }
+      }
 
       const items: Array<{
         id: string;
@@ -181,11 +195,10 @@ export function useDueItems() {
       }> = [];
 
       (checks || []).forEach((c) => {
-        const contact = c.contact as unknown as { name: string } | null;
         items.push({
           id: c.id,
           type: c.check_type === "check" ? "Çek" : "Senet",
-          contact_name: contact?.name || "—",
+          contact_name: contactMap.get(c.contact_id) || "—",
           amount: c.amount,
           due_date: c.due_date,
           overdue: c.due_date < today,

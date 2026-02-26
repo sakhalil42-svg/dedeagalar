@@ -13,32 +13,40 @@ export function useAccountSummaries() {
   return useQuery({
     queryKey: ACCOUNT_SUMMARY_KEY,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("v_account_summary")
+      // Fetch accounts and contacts separately — no FK joins needed
+      const { data: accounts, error: accErr } = await supabase
+        .from("accounts")
         .select("*");
-      if (error) {
-        // View might not exist yet, fallback to accounts + contacts join
-        const { data: fallback, error: fbErr } = await supabase
-          .from("accounts")
-          .select("*, contact:contacts(name, type)");
-        if (fbErr) throw fbErr;
-        const result = (fallback || []).map((a: Record<string, unknown>) => {
-          const contact = a.contact as { name: string; type: string } | null;
-          return {
-            account_id: a.id as string,
-            contact_id: a.contact_id as string,
-            contact_name: contact?.name || "—",
-            contact_type: (contact?.type || "supplier") as AccountSummary["contact_type"],
-            balance: a.balance as number,
-            total_debit: a.total_debit as number,
-            total_credit: a.total_credit as number,
-          };
-        }) as AccountSummary[];
-        return result.sort((a, b) =>
-          a.contact_name.localeCompare(b.contact_name, "tr")
-        );
+      if (accErr) throw accErr;
+
+      const contactIds = [...new Set((accounts || []).map((a) => a.contact_id).filter(Boolean))];
+      let contactMap = new Map<string, { name: string; type: string }>();
+      if (contactIds.length > 0) {
+        const { data: contacts } = await supabase
+          .from("contacts")
+          .select("id, name, type")
+          .in("id", contactIds);
+        if (contacts) {
+          contactMap = new Map(
+            contacts.map((c) => [c.id, { name: c.name, type: c.type }])
+          );
+        }
       }
-      return (data as AccountSummary[]).sort((a, b) =>
+
+      const result: AccountSummary[] = (accounts || []).map((a) => {
+        const contact = contactMap.get(a.contact_id);
+        return {
+          account_id: a.id,
+          contact_id: a.contact_id,
+          contact_name: contact?.name || "—",
+          contact_type: (contact?.type || "supplier") as AccountSummary["contact_type"],
+          balance: a.balance ?? 0,
+          total_debit: a.total_debit ?? 0,
+          total_credit: a.total_credit ?? 0,
+        };
+      });
+
+      return result.sort((a, b) =>
         a.contact_name.localeCompare(b.contact_name, "tr")
       );
     },

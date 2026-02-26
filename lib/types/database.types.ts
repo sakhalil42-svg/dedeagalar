@@ -261,7 +261,7 @@ export interface PaymentUpdate extends Partial<PaymentInsert> {}
 // --- Checks (Çek / Senet) ---
 
 export type CheckType = "check" | "promissory_note";
-export type CheckDirection = "inbound" | "outbound";
+export type CheckDirection = "received" | "given";
 export type CheckStatus = "pending" | "deposited" | "cleared" | "bounced" | "endorsed" | "cancelled";
 
 export interface Check {

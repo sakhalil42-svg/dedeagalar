@@ -38,7 +38,7 @@ export default function NewCheckPage() {
     defaultValues: {
       contact_id: "",
       check_type: "check",
-      direction: "inbound",
+      direction: "received",
       check_no: "",
       bank_name: "",
       branch_name: "",
@@ -125,8 +125,8 @@ export default function NewCheckPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="inbound">Alınan</SelectItem>
-                    <SelectItem value="outbound">Verilen</SelectItem>
+                    <SelectItem value="received">Alınan</SelectItem>
+                    <SelectItem value="given">Verilen</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

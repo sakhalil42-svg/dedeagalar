@@ -179,7 +179,7 @@ export default function ChecksPage() {
                         {STATUS_LABELS[c.status]}
                       </Badge>
                       <Badge variant="secondary" className="text-xs">
-                        {c.direction === "inbound" ? "Alınan" : "Verilen"}
+                        {c.direction === "received" ? "Alınan" : "Verilen"}
                       </Badge>
                     </div>
                     <p className="font-medium">{c.contact?.name || "—"}</p>

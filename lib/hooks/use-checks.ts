@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import type { Check, CheckInsert, CheckUpdate } from "@/lib/types/database.types";
 
 const CHECKS_KEY = ["checks"];
-const SELECT_WITH_JOINS = "*, contact:contacts(id, name, type)";
 
 export function useChecks() {
   const supabase = createClient();
@@ -13,12 +12,38 @@ export function useChecks() {
   return useQuery({
     queryKey: CHECKS_KEY,
     queryFn: async () => {
+      // Try with contact join first
       const { data, error } = await supabase
         .from("checks")
-        .select(SELECT_WITH_JOINS)
+        .select("*, contact:contacts(id, name, type)")
         .order("due_date", { ascending: true });
-      if (error) throw error;
-      return data as Check[];
+
+      if (!error) return data as Check[];
+
+      // Fallback: separate queries if join fails
+      const { data: checks, error: chkErr } = await supabase
+        .from("checks")
+        .select("*")
+        .order("due_date", { ascending: true });
+      if (chkErr) throw chkErr;
+
+      // Manually attach contact names
+      const contactIds = [...new Set((checks || []).map((c) => c.contact_id).filter(Boolean))];
+      let contactMap = new Map<string, { id: string; name: string; type: string }>();
+      if (contactIds.length > 0) {
+        const { data: contacts } = await supabase
+          .from("contacts")
+          .select("id, name, type")
+          .in("id", contactIds);
+        if (contacts) {
+          contactMap = new Map(contacts.map((c) => [c.id, c]));
+        }
+      }
+
+      return (checks || []).map((c) => ({
+        ...c,
+        contact: contactMap.get(c.contact_id) || null,
+      })) as Check[];
     },
   });
 }
@@ -32,7 +57,7 @@ export function useCreateCheck() {
       const { data, error } = await supabase
         .from("checks")
         .insert(values)
-        .select(SELECT_WITH_JOINS)
+        .select()
         .single();
       if (error) throw error;
       return data as Check;
@@ -53,7 +78,7 @@ export function useUpdateCheck() {
         .from("checks")
         .update(values)
         .eq("id", id)
-        .select(SELECT_WITH_JOINS)
+        .select()
         .single();
       if (error) throw error;
       return data as Check;
