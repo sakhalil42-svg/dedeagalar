@@ -13,7 +13,7 @@ import {
 } from "@/lib/hooks/use-delivery-photos";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
-import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { formatCurrency, formatDateShort, formatNumberInput, parseNumberInput, sanitizeNumberInput } from "@/lib/utils/format";
 import type { Sale, Delivery, FreightPayer, Contact, PricingModel } from "@/lib/types/database.types";
 import { PlateCombobox } from "@/components/forms/plate-combobox";
 
@@ -377,24 +377,30 @@ function ActiveOrderView({
             <div>
               <Label className="text-xs text-muted-foreground">Müşteri ₺/kg</Label>
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="0.00"
-                value={effectiveCustomerPrice}
-                onChange={(e) => setOrder((p) => ({ ...p, customerPrice: e.target.value }))}
+                placeholder="0,00"
+                value={formatNumberInput(effectiveCustomerPrice)}
+                onChange={(e) => {
+                  const sanitized = sanitizeNumberInput(e.target.value, true);
+                  const raw = sanitized.replace(/\./g, "").replace(",", ".");
+                  setOrder((p) => ({ ...p, customerPrice: raw }));
+                }}
                 className="h-9 text-sm"
               />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Üretici ₺/kg</Label>
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="0.00"
-                value={order.supplierPrice}
-                onChange={(e) => setOrder((p) => ({ ...p, supplierPrice: e.target.value }))}
+                placeholder="0,00"
+                value={formatNumberInput(order.supplierPrice)}
+                onChange={(e) => {
+                  const sanitized = sanitizeNumberInput(e.target.value, true);
+                  const raw = sanitized.replace(/\./g, "").replace(",", ".");
+                  setOrder((p) => ({ ...p, supplierPrice: raw }));
+                }}
                 className="h-9 text-sm"
               />
             </div>
@@ -699,11 +705,15 @@ function QuickEntryForm({
           <div>
             <Label className="text-xs text-muted-foreground">Nakliye (₺)</Label>
             <Input
-              type="number"
+              type="text"
               inputMode="decimal"
               placeholder="0"
-              value={freightCost}
-              onChange={(e) => setFreightCost(e.target.value)}
+              value={freightCost ? formatNumberInput(freightCost) : ""}
+              onChange={(e) => {
+                const sanitized = sanitizeNumberInput(e.target.value, true);
+                const raw = sanitized.replace(/\./g, "").replace(",", ".");
+                setFreightCost(raw);
+              }}
               className="h-9 text-sm"
             />
           </div>
@@ -1051,10 +1061,13 @@ function TicketRow({
           <div>
             <Label className="text-xs text-muted-foreground">Net Ağırlık (kg)</Label>
             <Input
-              type="number"
+              type="text"
               inputMode="numeric"
-              value={editWeight}
-              onChange={(e) => setEditWeight(e.target.value)}
+              value={editWeight ? formatNumberInput(editWeight) : ""}
+              onChange={(e) => {
+                const sanitized = sanitizeNumberInput(e.target.value, false);
+                setEditWeight(sanitized);
+              }}
               className="h-8 text-sm"
             />
           </div>
@@ -1071,10 +1084,14 @@ function TicketRow({
           <div>
             <Label className="text-xs text-muted-foreground">Nakliye (₺)</Label>
             <Input
-              type="number"
+              type="text"
               inputMode="decimal"
-              value={editFreight}
-              onChange={(e) => setEditFreight(e.target.value)}
+              value={editFreight ? formatNumberInput(editFreight) : ""}
+              onChange={(e) => {
+                const sanitized = sanitizeNumberInput(e.target.value, true);
+                const raw = sanitized.replace(/\./g, "").replace(",", ".");
+                setEditFreight(raw);
+              }}
               className="h-8 text-sm"
             />
           </div>

@@ -26,6 +26,7 @@ import {
   FileText,
   ScrollText,
 } from "lucide-react";
+import { formatNumberInput, parseNumberInput, sanitizeNumberInput } from "@/lib/utils/format";
 import { toast } from "sonner";
 import Link from "next/link";
 import { generateReceiptPdf } from "@/lib/utils/pdf-export";
@@ -90,7 +91,7 @@ function NewPaymentForm() {
       toast.error("Kişi seçiniz");
       return;
     }
-    if (!amount || parseFloat(amount) <= 0) {
+    if (!amount || parseNumberInput(amount) <= 0) {
       toast.error("Geçerli tutar giriniz");
       return;
     }
@@ -105,7 +106,7 @@ function NewPaymentForm() {
         contact_id: contactId,
         direction,
         method,
-        amount: parseFloat(amount),
+        amount: parseNumberInput(amount),
         payment_date: paymentDate,
         description: description || null,
         ...(isCheckOrNote
@@ -125,7 +126,7 @@ function NewPaymentForm() {
         direction,
         contactName: selectedContact?.name || "-",
         contactPhone: selectedContact?.phone,
-        amount: parseFloat(amount),
+        amount: parseNumberInput(amount),
         method,
         paymentDate,
         description: description || null,
@@ -309,10 +310,14 @@ function NewPaymentForm() {
               ₺
             </span>
             <Input
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              type="text"
+              inputMode="decimal"
+              value={amount ? formatNumberInput(amount) : ""}
+              onChange={(e) => {
+                const sanitized = sanitizeNumberInput(e.target.value, true);
+                const raw = sanitized.replace(/\./g, "").replace(",", ".");
+                setAmount(raw);
+              }}
               placeholder="0,00"
               className="h-14 pl-8 text-2xl font-bold"
               required
