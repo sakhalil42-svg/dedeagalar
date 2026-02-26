@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useSales, useCreateSale } from "@/lib/hooks/use-sales";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
-import { useDeliveriesBySale } from "@/lib/hooks/use-deliveries";
+import { useDeliveriesBySale, useUpdateDelivery } from "@/lib/hooks/use-deliveries";
 import { useCreateDeliveryWithTransactions } from "@/lib/hooks/use-delivery-with-transactions";
 import { useDeleteDelivery } from "@/lib/hooks/use-deliveries";
 import {
@@ -44,6 +44,9 @@ import {
   MessageCircle,
   Phone,
   Image as ImageIcon,
+  Pencil,
+  RotateCcw,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -53,6 +56,32 @@ const FREIGHT_PAYER_OPTIONS: { value: FreightPayer; label: string }[] = [
   { value: "me", label: "Ben" },
   { value: "supplier", label: "Üretici" },
 ];
+
+// ─── LOCAL STORAGE HELPERS ───────────────────────────────────────
+const LS_KEY = "hizli_sevkiyat_last";
+
+interface LastConfig {
+  customerId: string;
+  supplierId: string;
+  feedTypeId: string;
+  customerPrice: string;
+  supplierPrice: string;
+  pricingModel: PricingModel;
+}
+
+function loadLastConfig(): Partial<LastConfig> {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+
+function saveLastConfig(config: LastConfig) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(config));
+  } catch {}
+}
 
 // ─── TYPES ───────────────────────────────────────────────────────
 interface OrderConfig {
@@ -73,7 +102,6 @@ function buildWhatsAppUrl(
 ): string | null {
   if (!customerPhone) return null;
 
-  // Normalize phone: remove spaces, dashes, leading 0, add 90 prefix
   let phone = customerPhone.replace(/[\s\-()]/g, "");
   if (phone.startsWith("+")) phone = phone.slice(1);
   if (phone.startsWith("0")) phone = "90" + phone.slice(1);
@@ -106,17 +134,36 @@ function buildWhatsAppUrl(
 // ─── PAGE COMPONENT ──────────────────────────────────────────────
 export default function SalesPage() {
   const [view, setView] = useState<"active" | "history">("active");
-  const [order, setOrder] = useState<OrderConfig>({
-    customerId: "",
-    supplierId: "",
-    feedTypeId: "",
-    customerPrice: "",
-    supplierPrice: "",
-    pricingModel: "nakliye_dahil",
-    saleId: null,
-    purchaseId: null,
+
+  // Load last config from localStorage on mount
+  const [order, setOrder] = useState<OrderConfig>(() => {
+    const last = loadLastConfig();
+    return {
+      customerId: last.customerId || "",
+      supplierId: last.supplierId || "",
+      feedTypeId: last.feedTypeId || "",
+      customerPrice: last.customerPrice || "",
+      supplierPrice: last.supplierPrice || "",
+      pricingModel: last.pricingModel || "nakliye_dahil",
+      saleId: null,
+      purchaseId: null,
+    };
   });
   const [selectedHistorySaleId, setSelectedHistorySaleId] = useState<string | null>(null);
+
+  // Save to localStorage when order config changes
+  useEffect(() => {
+    if (order.customerId || order.supplierId || order.feedTypeId) {
+      saveLastConfig({
+        customerId: order.customerId,
+        supplierId: order.supplierId,
+        feedTypeId: order.feedTypeId,
+        customerPrice: order.customerPrice,
+        supplierPrice: order.supplierPrice,
+        pricingModel: order.pricingModel,
+      });
+    }
+  }, [order.customerId, order.supplierId, order.feedTypeId, order.customerPrice, order.supplierPrice, order.pricingModel]);
 
   if (view === "history") {
     return (
@@ -221,6 +268,19 @@ function ActiveOrderView({
   const customerContact = customers?.find((c) => c.id === order.customerId);
   const supplierName = suppliers?.find((c) => c.id === order.supplierId)?.name;
   const feedTypeName = feedTypes?.find((f) => f.id === order.feedTypeId)?.name;
+
+  const handleResetAll = () => {
+    setOrder({
+      customerId: "",
+      supplierId: "",
+      feedTypeId: "",
+      customerPrice: "",
+      supplierPrice: "",
+      pricingModel: "nakliye_dahil",
+      saleId: null,
+      purchaseId: null,
+    });
+  };
 
   return (
     <div className="flex flex-col pb-4">
@@ -328,30 +388,38 @@ function ActiveOrderView({
             </div>
           </div>
 
-          {/* Pricing Model Toggle */}
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => setOrder((p) => ({ ...p, pricingModel: "nakliye_dahil" }))}
-              className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                order.pricingModel === "nakliye_dahil"
-                  ? "bg-green-600 text-white"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              Nakliye Dahil
-            </button>
-            <button
-              type="button"
-              onClick={() => setOrder((p) => ({ ...p, pricingModel: "tir_ustu" }))}
-              className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                order.pricingModel === "tir_ustu"
-                  ? "bg-green-600 text-white"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              Tır Üstü
-            </button>
+          {/* Pricing Model Toggle + Reset */}
+          <div className="flex gap-2 items-center">
+            <div className="flex gap-1 flex-1">
+              <button
+                type="button"
+                onClick={() => setOrder((p) => ({ ...p, pricingModel: "nakliye_dahil" }))}
+                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                  order.pricingModel === "nakliye_dahil"
+                    ? "bg-green-600 text-white"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                Nakliye Dahil
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrder((p) => ({ ...p, pricingModel: "tir_ustu" }))}
+                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                  order.pricingModel === "tir_ustu"
+                    ? "bg-green-600 text-white"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                Tır Üstü
+              </button>
+            </div>
+            {isOrderReady && (
+              <Button variant="ghost" size="sm" onClick={handleResetAll} className="text-xs text-muted-foreground h-8 px-2">
+                <RotateCcw className="mr-1 h-3 w-3" />
+                Sıfırla
+              </Button>
+            )}
           </div>
 
           {isOrderReady && (
@@ -448,6 +516,7 @@ function QuickEntryForm({
   const [freightCost, setFreightCost] = useState("");
   const [freightPayer, setFreightPayer] = useState<FreightPayer>("me");
   const [saving, setSaving] = useState(false);
+  const [lastTicketNo, setLastTicketNo] = useState("");
 
   const createDeliveryTx = useCreateDeliveryWithTransactions();
 
@@ -457,23 +526,47 @@ function QuickEntryForm({
     carrierName: string;
     carrierPhone: string;
   }) => {
-    console.log("[QuickEntry] handleVehicleSelect:", JSON.stringify(info));
     setVehiclePlate(info.plate);
     if (info.carrierName) setCarrierName(info.carrierName);
     if (info.carrierPhone) setCarrierPhone(info.carrierPhone);
     if (info.driverName) setDriverName(info.driverName);
   }, []);
 
-  const resetForm = () => {
-    setTicketNo("");
+  // 3.2 — Only clear per-ticket fields, keep carrier/freight settings
+  const resetForNextTicket = () => {
     setNetWeight("");
     setVehiclePlate("");
-    setFreightCost("");
-    // Keep date, freightPayer, carrierName, carrierPhone — usually same across entries
+    // Auto-increment ticket no
+    if (ticketNo) {
+      setLastTicketNo(ticketNo);
+      const match = ticketNo.match(/^(.*?)(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const num = parseInt(match[2], 10) + 1;
+        const padded = String(num).padStart(match[2].length, "0");
+        setTicketNo(prefix + padded);
+      } else {
+        setTicketNo("");
+      }
+    }
+    // Keep: date, carrierName, carrierPhone, freightCost, freightPayer, driverName
   };
 
+  // 3.6 — Net weight handler: prevent leading zeros, only digits
+  const handleNetWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^0-9]/g, "");
+    // Remove leading zeros
+    const cleaned = raw.replace(/^0+/, "") || "";
+    setNetWeight(cleaned);
+  };
+
+  // Format display value with thousand separator
+  const displayWeight = netWeight
+    ? parseInt(netWeight, 10).toLocaleString("tr-TR")
+    : "";
+
   const handleSave = async () => {
-    const kg = parseFloat(netWeight);
+    const kg = parseInt(netWeight, 10);
     if (!kg || kg <= 0) {
       toast.error("Net ağırlık giriniz");
       return;
@@ -484,7 +577,7 @@ function QuickEntryForm({
       const resolvedSaleId = await ensureSaleExists();
       if (!resolvedSaleId) return;
 
-      await createDeliveryTx.mutateAsync({
+      const delivery = await createDeliveryTx.mutateAsync({
         delivery: {
           sale_id: resolvedSaleId,
           purchase_id: purchaseId,
@@ -505,8 +598,12 @@ function QuickEntryForm({
         pricingModel,
       });
 
-      toast.success(`${kg.toLocaleString("tr-TR")} kg kaydedildi`);
-      resetForm();
+      // 3.2 — Detailed success toast
+      toast.success(
+        `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${vehiclePlate ? `, ${vehiclePlate}` : ""}`,
+        { duration: 2000 }
+      );
+      resetForNextTicket();
       setTimeout(() => {
         document.getElementById("net-weight-input")?.focus();
       }, 100);
@@ -540,7 +637,12 @@ function QuickEntryForm({
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Fiş No</Label>
+            <Label className="text-xs text-muted-foreground">
+              Fiş No
+              {lastTicketNo && (
+                <span className="ml-1 text-muted-foreground/60">(son: {lastTicketNo})</span>
+              )}
+            </Label>
             <Input
               placeholder="Opsiyonel"
               value={ticketNo}
@@ -550,19 +652,26 @@ function QuickEntryForm({
           </div>
         </div>
 
-        {/* Row 2: NET WEIGHT */}
+        {/* Row 2: NET WEIGHT — 3.6 formatted input */}
         <div>
           <Label className="text-xs text-muted-foreground">Net Ağırlık (kg)</Label>
-          <Input
-            id="net-weight-input"
-            type="number"
-            inputMode="numeric"
-            placeholder="0"
-            value={netWeight}
-            onChange={(e) => setNetWeight(e.target.value)}
-            className="h-14 text-2xl font-bold text-center"
-            autoFocus
-          />
+          <div className="relative">
+            <input
+              id="net-weight-input"
+              type="text"
+              inputMode="numeric"
+              placeholder="0"
+              value={displayWeight}
+              onChange={handleNetWeightChange}
+              className="flex h-14 w-full rounded-md border border-input bg-background px-3 py-2 text-2xl font-bold text-center ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              autoFocus
+            />
+            {netWeight && parseInt(netWeight) >= 1000 && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                {(parseInt(netWeight) / 1000).toFixed(2)} ton
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Row 3: Plate + Freight */}
@@ -639,8 +748,8 @@ function QuickEntryForm({
         )}
 
         {/* Preview */}
-        {netWeight && parseFloat(netWeight) > 0 && (() => {
-          const kg = parseFloat(netWeight);
+        {netWeight && parseInt(netWeight) > 0 && (() => {
+          const kg = parseInt(netWeight);
           const freight = freightCost ? parseFloat(freightCost) : 0;
           const custAmount = freightPayer === "customer" ? kg * customerPrice - freight : kg * customerPrice;
           const suppAmount = pricingModel === "nakliye_dahil" && freightPayer !== "supplier"
@@ -679,7 +788,7 @@ function QuickEntryForm({
 
         <Button
           onClick={handleSave}
-          disabled={saving || !netWeight || parseFloat(netWeight) <= 0}
+          disabled={saving || !netWeight || parseInt(netWeight) <= 0}
           className="w-full h-12 text-base font-bold"
           size="lg"
         >
@@ -743,6 +852,7 @@ function TicketListAndSummary({
   }, [deliveries, customerPrice, supplierPrice, pricingModel]);
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Bu sevkiyatı silmek istediğinize emin misiniz?\nCari bakiye otomatik güncellenecektir.")) return;
     try {
       await deleteDelivery.mutateAsync(id);
       toast.success("Fiş silindi");
@@ -837,7 +947,7 @@ function TicketListAndSummary({
   );
 }
 
-// ─── SINGLE TICKET ROW ───────────────────────────────────────────
+// ─── SINGLE TICKET ROW (with edit) ──────────────────────────────
 function TicketRow({
   delivery,
   customerContact,
@@ -852,10 +962,18 @@ function TicketRow({
   isDeleting: boolean;
 }) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editWeight, setEditWeight] = useState("");
+  const [editPlate, setEditPlate] = useState("");
+  const [editFreight, setEditFreight] = useState("");
+  const [editFreightPayer, setEditFreightPayer] = useState<FreightPayer>("me");
+  const [editCarrier, setEditCarrier] = useState("");
+  const [editCarrierPhone, setEditCarrierPhone] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: photos } = useDeliveryPhotos(delivery.id);
   const uploadPhoto = useUploadDeliveryPhoto();
+  const updateDelivery = useUpdateDelivery();
 
   const waUrl = buildWhatsAppUrl(customerContact?.phone || null, delivery);
 
@@ -871,9 +989,128 @@ function TicketRow({
         toast.error("Fotoğraf yüklenemedi");
       }
     }
-    // Reset so same file can be re-selected
     e.target.value = "";
   };
+
+  // 3.3 — Open edit mode
+  const startEdit = () => {
+    setEditWeight(String(delivery.net_weight));
+    setEditPlate(delivery.vehicle_plate || "");
+    setEditFreight(delivery.freight_cost ? String(delivery.freight_cost) : "");
+    setEditFreightPayer((delivery.freight_payer as FreightPayer) || "me");
+    setEditCarrier(delivery.carrier_name || "");
+    setEditCarrierPhone(delivery.carrier_phone || "");
+    setEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    const kg = parseInt(editWeight, 10);
+    if (!kg || kg <= 0) {
+      toast.error("Geçerli ağırlık giriniz");
+      return;
+    }
+    try {
+      await updateDelivery.mutateAsync({
+        id: delivery.id,
+        net_weight: kg,
+        vehicle_plate: editPlate || null,
+        freight_cost: editFreight ? parseFloat(editFreight) : null,
+        freight_payer: editFreight ? editFreightPayer : null,
+        carrier_name: editCarrier || null,
+        carrier_phone: editCarrierPhone || null,
+      });
+      toast.success("Fiş güncellendi");
+      setEditing(false);
+    } catch {
+      toast.error("Güncelleme hatası");
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="px-3 py-3 space-y-2 bg-amber-50/50">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-amber-800">Düzenle</p>
+          <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs text-muted-foreground">Net Ağırlık (kg)</Label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={editWeight}
+              onChange={(e) => setEditWeight(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Plaka</Label>
+            <Input
+              value={editPlate}
+              onChange={(e) => setEditPlate(e.target.value.toUpperCase())}
+              className="h-8 text-sm font-mono"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs text-muted-foreground">Nakliye (₺)</Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={editFreight}
+              onChange={(e) => setEditFreight(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Ödeyen</Label>
+            <Select value={editFreightPayer} onValueChange={(v) => setEditFreightPayer(v as FreightPayer)}>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FREIGHT_PAYER_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs text-muted-foreground">Nakliyeci</Label>
+            <Input
+              value={editCarrier}
+              onChange={(e) => setEditCarrier(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Tel</Label>
+            <Input
+              type="tel"
+              value={editCarrierPhone}
+              onChange={(e) => setEditCarrierPhone(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={handleSaveEdit} disabled={updateDelivery.isPending} className="flex-1">
+            {updateDelivery.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Check className="mr-1 h-3 w-3" />}
+            Kaydet
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
+            İptal
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -945,6 +1182,15 @@ function TicketRow({
               className="hidden"
               onChange={handleFileChange}
             />
+
+            {/* Edit — 3.3 */}
+            <button
+              onClick={startEdit}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-50 transition-colors"
+              title="Düzenle"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
 
             {/* Delete */}
             <button
@@ -1021,8 +1267,49 @@ function HistoryView({
   onLoadOrder: (sale: Sale) => void;
 }) {
   const { data: sales, isLoading } = useSales();
+  const { data: allContacts } = useContacts();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
+
+  // 3.7 — Filters
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const [contactFilter, setContactFilter] = useState("");
+
+  const filteredSales = useMemo(() => {
+    if (!sales) return [];
+    let list = [...sales];
+
+    // Date filter
+    if (dateFilter !== "all") {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      list = list.filter((s) => {
+        const d = new Date(s.sale_date);
+        if (dateFilter === "today") return d >= today;
+        if (dateFilter === "week") {
+          const weekAgo = new Date(today);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return d >= weekAgo;
+        }
+        if (dateFilter === "month") {
+          const monthAgo = new Date(today);
+          monthAgo.setMonth(monthAgo.getMonth() - 1);
+          return d >= monthAgo;
+        }
+        return true;
+      });
+    }
+
+    // Contact filter
+    if (contactFilter) {
+      list = list.filter((s) => s.contact_id === contactFilter);
+    }
+
+    return list;
+  }, [sales, dateFilter, contactFilter]);
+
+  // Summary for filtered
+  const totalAmount = filteredSales.reduce((s, sale) => s + (sale.total_amount || 0), 0);
 
   const selectedSale = sales?.find((s) => s.id === selectedSaleId);
 
@@ -1075,63 +1362,116 @@ function HistoryView({
             customerPhone={selectedSale.contact?.phone || null}
           />
         </>
-      ) : isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : sales && sales.length > 0 ? (
-        <div className="space-y-2">
-          {sales.map((s) => (
-            <Card
-              key={s.id}
-              className="cursor-pointer transition-colors hover:bg-muted/50"
-              onClick={() => onSelectSale(s.id)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold">{s.contact?.name || "—"}</p>
-                      <Badge
-                        variant="secondary"
-                        className={
-                          s.status === "delivered"
-                            ? "bg-green-100 text-green-800"
-                            : s.status === "confirmed"
-                            ? "bg-blue-100 text-blue-800"
-                            : s.status === "cancelled"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-amber-100 text-amber-800"
-                        }
-                      >
-                        {s.status === "delivered"
-                          ? "Teslim"
-                          : s.status === "confirmed"
-                          ? "Aktif"
-                          : s.status === "cancelled"
-                          ? "İptal"
-                          : "Taslak"}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {s.feed_type?.name} · {s.sale_no}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{masked(s.total_amount)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDateShort(s.sale_date)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       ) : (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          Henüz satış kaydı yok.
-        </div>
+        <>
+          {/* 3.7 — Filters */}
+          <div className="space-y-2">
+            <div className="flex gap-1">
+              {([
+                { key: "all", label: "Tümü" },
+                { key: "today", label: "Bugün" },
+                { key: "week", label: "Bu Hafta" },
+                { key: "month", label: "Bu Ay" },
+              ] as const).map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setDateFilter(f.key)}
+                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                    dateFilter === f.key
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {allContacts && allContacts.length > 0 && (
+              <Select value={contactFilter || "all_contacts"} onValueChange={(v) => setContactFilter(v === "all_contacts" ? "" : v)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Tüm müşteriler" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all_contacts">Tüm müşteriler</SelectItem>
+                  {allContacts
+                    .filter((c) => c.type === "customer" || c.type === "both")
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Summary */}
+            {filteredSales.length > 0 && (
+              <Card>
+                <CardContent className="p-2 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{filteredSales.length} sipariş</span>
+                  <span className="font-bold">{masked(totalAmount)}</span>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredSales.length > 0 ? (
+            <div className="space-y-2">
+              {filteredSales.map((s) => (
+                <Card
+                  key={s.id}
+                  className="cursor-pointer transition-colors hover:bg-muted/50"
+                  onClick={() => onSelectSale(s.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold">{s.contact?.name || "—"}</p>
+                          <Badge
+                            variant="secondary"
+                            className={
+                              s.status === "delivered"
+                                ? "bg-green-100 text-green-800"
+                                : s.status === "confirmed"
+                                ? "bg-blue-100 text-blue-800"
+                                : s.status === "cancelled"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-amber-100 text-amber-800"
+                            }
+                          >
+                            {s.status === "delivered"
+                              ? "Teslim"
+                              : s.status === "confirmed"
+                              ? "Aktif"
+                              : s.status === "cancelled"
+                              ? "İptal"
+                              : "Taslak"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {s.feed_type?.name} · {s.sale_no}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">{masked(s.total_amount)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateShort(s.sale_date)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {dateFilter !== "all" || contactFilter ? "Filtreye uygun sonuç yok." : "Henüz satış kaydı yok."}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1266,6 +1606,7 @@ function HistoryTicketRow({
           )}
         </div>
 
+        {/* Photo thumbnails */}
         {photos && photos.length > 0 && (
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {photos.map((p) => (
@@ -1285,6 +1626,7 @@ function HistoryTicketRow({
         )}
       </div>
 
+      {/* Lightbox */}
       {lightboxUrl && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
