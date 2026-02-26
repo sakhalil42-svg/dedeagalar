@@ -59,12 +59,12 @@ export function useCreateDeliveryWithTransactions() {
         .single();
       if (saErr) throw saErr;
 
-      // 4. Insert customer credit (customer owes us)
+      // 4. Insert customer transaction (customer owes us → debit)
       const { error: ctxErr } = await supabase
         .from("account_transactions")
         .insert({
           account_id: customerAccount.id,
-          direction: "debit" as const,
+          type: "debit",
           amount: customerCredit,
           description: `Satış - ${netKg.toLocaleString("tr-TR")} kg × ${customerPrice} ₺/kg${freightPayer === "customer" ? ` (nakliye -${freightCost} ₺)` : ""}`,
           reference_type: "sale",
@@ -73,12 +73,12 @@ export function useCreateDeliveryWithTransactions() {
         });
       if (ctxErr) throw ctxErr;
 
-      // 5. Insert supplier debit (we owe supplier)
+      // 5. Insert supplier transaction (we owe supplier → credit)
       const { error: stxErr } = await supabase
         .from("account_transactions")
         .insert({
           account_id: supplierAccount.id,
-          direction: "credit" as const,
+          type: "credit",
           amount: supplierDebit,
           description: `Alım - ${netKg.toLocaleString("tr-TR")} kg × ${supplierPrice} ₺/kg`,
           reference_type: "purchase",

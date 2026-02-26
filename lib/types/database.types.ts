@@ -201,7 +201,7 @@ export type TransactionDirection = "debit" | "credit";
 export interface AccountTransaction {
   id: string;
   account_id: string;
-  direction: TransactionDirection;
+  type: TransactionDirection;
   amount: number;
   balance_after: number;
   description: string | null;

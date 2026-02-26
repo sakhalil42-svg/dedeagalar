@@ -119,7 +119,7 @@ export default function AccountDetailPage() {
             </div>
           ) : transactions && transactions.length > 0 ? (
             transactions.map((tx, i) => {
-              const isDebit = tx.direction === "debit";
+              const isDebit = tx.type === "debit";
               const refLink =
                 tx.reference_type && tx.reference_id && REF_LINKS[tx.reference_type]
                   ? `${REF_LINKS[tx.reference_type]}/${tx.reference_id}`
