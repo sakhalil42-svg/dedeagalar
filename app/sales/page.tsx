@@ -205,7 +205,8 @@ function ActiveOrderView({
       const result = await createSale.mutateAsync({
         contact_id: order.customerId,
         feed_type_id: order.feedTypeId,
-        quantity: 0,
+        quantity: 1,
+        unit: "kg",
         unit_price: parseFloat(effectiveCustomerPrice),
         sale_date: new Date().toISOString().split("T")[0],
       });
@@ -452,9 +453,12 @@ function QuickEntryForm({
 
   const handleVehicleSelect = useCallback((vehicle: Vehicle) => {
     setVehiclePlate(vehicle.plate);
+    // Fill carrier name: prefer carrier.name, fallback to driver_name
+    const name = vehicle.carrier?.name || vehicle.driver_name || "";
+    const phone = vehicle.carrier?.phone || vehicle.driver_phone || "";
+    if (name) setCarrierName(name);
+    if (phone) setCarrierPhone(phone);
     if (vehicle.driver_name) setDriverName(vehicle.driver_name);
-    if (vehicle.carrier?.name) setCarrierName(vehicle.carrier.name);
-    if (vehicle.carrier?.phone) setCarrierPhone(vehicle.carrier.phone);
   }, []);
 
   const resetForm = () => {
@@ -566,6 +570,8 @@ function QuickEntryForm({
               value={vehiclePlate}
               onChange={setVehiclePlate}
               onVehicleSelect={handleVehicleSelect}
+              driverName={carrierName}
+              driverPhone={carrierPhone}
             />
           </div>
           <div>

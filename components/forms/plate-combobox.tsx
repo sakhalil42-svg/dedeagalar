@@ -10,6 +10,10 @@ interface PlateComboboxProps {
   value: string;
   onChange: (plate: string) => void;
   onVehicleSelect?: (vehicle: Vehicle) => void;
+  /** Current driver name from parent form — saved with new plates */
+  driverName?: string;
+  /** Current driver phone from parent form — saved with new plates */
+  driverPhone?: string;
   className?: string;
 }
 
@@ -17,6 +21,8 @@ export function PlateCombobox({
   value,
   onChange,
   onVehicleSelect,
+  driverName,
+  driverPhone,
   className,
 }: PlateComboboxProps) {
   const [open, setOpen] = useState(false);
@@ -61,6 +67,8 @@ export function PlateCombobox({
     try {
       const vehicle = await createVehicle.mutateAsync({
         plate: value.trim().toUpperCase(),
+        driver_name: driverName?.trim() || null,
+        driver_phone: driverPhone?.trim() || null,
       });
       onVehicleSelect?.(vehicle);
       setOpen(false);
