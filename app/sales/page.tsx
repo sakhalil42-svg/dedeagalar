@@ -14,7 +14,8 @@ import {
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
-import type { Sale, Delivery, FreightPayer, Contact, PricingModel } from "@/lib/types/database.types";
+import type { Sale, Delivery, FreightPayer, Contact, PricingModel, Vehicle } from "@/lib/types/database.types";
+import { PlateCombobox } from "@/components/forms/plate-combobox";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -449,6 +450,13 @@ function QuickEntryForm({
 
   const createDeliveryTx = useCreateDeliveryWithTransactions();
 
+  const handleVehicleSelect = useCallback((vehicle: Vehicle) => {
+    setVehiclePlate(vehicle.plate);
+    if (vehicle.driver_name) setCarrierName(vehicle.driver_name);
+    if (vehicle.carrier?.name) setCarrierName(vehicle.carrier.name);
+    if (vehicle.carrier?.phone) setCarrierPhone(vehicle.carrier.phone);
+  }, []);
+
   const resetForm = () => {
     setTicketNo("");
     setNetWeight("");
@@ -553,11 +561,10 @@ function QuickEntryForm({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label className="text-xs text-muted-foreground">Araç Plakası</Label>
-            <Input
-              placeholder="34 XX 1234"
+            <PlateCombobox
               value={vehiclePlate}
-              onChange={(e) => setVehiclePlate(e.target.value.toUpperCase())}
-              className="h-9 text-sm font-mono"
+              onChange={setVehiclePlate}
+              onVehicleSelect={handleVehicleSelect}
             />
           </div>
           <div>

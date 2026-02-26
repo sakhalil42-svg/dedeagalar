@@ -48,15 +48,29 @@ export default function FinancePage() {
   }, [list, search]);
 
   const totals = useMemo(() => {
-    return filtered.reduce(
-      (acc, s) => ({
-        debit: acc.debit + s.total_debit,
-        credit: acc.credit + s.total_credit,
-        net: acc.net + s.balance,
-      }),
-      { debit: 0, credit: 0, net: 0 }
-    );
-  }, [filtered]);
+    // For customers: positive balance = they owe us (alacak)
+    // For suppliers: positive balance = we owe them (borç)
+    const isCustomerTab = tab === "customers";
+    let mainTotal = 0;
+    let paidTotal = 0;
+    let net = 0;
+
+    filtered.forEach((s) => {
+      const bal = s.balance ?? 0;
+      net += bal;
+      if (isCustomerTab) {
+        // Customer: debit = what they owe (alacak), credit = what they paid
+        mainTotal += s.total_debit || Math.abs(bal);
+        paidTotal += s.total_credit || 0;
+      } else {
+        // Supplier: credit = what we owe (borç), debit = what we paid
+        mainTotal += s.total_credit || Math.abs(bal);
+        paidTotal += s.total_debit || 0;
+      }
+    });
+
+    return { mainTotal, paidTotal, net };
+  }, [filtered, tab]);
 
   return (
     <div className="space-y-4 p-4">
@@ -116,24 +130,18 @@ export default function FinancePage() {
       {/* Summary totals */}
       {!isLoading && filtered.length > 0 && (
         <Card>
-          <CardContent className="grid grid-cols-3 gap-2 p-3 text-center text-xs">
+          <CardContent className="grid grid-cols-2 gap-2 p-3 text-center text-xs">
             <div>
-              <p className="text-muted-foreground">Toplam Borç</p>
-              <p className="font-bold text-red-600">{masked(totals.debit)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Toplam Alacak</p>
-              <p className="font-bold text-green-600">
-                {masked(totals.credit)}
+              <p className="text-muted-foreground">
+                {tab === "customers" ? "Toplam Alacak" : "Toplam Borç"}
+              </p>
+              <p className="font-bold text-red-600">
+                {masked(Math.abs(totals.net))}
               </p>
             </div>
             <div>
-              <p className="text-muted-foreground">Net Bakiye</p>
-              <p
-                className={`font-bold ${totals.net >= 0 ? "text-green-600" : "text-red-600"}`}
-              >
-                {masked(totals.net)}
-              </p>
+              <p className="text-muted-foreground">Kişi Sayısı</p>
+              <p className="font-bold">{filtered.length}</p>
             </div>
           </CardContent>
         </Card>
@@ -180,12 +188,18 @@ export default function FinancePage() {
                     <div className="text-right">
                       <p
                         className={`text-lg font-bold ${
-                          s.balance >= 0 ? "text-green-600" : "text-red-600"
+                          s.balance > 0 ? "text-red-600" : s.balance < 0 ? "text-green-600" : ""
                         }`}
                       >
-                        {masked(s.balance)}
+                        {masked(Math.abs(s.balance))}
                       </p>
-                      <p className="text-xs text-muted-foreground">bakiye</p>
+                      <p className="text-xs text-muted-foreground">
+                        {s.balance > 0
+                          ? (tab === "customers" ? "alacak" : "borç")
+                          : s.balance < 0
+                            ? "fazla ödeme"
+                            : "denk"}
+                      </p>
                     </div>
                   </div>
                 </CardContent>

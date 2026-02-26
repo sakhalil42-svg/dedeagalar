@@ -340,6 +340,62 @@ export interface InventoryMovement {
   created_at: string;
 }
 
+// --- Carriers (Nakliyeciler) ---
+
+export interface Carrier {
+  id: string;
+  name: string;
+  phone: string | null;
+  phone2: string | null;
+  city: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CarrierInsert {
+  name: string;
+  phone?: string | null;
+  phone2?: string | null;
+  city?: string | null;
+  notes?: string | null;
+  is_active?: boolean;
+}
+
+export interface CarrierUpdate extends Partial<CarrierInsert> {}
+
+// --- Vehicles (Araçlar) ---
+
+export type VehicleType = "tir" | "kamyon" | "romorsk";
+
+export interface Vehicle {
+  id: string;
+  plate: string;
+  carrier_id: string | null;
+  driver_name: string | null;
+  driver_phone: string | null;
+  vehicle_type: string;
+  capacity_ton: number | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  // joined
+  carrier?: Carrier;
+}
+
+export interface VehicleInsert {
+  plate: string;
+  carrier_id?: string | null;
+  driver_name?: string | null;
+  driver_phone?: string | null;
+  vehicle_type?: string;
+  capacity_ton?: number | null;
+  notes?: string | null;
+  is_active?: boolean;
+}
+
+export interface VehicleUpdate extends Partial<VehicleInsert> {}
+
 // --- Dashboard ---
 
 export interface MonthlyData {
