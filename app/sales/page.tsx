@@ -883,71 +883,71 @@ function QuickEntryForm({
       if (!resolvedSaleId) return;
 
       const supabase = (await import("@/lib/supabase/client")).createClient();
+      const plate = vehiclePlate.trim().toUpperCase() || null;
+      const resolvedCarrierName = carrierName.trim() || null;
 
       // A) Nakliyeci bul/oluştur
-      let resolvedCarrierName = carrierName.trim() || null;
+      let resolvedCarrierId: string | null = null;
       if (resolvedCarrierName) {
-        const { data: existingCarrier } = await supabase
+        const { data: existingCarrier, error: findErr } = await supabase
           .from("carriers")
-          .select("id, name")
+          .select("id")
           .ilike("name", resolvedCarrierName)
           .eq("is_active", true)
           .maybeSingle();
 
-        if (!existingCarrier) {
-          await supabase
+        console.log("[handleSave] Nakliyeci arama:", resolvedCarrierName, "→", existingCarrier, findErr);
+
+        if (existingCarrier) {
+          resolvedCarrierId = existingCarrier.id;
+        } else {
+          const { data: newCarrier, error: insertErr } = await supabase
             .from("carriers")
-            .insert({ name: resolvedCarrierName })
+            .insert({ name: resolvedCarrierName, is_active: true })
             .select("id")
             .single();
+
+          console.log("[handleSave] Nakliyeci oluşturma:", newCarrier, insertErr);
+          if (newCarrier) resolvedCarrierId = newCarrier.id;
         }
       }
+      console.log("[handleSave] resolvedCarrierId:", resolvedCarrierId);
 
-      // B) Araç bul/oluştur ve bağla
-      const plate = vehiclePlate.trim().toUpperCase() || null;
+      // B) Araç bul/oluştur ve nakliyeciye bağla
       if (plate) {
-        const { data: existingVehicle } = await supabase
+        // Plaka DB'de boşluklu saklanıyor (ör: "42 BN 010"), exact match kullan
+        const { data: existingVehicle, error: vehErr } = await supabase
           .from("vehicles")
           .select("id, carrier_id")
           .eq("plate", plate)
           .maybeSingle();
 
-        // carrier_id bul
-        let linkCarrierId: string | null = null;
-        if (resolvedCarrierName) {
-          const { data: carrier } = await supabase
-            .from("carriers")
-            .select("id")
-            .ilike("name", resolvedCarrierName)
-            .eq("is_active", true)
-            .maybeSingle();
-          linkCarrierId = carrier?.id || null;
-        }
+        console.log("[handleSave] Araç arama:", plate, "→", existingVehicle, vehErr);
 
         if (existingVehicle) {
-          // Araç var → şoför bilgilerini güncelle, carrier_id bağla
+          // Araç var → şoför bilgilerini ve carrier_id güncelle (her zaman üstüne yaz)
           const updates: Record<string, unknown> = {};
           if (driverName.trim()) updates.driver_name = driverName.trim();
           if (driverPhone.trim()) updates.driver_phone = driverPhone.trim();
-          if (linkCarrierId && !existingVehicle.carrier_id) {
-            updates.carrier_id = linkCarrierId;
-          }
+          if (resolvedCarrierId) updates.carrier_id = resolvedCarrierId;
           if (Object.keys(updates).length > 0) {
-            await supabase
+            const { error: updErr } = await supabase
               .from("vehicles")
               .update(updates)
               .eq("id", existingVehicle.id);
+            console.log("[handleSave] Araç güncelleme:", updates, updErr);
           }
         } else {
           // Araç yok → yeni oluştur
-          await supabase
+          const { error: insErr } = await supabase
             .from("vehicles")
             .insert({
               plate,
               driver_name: driverName.trim() || null,
               driver_phone: driverPhone.trim() || null,
-              carrier_id: linkCarrierId,
+              carrier_id: resolvedCarrierId,
             });
+          console.log("[handleSave] Yeni araç oluşturma:", plate, insErr);
         }
       }
 

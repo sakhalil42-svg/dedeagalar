@@ -10,12 +10,12 @@ async function findCarrierId(
   carrierName: string | null | undefined,
   vehiclePlate: string | null | undefined
 ): Promise<string | null> {
-  // 1. Try by carrier name
+  // 1. Try by carrier name (ilike for case-insensitive match)
   if (carrierName) {
     const { data: carrier } = await supabase
       .from("carriers")
       .select("id")
-      .eq("name", carrierName)
+      .ilike("name", carrierName.trim())
       .eq("is_active", true)
       .maybeSingle();
     if (carrier) return carrier.id;
