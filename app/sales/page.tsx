@@ -135,21 +135,33 @@ function buildWhatsAppUrl(
 export default function SalesPage() {
   const [view, setView] = useState<"active" | "history">("active");
 
-  // Load last config from localStorage on mount
-  const [order, setOrder] = useState<OrderConfig>(() => {
-    const last = loadLastConfig();
-    return {
-      customerId: last.customerId || "",
-      supplierId: last.supplierId || "",
-      feedTypeId: last.feedTypeId || "",
-      customerPrice: last.customerPrice || "",
-      supplierPrice: last.supplierPrice || "",
-      pricingModel: last.pricingModel || "nakliye_dahil",
-      saleId: null,
-      purchaseId: null,
-    };
+  const [order, setOrder] = useState<OrderConfig>({
+    customerId: "",
+    supplierId: "",
+    feedTypeId: "",
+    customerPrice: "",
+    supplierPrice: "",
+    pricingModel: "nakliye_dahil",
+    saleId: null,
+    purchaseId: null,
   });
   const [selectedHistorySaleId, setSelectedHistorySaleId] = useState<string | null>(null);
+
+  // Load last config from localStorage AFTER mount (avoid hydration mismatch)
+  useEffect(() => {
+    const last = loadLastConfig();
+    if (last.customerId || last.supplierId || last.feedTypeId) {
+      setOrder((prev) => ({
+        ...prev,
+        customerId: last.customerId || prev.customerId,
+        supplierId: last.supplierId || prev.supplierId,
+        feedTypeId: last.feedTypeId || prev.feedTypeId,
+        customerPrice: last.customerPrice || prev.customerPrice,
+        supplierPrice: last.supplierPrice || prev.supplierPrice,
+        pricingModel: last.pricingModel || prev.pricingModel,
+      }));
+    }
+  }, []);
 
   // Save to localStorage when order config changes
   useEffect(() => {
