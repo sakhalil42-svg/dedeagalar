@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useVehicles, useCreateVehicle } from "@/lib/hooks/use-vehicles";
+import { useCreateVehicle } from "@/lib/hooks/use-vehicles";
 import { useCarriers } from "@/lib/hooks/use-carriers";
+import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -14,12 +15,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Truck, Plus, Check, Save, X } from "lucide-react";
-import type { Vehicle } from "@/lib/types/database.types";
+
+// Simplified vehicle type for this component — no dependency on shared hook
+interface SimpleVehicle {
+  id: string;
+  plate: string;
+  driver_name: string | null;
+  driver_phone: string | null;
+  carrier_id: string | null;
+  carrier_name?: string | null;
+  carrier_phone?: string | null;
+}
 
 interface PlateComboboxProps {
   value: string;
   onChange: (plate: string) => void;
-  onVehicleSelect?: (vehicle: Vehicle) => void;
+  onVehicleSelect?: (info: {
+    plate: string;
+    driverName: string;
+    carrierName: string;
+    carrierPhone: string;
+  }) => void;
   className?: string;
 }
 
@@ -32,34 +48,86 @@ export function PlateCombobox({
   const [open, setOpen] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [vehicles, setVehicles] = useState<SimpleVehicle[]>([]);
   const [newDriverName, setNewDriverName] = useState("");
   const [newDriverPhone, setNewDriverPhone] = useState("");
   const [newCarrierId, setNewCarrierId] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: vehicles } = useVehicles();
   const { data: carriers } = useCarriers();
   const createVehicle = useCreateVehicle();
 
-  // Normalize: strip spaces for comparison so "42 BN 010" matches "42BN010"
-  const norm = (s: string) => s.replace(/\s+/g, "").toUpperCase();
-  const normValue = norm(value);
+  // Fetch ALL vehicles directly on mount — simple, no shared hook complexity
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("vehicles")
+      .select("*")
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("[PlateCombobox] vehicles fetch error:", error);
+          return;
+        }
+        console.log("[PlateCombobox] vehicles loaded:", data?.length, data?.map((v: Record<string, unknown>) => v.plate));
 
-  const filtered = (vehicles || []).filter((v) =>
-    norm(v.plate).includes(normValue)
+        if (!data || data.length === 0) {
+          setVehicles([]);
+          return;
+        }
+
+        // Now fetch carriers for these vehicles
+        const carrierIds = [...new Set(data.map((v: Record<string, unknown>) => v.carrier_id).filter(Boolean))] as string[];
+        if (carrierIds.length > 0) {
+          supabase
+            .from("carriers")
+            .select("id, name, phone")
+            .in("id", carrierIds)
+            .then(({ data: carrierData }) => {
+              const cMap = new Map<string, { name: string; phone: string | null }>();
+              if (carrierData) {
+                carrierData.forEach((c: Record<string, unknown>) => {
+                  cMap.set(c.id as string, { name: c.name as string, phone: c.phone as string | null });
+                });
+              }
+              setVehicles(
+                data.map((v: Record<string, unknown>) => ({
+                  id: v.id as string,
+                  plate: v.plate as string,
+                  driver_name: v.driver_name as string | null,
+                  driver_phone: v.driver_phone as string | null,
+                  carrier_id: v.carrier_id as string | null,
+                  carrier_name: v.carrier_id ? cMap.get(v.carrier_id as string)?.name || null : null,
+                  carrier_phone: v.carrier_id ? cMap.get(v.carrier_id as string)?.phone || null : null,
+                }))
+              );
+            });
+        } else {
+          setVehicles(
+            data.map((v: Record<string, unknown>) => ({
+              id: v.id as string,
+              plate: v.plate as string,
+              driver_name: v.driver_name as string | null,
+              driver_phone: v.driver_phone as string | null,
+              carrier_id: v.carrier_id as string | null,
+            }))
+          );
+        }
+      });
+  }, []);
+
+  // Simple filter — case insensitive, trim
+  const searchText = value.trim().toLowerCase();
+  const filtered = vehicles.filter((v) =>
+    v.plate.toLowerCase().includes(searchText)
   );
-
-  const exactMatch = (vehicles || []).some(
-    (v) => norm(v.plate) === normValue
+  const exactMatch = vehicles.some(
+    (v) => v.plate.toLowerCase().trim() === searchText
   );
 
   // Close on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
         setShowNewForm(false);
       }
@@ -69,9 +137,15 @@ export function PlateCombobox({
   }, []);
 
   const handleSelect = useCallback(
-    (vehicle: Vehicle) => {
-      onChange(vehicle.plate);
-      onVehicleSelect?.(vehicle);
+    (v: SimpleVehicle) => {
+      console.log("[PlateCombobox] selected vehicle:", JSON.stringify(v));
+      onChange(v.plate);
+      onVehicleSelect?.({
+        plate: v.plate,
+        driverName: v.driver_name || "",
+        carrierName: v.carrier_name || v.driver_name || "",
+        carrierPhone: v.carrier_phone || v.driver_phone || "",
+      });
       setOpen(false);
       setShowNewForm(false);
     },
@@ -89,23 +163,34 @@ export function PlateCombobox({
     if (!value.trim()) return;
     setSaving(true);
     try {
-      const vehicle = await createVehicle.mutateAsync({
+      await createVehicle.mutateAsync({
         plate: value.trim().toUpperCase(),
         driver_name: newDriverName.trim() || null,
         driver_phone: newDriverPhone.trim() || null,
         carrier_id: newCarrierId || null,
       });
-      // Build a vehicle-like object with carrier info for the callback
       const selectedCarrier = carriers?.find((c) => c.id === newCarrierId);
-      const vehicleWithCarrier: Vehicle = {
-        ...vehicle,
-        carrier: selectedCarrier || undefined,
+      // Add to local list immediately
+      const newVehicle: SimpleVehicle = {
+        id: "new-" + Date.now(),
+        plate: value.trim().toUpperCase(),
+        driver_name: newDriverName.trim() || null,
+        driver_phone: newDriverPhone.trim() || null,
+        carrier_id: newCarrierId || null,
+        carrier_name: selectedCarrier?.name || null,
+        carrier_phone: selectedCarrier?.phone || null,
       };
-      onVehicleSelect?.(vehicleWithCarrier);
+      setVehicles((prev) => [...prev, newVehicle]);
+      onVehicleSelect?.({
+        plate: newVehicle.plate,
+        driverName: newVehicle.driver_name || "",
+        carrierName: newVehicle.carrier_name || newVehicle.driver_name || "",
+        carrierPhone: newVehicle.carrier_phone || newVehicle.driver_phone || "",
+      });
       setOpen(false);
       setShowNewForm(false);
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error("[PlateCombobox] save error:", err);
     } finally {
       setSaving(false);
     }
@@ -147,12 +232,12 @@ export function PlateCombobox({
                           {v.driver_name}
                         </span>
                       )}
-                      {v.carrier?.name && (
+                      {v.carrier_name && (
                         <span className="text-xs text-muted-foreground">
-                          ({v.carrier.name})
+                          ({v.carrier_name})
                         </span>
                       )}
-                      {norm(v.plate) === normValue && (
+                      {v.plate.toLowerCase().trim() === searchText && (
                         <Check className="ml-auto h-3 w-3 text-green-600" />
                       )}
                     </button>
@@ -177,7 +262,6 @@ export function PlateCombobox({
               )}
             </div>
           ) : (
-            /* Inline new vehicle form */
             <div className="space-y-2 p-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-muted-foreground">

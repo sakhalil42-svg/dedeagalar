@@ -14,7 +14,7 @@ import {
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
-import type { Sale, Delivery, FreightPayer, Contact, PricingModel, Vehicle } from "@/lib/types/database.types";
+import type { Sale, Delivery, FreightPayer, Contact, PricingModel } from "@/lib/types/database.types";
 import { PlateCombobox } from "@/components/forms/plate-combobox";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -451,14 +451,17 @@ function QuickEntryForm({
 
   const createDeliveryTx = useCreateDeliveryWithTransactions();
 
-  const handleVehicleSelect = useCallback((vehicle: Vehicle) => {
-    setVehiclePlate(vehicle.plate);
-    // Fill carrier name: prefer carrier.name, fallback to driver_name
-    const name = vehicle.carrier?.name || vehicle.driver_name || "";
-    const phone = vehicle.carrier?.phone || vehicle.driver_phone || "";
-    if (name) setCarrierName(name);
-    if (phone) setCarrierPhone(phone);
-    if (vehicle.driver_name) setDriverName(vehicle.driver_name);
+  const handleVehicleSelect = useCallback((info: {
+    plate: string;
+    driverName: string;
+    carrierName: string;
+    carrierPhone: string;
+  }) => {
+    console.log("[QuickEntry] handleVehicleSelect:", JSON.stringify(info));
+    setVehiclePlate(info.plate);
+    if (info.carrierName) setCarrierName(info.carrierName);
+    if (info.carrierPhone) setCarrierPhone(info.carrierPhone);
+    if (info.driverName) setDriverName(info.driverName);
   }, []);
 
   const resetForm = () => {
