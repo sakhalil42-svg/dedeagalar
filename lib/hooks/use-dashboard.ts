@@ -111,14 +111,14 @@ export function useDashboardKpis() {
         .order("balance", { ascending: false });
 
       const contactIds = [...new Set((accounts || []).map((a) => a.contact_id).filter(Boolean))];
-      let contactMap = new Map<string, { name: string; type: string }>();
+      let contactMap = new Map<string, { name: string; type: string; phone: string | null }>();
       if (contactIds.length > 0) {
         const { data: contacts } = await supabase
           .from("contacts")
-          .select("id, name, type")
+          .select("id, name, type, phone")
           .in("id", contactIds);
         if (contacts) {
-          contactMap = new Map(contacts.map((c) => [c.id, { name: c.name, type: c.type }]));
+          contactMap = new Map(contacts.map((c) => [c.id, { name: c.name, type: c.type, phone: c.phone }]));
         }
       }
 
@@ -162,6 +162,7 @@ export function useDashboardKpis() {
       const allBalances: Array<{
         contactId: string;
         name: string;
+        phone: string | null;
         type: string;
         balance: number;
       }> = (accounts || [])
@@ -171,6 +172,7 @@ export function useDashboardKpis() {
           return {
             contactId: a.contact_id,
             name: c.name,
+            phone: c.phone || null,
             type: c.type,
             balance: a.balance,
           };

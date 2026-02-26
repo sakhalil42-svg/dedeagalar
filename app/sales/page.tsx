@@ -49,6 +49,7 @@ import {
   Filter,
 } from "lucide-react";
 import { toast } from "sonner";
+import { openWhatsAppMessage, buildSevkiyatMessage } from "@/lib/utils/whatsapp";
 
 // ─── FREIGHT PAYER OPTIONS ───────────────────────────────────────
 const FREIGHT_PAYER_OPTIONS: { value: FreightPayer; label: string }[] = [
@@ -480,6 +481,8 @@ function ActiveOrderView({
               supplierPrice={parseFloat(order.supplierPrice)}
               pricingModel={order.pricingModel}
               ensureSaleExists={ensureSaleExists}
+              customerContact={customerContact || null}
+              feedTypeName={feedTypeName || undefined}
             />
 
             {activeSaleId && (
@@ -509,6 +512,8 @@ function QuickEntryForm({
   supplierPrice,
   pricingModel,
   ensureSaleExists,
+  customerContact,
+  feedTypeName,
 }: {
   saleId: string | null;
   purchaseId: string | null;
@@ -518,6 +523,8 @@ function QuickEntryForm({
   supplierPrice: number;
   pricingModel: PricingModel;
   ensureSaleExists: () => Promise<string | null>;
+  customerContact: Contact | null;
+  feedTypeName?: string;
 }) {
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
@@ -612,11 +619,37 @@ function QuickEntryForm({
         pricingModel,
       });
 
-      // 3.2 — Detailed success toast
-      toast.success(
-        `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${vehiclePlate ? `, ${vehiclePlate}` : ""}`,
-        { duration: 2000 }
-      );
+      // 3.2 — Detailed success toast with WhatsApp action
+      const savedDate = date;
+      const savedPlate = vehiclePlate;
+      if (customerContact?.phone) {
+        toast.success(
+          `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${savedPlate ? `, ${savedPlate}` : ""}`,
+          {
+            duration: 5000,
+            action: {
+              label: "WhatsApp Bildir",
+              onClick: () => {
+                openWhatsAppMessage(
+                  customerContact.phone,
+                  buildSevkiyatMessage({
+                    customerName: customerContact.name,
+                    date: savedDate,
+                    netWeight: kg,
+                    feedType: feedTypeName,
+                    plate: savedPlate || undefined,
+                  })
+                );
+              },
+            },
+          }
+        );
+      } else {
+        toast.success(
+          `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${savedPlate ? `, ${savedPlate}` : ""}`,
+          { duration: 2000 }
+        );
+      }
       resetForNextTicket();
       setTimeout(() => {
         document.getElementById("net-weight-input")?.focus();

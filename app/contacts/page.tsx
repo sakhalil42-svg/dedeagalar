@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, Phone, MapPin, Loader2 } from "lucide-react";
+import { Plus, Search, Phone, MapPin, Loader2, MessageCircle } from "lucide-react";
+import { formatPhoneForWhatsApp } from "@/lib/utils/whatsapp";
 
 const TYPE_LABELS: Record<ContactType, string> = {
   supplier: "Üretici",
@@ -108,12 +109,39 @@ export default function ContactsPage() {
                         </p>
                       )}
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className={TYPE_COLORS[contact.type]}
-                    >
-                      {TYPE_LABELS[contact.type]}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      {contact.phone && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.open(`tel:${contact.phone}`, "_self");
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+                          >
+                            <Phone className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const wp = formatPhoneForWhatsApp(contact.phone);
+                              if (wp) window.open(`https://wa.me/${wp}`, "_blank");
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                      <Badge
+                        variant="secondary"
+                        className={TYPE_COLORS[contact.type]}
+                      >
+                        {TYPE_LABELS[contact.type]}
+                      </Badge>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

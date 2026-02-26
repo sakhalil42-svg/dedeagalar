@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronRight, Wheat, Warehouse, Users, Truck } from "lucide-react";
+import { ArrowLeft, ChevronRight, Wheat, Warehouse, Users, Truck, MessageCircle } from "lucide-react";
 
 const SETTINGS_ITEMS = [
   {
@@ -29,6 +29,12 @@ const SETTINGS_ITEMS = [
     description: "Kullanıcıları ve rollerini yönetin",
     href: "/settings/users",
     icon: Users,
+  },
+  {
+    title: "Mesaj Şablonları",
+    description: "WhatsApp mesaj şablonlarını düzenleyin",
+    href: "/settings/templates",
+    icon: MessageCircle,
   },
 ];
 

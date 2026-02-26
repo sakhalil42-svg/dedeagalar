@@ -29,6 +29,7 @@ import {
   CreditCard,
   Trophy,
   ArrowRight,
+  MessageCircle,
 } from "lucide-react";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
@@ -48,6 +49,7 @@ import {
   Legend,
 } from "recharts";
 import { useState } from "react";
+import { openWhatsAppMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
 
 // ═══════════════════════════════════════════════════════════
 // SHARED COMPONENTS
@@ -226,22 +228,37 @@ export function DashboardContent() {
                   {kpis.customerBalances.slice(0, 5).map((b) => {
                     const level = getBalanceLevel(b.balance);
                     return (
-                      <Link
+                      <div
                         key={b.contactId}
-                        href={`/finance/${b.contactId}`}
                         className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <Link href={`/finance/${b.contactId}`} className="flex items-center gap-2 min-w-0 flex-1">
                           <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0 shrink-0`}>
                             {level.label}
                           </Badge>
                           <p className="text-xs sm:text-sm truncate">{b.name}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        </Link>
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <p className={`text-xs sm:text-sm font-bold ${level.color}`}>{maskedCompact(b.balance)}</p>
-                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          {b.phone && (
+                            <button
+                              onClick={() =>
+                                openWhatsAppMessage(
+                                  b.phone,
+                                  buildOdemeHatirlatmaMessage({ contactName: b.name, balance: b.balance })
+                                )
+                              }
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                              title="WhatsApp ile hatırlat"
+                            >
+                              <MessageCircle className="h-3 w-3" />
+                            </button>
+                          )}
+                          <Link href={`/finance/${b.contactId}`}>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          </Link>
                         </div>
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>
@@ -260,22 +277,37 @@ export function DashboardContent() {
                   {kpis.supplierBalances.slice(0, 5).map((b) => {
                     const level = getBalanceLevel(b.balance);
                     return (
-                      <Link
+                      <div
                         key={b.contactId}
-                        href={`/finance/${b.contactId}`}
                         className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <Link href={`/finance/${b.contactId}`} className="flex items-center gap-2 min-w-0 flex-1">
                           <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0 shrink-0`}>
                             {level.label}
                           </Badge>
                           <p className="text-xs sm:text-sm truncate">{b.name}</p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        </Link>
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <p className={`text-xs sm:text-sm font-bold ${level.color}`}>{maskedCompact(b.balance)}</p>
-                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          {b.phone && (
+                            <button
+                              onClick={() =>
+                                openWhatsAppMessage(
+                                  b.phone,
+                                  buildOdemeHatirlatmaMessage({ contactName: b.name, balance: b.balance })
+                                )
+                              }
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                              title="WhatsApp ile hatırlat"
+                            >
+                              <MessageCircle className="h-3 w-3" />
+                            </button>
+                          )}
+                          <Link href={`/finance/${b.contactId}`}>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          </Link>
                         </div>
-                      </Link>
+                      </div>
                     );
                   })}
                 </div>

@@ -24,11 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader2, MessageCircle } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { toast } from "sonner";
+import { openWhatsAppMessage, buildCekVadeMessage } from "@/lib/utils/whatsapp";
 
 const STATUS_LABELS: Record<CheckStatus, string> = {
   pending: "Bekliyor",
@@ -381,14 +382,36 @@ export default function ChecksPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold">{masked(c.amount)}</p>
-                      {canChange && (
-                        <button
-                          className="mt-1 text-xs text-primary hover:underline"
-                          onClick={() => openStatusChange(c)}
-                        >
-                          Durum Değiştir
-                        </button>
-                      )}
+                      <div className="mt-1 flex items-center justify-end gap-2">
+                        {c.contact?.phone && (c.status === "pending" || c.status === "deposited") && (
+                          <button
+                            className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                            onClick={() =>
+                              openWhatsAppMessage(
+                                c.contact?.phone,
+                                buildCekVadeMessage({
+                                  contactName: c.contact?.name || "",
+                                  amount: c.amount,
+                                  type: c.type,
+                                  serialNo: c.serial_no || undefined,
+                                  dueDate: c.due_date,
+                                })
+                              )
+                            }
+                            title="WhatsApp ile vade hatırlat"
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                          </button>
+                        )}
+                        {canChange && (
+                          <button
+                            className="text-xs text-primary hover:underline"
+                            onClick={() => openStatusChange(c)}
+                          >
+                            Durum Değiştir
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>

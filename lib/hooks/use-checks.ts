@@ -38,11 +38,11 @@ export function useChecks() {
 
       // Manually attach contact names
       const contactIds = [...new Set((checks || []).map((c) => c.contact_id).filter(Boolean))];
-      let contactMap = new Map<string, { id: string; name: string; type: string }>();
+      let contactMap = new Map<string, { id: string; name: string; type: string; phone: string | null }>();
       if (contactIds.length > 0) {
         const { data: contacts } = await supabase
           .from("contacts")
-          .select("id, name, type")
+          .select("id, name, type, phone")
           .in("id", contactIds);
         if (contacts) {
           contactMap = new Map(contacts.map((c) => [c.id, c]));

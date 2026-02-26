@@ -34,9 +34,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Trash2, Phone, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { formatPhoneForWhatsApp, openPhoneDialer } from "@/lib/utils/whatsapp";
 
 const TYPE_LABELS: Record<ContactType, string> = {
   supplier: "Üretici",
@@ -301,12 +302,24 @@ export default function ContactDetailPage() {
                     <span className="text-sm text-muted-foreground">
                       Telefon
                     </span>
-                    <a
-                      href={`tel:${contact.phone}`}
-                      className="text-sm font-medium text-primary"
-                    >
-                      {contact.phone}
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{contact.phone}</span>
+                      <button
+                        onClick={() => openPhoneDialer(contact.phone)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const wp = formatPhoneForWhatsApp(contact.phone);
+                          if (wp) window.open(`https://wa.me/${wp}`, "_blank");
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <Separator />
                 </>

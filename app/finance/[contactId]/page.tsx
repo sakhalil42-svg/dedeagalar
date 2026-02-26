@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
-import { generateContactPdf, openWhatsApp } from "@/lib/utils/pdf-export";
+import { generateContactPdf } from "@/lib/utils/pdf-export";
+import { openWhatsAppMessage, buildOdemeHatirlatmaMessage, buildEkstreMessage } from "@/lib/utils/whatsapp";
 import { useDeliveriesForTransactions } from "@/lib/hooks/use-deliveries-for-transactions";
 import type { AccountTransaction, Delivery } from "@/lib/types/database.types";
 
@@ -132,9 +133,23 @@ export default function AccountDetailPage() {
     });
   }
 
-  function handleWhatsApp() {
+  function handleWhatsAppEkstre() {
     if (!contact) return;
-    openWhatsApp(contact.phone, contact.name);
+    openWhatsAppMessage(
+      contact.phone,
+      buildEkstreMessage({ contactName: contact.name })
+    );
+  }
+
+  function handleWhatsAppHatirlatma() {
+    if (!contact) return;
+    openWhatsAppMessage(
+      contact.phone,
+      buildOdemeHatirlatmaMessage({
+        contactName: contact.name,
+        balance: bakiye,
+      })
+    );
   }
 
   return (
@@ -205,10 +220,16 @@ export default function AccountDetailPage() {
           <Download className="mr-1 h-4 w-4" />
           PDF
         </Button>
-        {contact.phone && (
-          <Button size="sm" variant="outline" onClick={handleWhatsApp}>
+        {contact.phone && bakiye > 0 && (
+          <Button size="sm" variant="outline" onClick={handleWhatsAppHatirlatma} className="text-amber-600 border-amber-300 hover:bg-amber-50">
             <MessageCircle className="mr-1 h-4 w-4" />
-            WhatsApp
+            Hatırlat
+          </Button>
+        )}
+        {contact.phone && (
+          <Button size="sm" variant="outline" onClick={handleWhatsAppEkstre}>
+            <MessageCircle className="mr-1 h-4 w-4" />
+            Ekstre
           </Button>
         )}
       </div>
