@@ -51,7 +51,7 @@ export function useAccountTransactions(accountId: string) {
         .from("account_transactions")
         .select("*")
         .eq("account_id", accountId)
-        .order("transaction_date", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data as AccountTransaction[];
     },

@@ -23,13 +23,6 @@ import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { generateContactPdf } from "@/lib/utils/pdf-export";
 
-const REF_LABELS: Record<string, string> = {
-  purchase: "Alım",
-  sale: "Satış",
-  payment: "Ödeme",
-  delivery: "Sevkiyat",
-};
-
 const FREIGHT_PAYER_LABELS: Record<string, string> = {
   customer: "Müşteri",
   supplier: "Üretici",
@@ -305,7 +298,7 @@ export default function AccountDetailPage() {
             </div>
           ) : transactions && transactions.length > 0 ? (
             transactions.map((tx, i) => {
-              const isDebit = tx.type === "debit";
+              const isDebit = tx.transaction_type === "debit";
               return (
                 <div key={tx.id}>
                   {i > 0 && <Separator />}
@@ -324,22 +317,11 @@ export default function AccountDetailPage() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-medium">
-                          {tx.description || (isDebit ? "Borç" : "Alacak")}
-                        </p>
-                        {tx.reference_type && (
-                          <Badge
-                            variant="secondary"
-                            className="shrink-0 text-xs"
-                          >
-                            {REF_LABELS[tx.reference_type] ||
-                              tx.reference_type}
-                          </Badge>
-                        )}
-                      </div>
+                      <p className="truncate text-sm font-medium">
+                        {tx.description || (isDebit ? "Borç" : "Alacak")}
+                      </p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{formatDateShort(tx.transaction_date)}</span>
+                        <span>{formatDateShort(tx.created_at)}</span>
                         <span>Bakiye: {masked(tx.balance_after)}</span>
                       </div>
                     </div>

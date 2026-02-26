@@ -72,12 +72,10 @@ export function useCreatePaymentWithTransaction() {
         .from("account_transactions")
         .insert({
           account_id: account.id,
-          type: txType,
+          transaction_type: txType,
           amount: values.amount,
           description: values.description || txDescription,
-          reference_type: "payment",
           reference_id: payment.id,
-          transaction_date: values.payment_date,
         });
       if (txErr) throw txErr;
 

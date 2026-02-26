@@ -201,13 +201,11 @@ export type TransactionDirection = "debit" | "credit";
 export interface AccountTransaction {
   id: string;
   account_id: string;
-  type: TransactionDirection;
+  transaction_type: TransactionDirection;
   amount: number;
   balance_after: number;
   description: string | null;
-  reference_type: string | null; // 'purchase' | 'sale' | 'payment'
   reference_id: string | null;
-  transaction_date: string;
   created_at: string;
 }
 
