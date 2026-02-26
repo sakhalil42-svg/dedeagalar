@@ -1,16 +1,20 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useSales, useCreateSale } from "@/lib/hooks/use-sales";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
 import { useDeliveriesBySale } from "@/lib/hooks/use-deliveries";
 import { useCreateDeliveryWithTransactions } from "@/lib/hooks/use-delivery-with-transactions";
 import { useDeleteDelivery } from "@/lib/hooks/use-deliveries";
+import {
+  useDeliveryPhotos,
+  useUploadDeliveryPhoto,
+} from "@/lib/hooks/use-delivery-photos";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
-import type { Sale, FreightPayer } from "@/lib/types/database.types";
+import type { Sale, Delivery, FreightPayer, Contact } from "@/lib/types/database.types";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,16 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Loader2,
-  Plus,
   Check,
   Trash2,
   History,
@@ -43,7 +38,11 @@ import {
   Scale,
   Truck,
   Users,
-  AlertTriangle,
+  Camera,
+  X,
+  MessageCircle,
+  Phone,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -63,6 +62,43 @@ interface OrderConfig {
   supplierPrice: string;
   saleId: string | null;
   purchaseId: string | null;
+}
+
+// ─── WHATSAPP HELPER ─────────────────────────────────────────────
+function buildWhatsAppUrl(
+  customerPhone: string | null,
+  delivery: Delivery
+): string | null {
+  if (!customerPhone) return null;
+
+  // Normalize phone: remove spaces, dashes, leading 0, add 90 prefix
+  let phone = customerPhone.replace(/[\s\-()]/g, "");
+  if (phone.startsWith("+")) phone = phone.slice(1);
+  if (phone.startsWith("0")) phone = "90" + phone.slice(1);
+  if (!phone.startsWith("90") && phone.length === 10) phone = "90" + phone;
+
+  let msg: string;
+  if (delivery.freight_payer === "customer") {
+    msg =
+      `🚛 Sevkiyat Bilgisi\n` +
+      (delivery.carrier_name ? `Nakliyeci: ${delivery.carrier_name}\n` : "") +
+      (delivery.vehicle_plate ? `Plaka: ${delivery.vehicle_plate}\n` : "") +
+      (delivery.carrier_phone ? `Telefon: ${delivery.carrier_phone}\n` : "") +
+      `Net Ağırlık: ${delivery.net_weight.toLocaleString("tr-TR")} kg\n` +
+      (delivery.freight_cost
+        ? `Nakliye Bedeli: ${delivery.freight_cost.toLocaleString("tr-TR")} ₺\n`
+        : "") +
+      `Ödeme nakliyeciye yapılacaktır.`;
+  } else {
+    msg =
+      `🚛 Sevkiyat Bilgisi\n` +
+      (delivery.carrier_name ? `Nakliyeci: ${delivery.carrier_name}\n` : "") +
+      (delivery.vehicle_plate ? `Plaka: ${delivery.vehicle_plate}\n` : "") +
+      (delivery.carrier_phone ? `Telefon: ${delivery.carrier_phone}\n` : "") +
+      `Net Ağırlık: ${delivery.net_weight.toLocaleString("tr-TR")} kg`;
+  }
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
 }
 
 // ─── PAGE COMPONENT ──────────────────────────────────────────────
@@ -133,22 +169,22 @@ function ActiveOrderView({
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
 
-  // Try to find existing sale matching the config
   const matchingSale = useMemo(() => {
     if (!allSales || !order.customerId || !order.feedTypeId) return null;
-    return allSales.find(
-      (s) =>
-        s.contact_id === order.customerId &&
-        s.feed_type_id === order.feedTypeId &&
-        s.status !== "cancelled" &&
-        s.status !== "delivered"
-    ) || null;
+    return (
+      allSales.find(
+        (s) =>
+          s.contact_id === order.customerId &&
+          s.feed_type_id === order.feedTypeId &&
+          s.status !== "cancelled" &&
+          s.status !== "delivered"
+      ) || null
+    );
   }, [allSales, order.customerId, order.feedTypeId]);
 
   const activeSaleId = order.saleId || matchingSale?.id || null;
-
-  // Auto-fill price from existing sale
-  const effectiveCustomerPrice = order.customerPrice || (matchingSale ? String(matchingSale.unit_price) : "");
+  const effectiveCustomerPrice =
+    order.customerPrice || (matchingSale ? String(matchingSale.unit_price) : "");
 
   const isOrderReady =
     order.customerId &&
@@ -157,7 +193,6 @@ function ActiveOrderView({
     effectiveCustomerPrice &&
     order.supplierPrice;
 
-  // Create sale if needed when starting to add tickets
   const ensureSaleExists = useCallback(async (): Promise<string | null> => {
     if (activeSaleId) return activeSaleId;
     if (!order.customerId || !order.feedTypeId || !effectiveCustomerPrice) return null;
@@ -179,7 +214,7 @@ function ActiveOrderView({
     }
   }, [activeSaleId, order.customerId, order.feedTypeId, effectiveCustomerPrice, createSale, setOrder]);
 
-  const customerName = customers?.find((c) => c.id === order.customerId)?.name;
+  const customerContact = customers?.find((c) => c.id === order.customerId);
   const supplierName = suppliers?.find((c) => c.id === order.supplierId)?.name;
   const feedTypeName = feedTypes?.find((f) => f.id === order.feedTypeId)?.name;
 
@@ -190,7 +225,9 @@ function ActiveOrderView({
         <div className="flex items-center justify-between p-4 pb-2">
           <div>
             <h1 className="text-xl font-bold">Hızlı Sevkiyat</h1>
-            <p className="text-xs text-muted-foreground">Kantar fişi gir, cari otomatik işlensin</p>
+            <p className="text-xs text-muted-foreground">
+              Kantar fişi gir, cari otomatik işlensin
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <BalanceToggle />
@@ -201,9 +238,8 @@ function ActiveOrderView({
           </div>
         </div>
 
-        {/* ─── ORDER CONFIG (collapsible when ready) ─── */}
+        {/* ─── ORDER CONFIG ─── */}
         <div className="px-4 pb-3 space-y-3">
-          {/* Row 1: Customer + Supplier */}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label className="text-xs text-muted-foreground">Müşteri</Label>
@@ -216,7 +252,9 @@ function ActiveOrderView({
                 </SelectTrigger>
                 <SelectContent>
                   {customers?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -232,14 +270,15 @@ function ActiveOrderView({
                 </SelectTrigger>
                 <SelectContent>
                   {suppliers?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Row 2: Feed type + Prices */}
           <div className="grid grid-cols-3 gap-2">
             <div>
               <Label className="text-xs text-muted-foreground">Yem Türü</Label>
@@ -252,7 +291,9 @@ function ActiveOrderView({
                 </SelectTrigger>
                 <SelectContent>
                   {feedTypes?.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -283,12 +324,11 @@ function ActiveOrderView({
             </div>
           </div>
 
-          {/* Active order badge */}
           {isOrderReady && (
             <div className="flex items-center gap-2 text-xs">
               <Badge variant="secondary" className="bg-green-100 text-green-800">
                 <Users className="mr-1 h-3 w-3" />
-                {customerName}
+                {customerContact?.name}
               </Badge>
               <span className="text-muted-foreground">←</span>
               <Badge variant="secondary" className="bg-amber-100 text-amber-800">
@@ -319,7 +359,6 @@ function ActiveOrderView({
           </Card>
         ) : (
           <>
-            {/* Quick Entry Form */}
             <QuickEntryForm
               saleId={activeSaleId}
               purchaseId={order.purchaseId}
@@ -330,13 +369,13 @@ function ActiveOrderView({
               ensureSaleExists={ensureSaleExists}
             />
 
-            {/* Ticket List + Summary */}
             {activeSaleId && (
               <TicketListAndSummary
                 saleId={activeSaleId}
                 customerPrice={parseFloat(effectiveCustomerPrice)}
                 supplierPrice={parseFloat(order.supplierPrice)}
                 masked={masked}
+                customerContact={customerContact || null}
               />
             )}
           </>
@@ -369,6 +408,8 @@ function QuickEntryForm({
   const [ticketNo, setTicketNo] = useState("");
   const [netWeight, setNetWeight] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
+  const [carrierName, setCarrierName] = useState("");
+  const [carrierPhone, setCarrierPhone] = useState("");
   const [freightCost, setFreightCost] = useState("");
   const [freightPayer, setFreightPayer] = useState<FreightPayer>("me");
   const [saving, setSaving] = useState(false);
@@ -380,7 +421,7 @@ function QuickEntryForm({
     setNetWeight("");
     setVehiclePlate("");
     setFreightCost("");
-    // Keep date, freight payer — usually same across entries
+    // Keep date, freightPayer, carrierName, carrierPhone — usually same across entries
   };
 
   const handleSave = async () => {
@@ -403,6 +444,8 @@ function QuickEntryForm({
           ticket_no: ticketNo || null,
           net_weight: kg,
           vehicle_plate: vehiclePlate || null,
+          carrier_name: carrierName || null,
+          carrier_phone: carrierPhone || null,
           freight_cost: freightCost ? parseFloat(freightCost) : null,
           freight_payer: freightCost ? freightPayer : null,
         },
@@ -414,12 +457,13 @@ function QuickEntryForm({
 
       toast.success(`${kg.toLocaleString("tr-TR")} kg kaydedildi`);
       resetForm();
-      // Focus net weight for next entry
       setTimeout(() => {
         document.getElementById("net-weight-input")?.focus();
       }, 100);
     } catch (err) {
-      toast.error("Kayıt hatası: " + (err instanceof Error ? err.message : "Bilinmeyen hata"));
+      toast.error(
+        "Kayıt hatası: " + (err instanceof Error ? err.message : "Bilinmeyen hata")
+      );
     } finally {
       setSaving(false);
     }
@@ -456,7 +500,7 @@ function QuickEntryForm({
           </div>
         </div>
 
-        {/* Row 2: NET WEIGHT — the hero field */}
+        {/* Row 2: NET WEIGHT */}
         <div>
           <Label className="text-xs text-muted-foreground">Net Ağırlık (kg)</Label>
           <Input
@@ -495,7 +539,34 @@ function QuickEntryForm({
           </div>
         </div>
 
-        {/* Row 4: Freight Payer toggle */}
+        {/* Row 4: Carrier Name + Phone */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs text-muted-foreground">Nakliyeci Adı</Label>
+            <Input
+              placeholder="İsim"
+              value={carrierName}
+              onChange={(e) => setCarrierName(e.target.value)}
+              className="h-9 text-sm"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">
+              <Phone className="inline h-3 w-3 mr-0.5" />
+              Nakliyeci Tel
+            </Label>
+            <Input
+              type="tel"
+              inputMode="tel"
+              placeholder="05XX XXX XXXX"
+              value={carrierPhone}
+              onChange={(e) => setCarrierPhone(e.target.value)}
+              className="h-9 text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Row 5: Freight Payer toggle */}
         {freightCost && parseFloat(freightCost) > 0 && (
           <div>
             <Label className="text-xs text-muted-foreground">Nakliye Ödeyen</Label>
@@ -518,7 +589,7 @@ function QuickEntryForm({
           </div>
         )}
 
-        {/* Preview + Save */}
+        {/* Preview */}
         {netWeight && parseFloat(netWeight) > 0 && (
           <div className="rounded-lg bg-muted/50 p-2 text-xs space-y-1">
             <div className="flex justify-between">
@@ -526,7 +597,9 @@ function QuickEntryForm({
               <span className="font-medium">
                 {formatCurrency(
                   parseFloat(netWeight) * customerPrice -
-                    (freightPayer === "customer" && freightCost ? parseFloat(freightCost) : 0)
+                    (freightPayer === "customer" && freightCost
+                      ? parseFloat(freightCost)
+                      : 0)
                 )}
               </span>
             </div>
@@ -541,7 +614,9 @@ function QuickEntryForm({
               <span className="font-bold text-green-700">
                 {formatCurrency(
                   parseFloat(netWeight) * (customerPrice - supplierPrice) -
-                    (freightPayer === "me" && freightCost ? parseFloat(freightCost) : 0)
+                    (freightPayer === "me" && freightCost
+                      ? parseFloat(freightCost)
+                      : 0)
                 )}
               </span>
             </div>
@@ -572,17 +647,20 @@ function TicketListAndSummary({
   customerPrice,
   supplierPrice,
   masked,
+  customerContact,
 }: {
   saleId: string;
   customerPrice: number;
   supplierPrice: number;
   masked: (amount: number) => string;
+  customerContact: Contact | null;
 }) {
   const { data: deliveries, isLoading } = useDeliveriesBySale(saleId);
   const deleteDelivery = useDeleteDelivery();
 
   const summary = useMemo(() => {
-    if (!deliveries) return { totalKg: 0, customerTotal: 0, supplierTotal: 0, freightTotal: 0, profit: 0 };
+    if (!deliveries)
+      return { totalKg: 0, customerTotal: 0, supplierTotal: 0, freightTotal: 0, profit: 0 };
     return deliveries.reduce(
       (acc, d) => {
         const freight = d.freight_cost || 0;
@@ -635,81 +713,25 @@ function TicketListAndSummary({
 
   return (
     <>
-      {/* Ticket Table */}
+      {/* Ticket Cards */}
       <Card>
         <CardHeader className="pb-2 pt-3 px-3">
           <CardTitle className="text-sm flex items-center justify-between">
             <span>Kantar Fişleri ({deliveries.length})</span>
-            <Badge variant="secondary">
-              {(summary.totalKg / 1000).toFixed(1)} ton
-            </Badge>
+            <Badge variant="secondary">{(summary.totalKg / 1000).toFixed(1)} ton</Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Tarih</TableHead>
-                <TableHead className="text-xs">Fiş</TableHead>
-                <TableHead className="text-xs text-right">Net (kg)</TableHead>
-                <TableHead className="text-xs">Plaka</TableHead>
-                <TableHead className="text-xs text-right">Nakliye</TableHead>
-                <TableHead className="text-xs w-8"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {deliveries.map((d) => {
-                const custAmount =
-                  d.freight_payer === "customer"
-                    ? d.net_weight * customerPrice - (d.freight_cost || 0)
-                    : d.net_weight * customerPrice;
-                const suppAmount = d.net_weight * supplierPrice;
-
-                return (
-                  <TableRow key={d.id}>
-                    <TableCell className="text-xs">
-                      {formatDateShort(d.delivery_date)}
-                    </TableCell>
-                    <TableCell className="text-xs font-mono">
-                      {d.ticket_no || "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-sm">
-                      {d.net_weight.toLocaleString("tr-TR")}
-                    </TableCell>
-                    <TableCell className="text-xs font-mono">
-                      {d.vehicle_plate || "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-right">
-                      {d.freight_cost ? (
-                        <span>
-                          {masked(d.freight_cost)}
-                          <br />
-                          <span className="text-muted-foreground">
-                            {d.freight_payer === "customer"
-                              ? "Müş."
-                              : d.freight_payer === "supplier"
-                              ? "Ürt."
-                              : "Ben"}
-                          </span>
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="p-1">
-                      <button
-                        onClick={() => handleDelete(d.id)}
-                        className="flex h-7 w-7 items-center justify-center rounded text-red-500 hover:bg-red-50 transition-colors"
-                        disabled={deleteDelivery.isPending}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+        <CardContent className="p-0 divide-y">
+          {deliveries.map((d) => (
+            <TicketRow
+              key={d.id}
+              delivery={d}
+              customerContact={customerContact}
+              masked={masked}
+              onDelete={() => handleDelete(d.id)}
+              isDeleting={deleteDelivery.isPending}
+            />
+          ))}
         </CardContent>
       </Card>
 
@@ -720,7 +742,8 @@ function TicketListAndSummary({
             <div>
               <p className="text-xs text-muted-foreground">Toplam</p>
               <p className="text-lg font-bold">
-                {(summary.totalKg / 1000).toFixed(1)} <span className="text-sm font-normal">ton</span>
+                {(summary.totalKg / 1000).toFixed(1)}{" "}
+                <span className="text-sm font-normal">ton</span>
               </p>
             </div>
             <div>
@@ -740,13 +763,188 @@ function TicketListAndSummary({
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Kar</p>
-              <p className={`font-bold text-sm ${summary.profit >= 0 ? "text-green-700" : "text-red-700"}`}>
+              <p
+                className={`font-bold text-sm ${
+                  summary.profit >= 0 ? "text-green-700" : "text-red-700"
+                }`}
+              >
                 {masked(summary.profit)}
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
+    </>
+  );
+}
+
+// ─── SINGLE TICKET ROW ───────────────────────────────────────────
+function TicketRow({
+  delivery,
+  customerContact,
+  masked,
+  onDelete,
+  isDeleting,
+}: {
+  delivery: Delivery;
+  customerContact: Contact | null;
+  masked: (amount: number) => string;
+  onDelete: () => void;
+  isDeleting: boolean;
+}) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: photos } = useDeliveryPhotos(delivery.id);
+  const uploadPhoto = useUploadDeliveryPhoto();
+
+  const waUrl = buildWhatsAppUrl(customerContact?.phone || null, delivery);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of Array.from(files)) {
+      try {
+        await uploadPhoto.mutateAsync({ deliveryId: delivery.id, file });
+        toast.success("Fotoğraf yüklendi");
+      } catch {
+        toast.error("Fotoğraf yüklenemedi");
+      }
+    }
+    // Reset so same file can be re-selected
+    e.target.value = "";
+  };
+
+  return (
+    <>
+      <div className="px-3 py-2.5 space-y-2">
+        {/* Main row */}
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{formatDateShort(delivery.delivery_date)}</span>
+              {delivery.ticket_no && (
+                <span className="font-mono">#{delivery.ticket_no}</span>
+              )}
+              {delivery.vehicle_plate && (
+                <span className="font-mono">{delivery.vehicle_plate}</span>
+              )}
+            </div>
+            <p className="text-lg font-bold">
+              {delivery.net_weight.toLocaleString("tr-TR")} kg
+            </p>
+            {delivery.freight_cost ? (
+              <p className="text-xs text-muted-foreground">
+                Nakliye: {masked(delivery.freight_cost)} ·{" "}
+                {delivery.freight_payer === "customer"
+                  ? "Müşteri"
+                  : delivery.freight_payer === "supplier"
+                  ? "Üretici"
+                  : "Ben"}
+                {delivery.carrier_name && ` · ${delivery.carrier_name}`}
+              </p>
+            ) : delivery.carrier_name ? (
+              <p className="text-xs text-muted-foreground">{delivery.carrier_name}</p>
+            ) : null}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* WhatsApp */}
+            {waUrl && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-green-600 hover:bg-green-50 transition-colors"
+                title="WhatsApp ile gönder"
+              >
+                <MessageCircle className="h-4 w-4" />
+              </a>
+            )}
+
+            {/* Camera / Photo */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-blue-600 hover:bg-blue-50 transition-colors"
+              disabled={uploadPhoto.isPending}
+              title="Fotoğraf ekle"
+            >
+              {uploadPhoto.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {/* Delete */}
+            <button
+              onClick={onDelete}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-red-50 transition-colors"
+              disabled={isDeleting}
+              title="Sil"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Photo thumbnails */}
+        {photos && photos.length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {photos.map((p) => (
+              <button
+                key={p.name}
+                onClick={() => setLightboxUrl(p.url)}
+                className="shrink-0 h-12 w-12 rounded-md overflow-hidden border hover:ring-2 ring-primary transition-all"
+              >
+                <img
+                  src={p.url}
+                  alt="Kantar fişi"
+                  className="h-full w-full object-cover"
+                />
+              </button>
+            ))}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="shrink-0 h-12 w-12 rounded-md border border-dashed flex items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
+            >
+              <ImageIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Kantar fişi"
+            className="max-h-[85vh] max-w-full rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </>
   );
 }
@@ -797,16 +995,26 @@ function HistoryView({
                   </p>
                 </div>
                 <Badge variant="secondary">
-                  {selectedSale.status === "delivered" ? "Teslim" : selectedSale.status === "confirmed" ? "Aktif" : "Taslak"}
+                  {selectedSale.status === "delivered"
+                    ? "Teslim"
+                    : selectedSale.status === "confirmed"
+                    ? "Aktif"
+                    : "Taslak"}
                 </Badge>
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <span>{masked(selectedSale.total_amount)}</span>
-                <span className="text-muted-foreground">{formatDateShort(selectedSale.sale_date)}</span>
+                <span className="text-muted-foreground">
+                  {formatDateShort(selectedSale.sale_date)}
+                </span>
               </div>
             </CardContent>
           </Card>
-          <HistoryTicketList saleId={selectedSaleId} masked={masked} customerPrice={selectedSale.unit_price} />
+          <HistoryTicketList
+            saleId={selectedSaleId}
+            masked={masked}
+            customerPhone={selectedSale.contact?.phone || null}
+          />
         </>
       ) : isLoading ? (
         <div className="flex justify-center py-12">
@@ -837,7 +1045,13 @@ function HistoryView({
                             : "bg-amber-100 text-amber-800"
                         }
                       >
-                        {s.status === "delivered" ? "Teslim" : s.status === "confirmed" ? "Aktif" : s.status === "cancelled" ? "İptal" : "Taslak"}
+                        {s.status === "delivered"
+                          ? "Teslim"
+                          : s.status === "confirmed"
+                          ? "Aktif"
+                          : s.status === "cancelled"
+                          ? "İptal"
+                          : "Taslak"}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -846,7 +1060,9 @@ function HistoryView({
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">{masked(s.total_amount)}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateShort(s.sale_date)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateShort(s.sale_date)}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -862,15 +1078,15 @@ function HistoryView({
   );
 }
 
-// ─── HISTORY TICKET LIST (read-only) ─────────────────────────────
+// ─── HISTORY TICKET LIST (read-only with photos + whatsapp) ──────
 function HistoryTicketList({
   saleId,
   masked,
-  customerPrice,
+  customerPhone,
 }: {
   saleId: string;
   masked: (amount: number) => string;
-  customerPrice: number;
+  customerPhone: string | null;
 }) {
   const { data: deliveries, isLoading } = useDeliveriesBySale(saleId);
 
@@ -903,37 +1119,18 @@ function HistoryTicketList({
             Kantar Fişleri ({deliveries.length}) · {(totalKg / 1000).toFixed(1)} ton
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Tarih</TableHead>
-                <TableHead className="text-xs">Fiş</TableHead>
-                <TableHead className="text-xs text-right">Net (kg)</TableHead>
-                <TableHead className="text-xs">Plaka</TableHead>
-                <TableHead className="text-xs text-right">Nakliye</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {deliveries.map((d) => (
-                <TableRow key={d.id}>
-                  <TableCell className="text-xs">{formatDateShort(d.delivery_date)}</TableCell>
-                  <TableCell className="text-xs font-mono">{d.ticket_no || "—"}</TableCell>
-                  <TableCell className="text-right font-bold text-sm">
-                    {d.net_weight.toLocaleString("tr-TR")}
-                  </TableCell>
-                  <TableCell className="text-xs font-mono">{d.vehicle_plate || "—"}</TableCell>
-                  <TableCell className="text-xs text-right">
-                    {d.freight_cost ? masked(d.freight_cost) : "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="p-0 divide-y">
+          {deliveries.map((d) => (
+            <HistoryTicketRow
+              key={d.id}
+              delivery={d}
+              customerPhone={customerPhone}
+              masked={masked}
+            />
+          ))}
         </CardContent>
       </Card>
 
-      {/* Summary */}
       <Card>
         <CardContent className="p-3 grid grid-cols-2 gap-3 text-center">
           <div>
@@ -946,6 +1143,108 @@ function HistoryTicketList({
           </div>
         </CardContent>
       </Card>
+    </>
+  );
+}
+
+// ─── HISTORY TICKET ROW (read-only) ──────────────────────────────
+function HistoryTicketRow({
+  delivery,
+  customerPhone,
+  masked,
+}: {
+  delivery: Delivery;
+  customerPhone: string | null;
+  masked: (amount: number) => string;
+}) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const { data: photos } = useDeliveryPhotos(delivery.id);
+
+  const waUrl = buildWhatsAppUrl(customerPhone, delivery);
+
+  return (
+    <>
+      <div className="px-3 py-2.5 space-y-2">
+        <div className="flex items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{formatDateShort(delivery.delivery_date)}</span>
+              {delivery.ticket_no && (
+                <span className="font-mono">#{delivery.ticket_no}</span>
+              )}
+              {delivery.vehicle_plate && (
+                <span className="font-mono">{delivery.vehicle_plate}</span>
+              )}
+            </div>
+            <p className="text-lg font-bold">
+              {delivery.net_weight.toLocaleString("tr-TR")} kg
+            </p>
+            {delivery.freight_cost ? (
+              <p className="text-xs text-muted-foreground">
+                Nakliye: {masked(delivery.freight_cost)} ·{" "}
+                {delivery.freight_payer === "customer"
+                  ? "Müşteri"
+                  : delivery.freight_payer === "supplier"
+                  ? "Üretici"
+                  : "Ben"}
+                {delivery.carrier_name && ` · ${delivery.carrier_name}`}
+              </p>
+            ) : delivery.carrier_name ? (
+              <p className="text-xs text-muted-foreground">{delivery.carrier_name}</p>
+            ) : null}
+          </div>
+
+          {waUrl && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-green-600 hover:bg-green-50 transition-colors shrink-0"
+              title="WhatsApp ile gönder"
+            >
+              <MessageCircle className="h-4 w-4" />
+            </a>
+          )}
+        </div>
+
+        {photos && photos.length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {photos.map((p) => (
+              <button
+                key={p.name}
+                onClick={() => setLightboxUrl(p.url)}
+                className="shrink-0 h-12 w-12 rounded-md overflow-hidden border hover:ring-2 ring-primary transition-all"
+              >
+                <img
+                  src={p.url}
+                  alt="Kantar fişi"
+                  className="h-full w-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Kantar fişi"
+            className="max-h-[85vh] max-w-full rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </>
   );
 }

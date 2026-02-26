@@ -84,6 +84,7 @@ export interface Delivery {
   vehicle_plate: string | null;
   driver_name: string | null;
   carrier_name: string | null;
+  carrier_phone: string | null;
   freight_cost: number | null;
   freight_payer: FreightPayer | null;
   notes: string | null;
@@ -101,6 +102,7 @@ export interface DeliveryInsert {
   vehicle_plate?: string | null;
   driver_name?: string | null;
   carrier_name?: string | null;
+  carrier_phone?: string | null;
   freight_cost?: number | null;
   freight_payer?: FreightPayer | null;
   notes?: string | null;
