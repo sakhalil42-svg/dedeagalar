@@ -354,7 +354,7 @@ export default function AccountDetailPage() {
           ) : txList.length > 0 ? (
             txList.map((tx, i) => {
               const amt = safeNum(tx.amount);
-              const isDebit = tx.transaction_type === "debit" || amt > 0;
+              const isDebit = tx.type === "debit" || amt > 0;
               return (
                 <div key={tx.id}>
                   {i > 0 && <Separator />}
@@ -373,11 +373,18 @@ export default function AccountDetailPage() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {tx.description || (isDebit ? "Borç" : "Alacak")}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium">
+                          {tx.description || (isDebit ? "Borç" : "Alacak")}
+                        </p>
+                        {tx.reference_type && (
+                          <Badge variant="secondary" className="shrink-0 text-xs">
+                            {tx.reference_type === "sale" ? "Satış" : tx.reference_type === "purchase" ? "Alım" : tx.reference_type === "payment" ? "Ödeme" : tx.reference_type}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{formatDateShort(tx.created_at)}</span>
+                        <span>{formatDateShort(tx.transaction_date)}</span>
                         <span>
                           Bakiye: {masked(safeNum(tx.balance_after))}
                         </span>

@@ -39,7 +39,7 @@ export function useDeliveriesByContact(contactId: string) {
 
       // ── Supplier fallback: account_transactions → reference_id → deliveries ──
       // Hızlı Sevkiyat creates delivery with sale_id only (no purchase_id).
-      // Supplier transaction stores reference_id = delivery.id
+      // Supplier transaction stores reference_type="purchase", reference_id=delivery.id
       let txDeliveryIds: string[] = [];
       if (purchaseIds.length === 0 && saleIds.length === 0) {
         const { data: account } = await supabase
@@ -53,6 +53,7 @@ export function useDeliveriesByContact(contactId: string) {
             .from("account_transactions")
             .select("reference_id")
             .eq("account_id", account.id)
+            .eq("reference_type", "purchase")
             .not("reference_id", "is", null);
 
           txDeliveryIds = (txs || [])
@@ -93,7 +94,7 @@ export function useDeliveriesByContact(contactId: string) {
             .from("account_transactions")
             .select("description")
             .eq("account_id", account.id)
-            .not("reference_id", "is", null)
+            .eq("reference_type", "purchase")
             .limit(1);
 
           if (txs && txs.length > 0) {

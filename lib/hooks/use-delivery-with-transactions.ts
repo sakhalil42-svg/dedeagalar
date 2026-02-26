@@ -70,10 +70,12 @@ export function useCreateDeliveryWithTransactions() {
         .from("account_transactions")
         .insert({
           account_id: customerAccount.id,
-          transaction_type: "debit",
+          type: "debit",
           amount: customerCredit,
           description: `Satış - ${netKg.toLocaleString("tr-TR")} kg × ${customerPrice} ₺/kg${freightPayer === "customer" ? ` (nakliye -${freightCost} ₺)` : ""}`,
+          reference_type: "sale",
           reference_id: del.sale_id,
+          transaction_date: del.delivery_date,
         });
       if (ctxErr) throw ctxErr;
 
@@ -82,10 +84,12 @@ export function useCreateDeliveryWithTransactions() {
         .from("account_transactions")
         .insert({
           account_id: supplierAccount.id,
-          transaction_type: "credit",
+          type: "credit",
           amount: supplierDebit,
           description: `Alım - ${netKg.toLocaleString("tr-TR")} kg × ${supplierPrice} ₺/kg${pricingModel === "nakliye_dahil" && freightPayer !== "supplier" ? ` (nakliye -${freightCost} ₺)` : ""}`,
+          reference_type: "purchase",
           reference_id: del.id,
+          transaction_date: del.delivery_date,
         });
       if (stxErr) throw stxErr;
 
