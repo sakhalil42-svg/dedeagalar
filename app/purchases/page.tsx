@@ -13,6 +13,7 @@ import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 
 const STATUS_LABELS: Record<PurchaseStatus, string> = {
+  pending: "Beklemede",
   draft: "Taslak",
   confirmed: "Onaylı",
   delivered: "Teslim",
@@ -20,6 +21,7 @@ const STATUS_LABELS: Record<PurchaseStatus, string> = {
 };
 
 const STATUS_COLORS: Record<PurchaseStatus, string> = {
+  pending: "bg-gray-100 text-gray-800",
   draft: "bg-amber-100 text-amber-800",
   confirmed: "bg-blue-100 text-blue-800",
   delivered: "bg-green-100 text-green-800",

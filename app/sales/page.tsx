@@ -207,8 +207,8 @@ function ActiveOrderView({
         feed_type_id: order.feedTypeId,
         quantity: 0,
         unit_price: parseFloat(effectiveCustomerPrice),
+        total_amount: 0,
         sale_date: new Date().toISOString().split("T")[0],
-        status: "confirmed",
       });
       setOrder((prev) => ({ ...prev, saleId: result.id }));
       return result.id;

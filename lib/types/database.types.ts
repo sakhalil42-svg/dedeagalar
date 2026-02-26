@@ -112,7 +112,7 @@ export interface DeliveryUpdate extends Partial<DeliveryInsert> {}
 
 // --- Purchases ---
 
-export type PurchaseStatus = "draft" | "confirmed" | "delivered" | "cancelled";
+export type PurchaseStatus = "pending" | "draft" | "confirmed" | "delivered" | "cancelled";
 
 export interface Purchase {
   id: string;
@@ -137,12 +137,14 @@ export interface Purchase {
 }
 
 export interface PurchaseInsert {
+  purchase_no?: string;
   contact_id: string;
   feed_type_id: string;
   warehouse_id?: string | null;
   quantity: number;
   unit?: string;
   unit_price: number;
+  total_amount?: number;
   status?: PurchaseStatus;
   purchase_date: string;
   due_date?: string | null;
@@ -154,7 +156,7 @@ export interface PurchaseUpdate extends Partial<PurchaseInsert> {}
 
 // --- Sales ---
 
-export type SaleStatus = "draft" | "confirmed" | "delivered" | "cancelled";
+export type SaleStatus = "pending" | "draft" | "confirmed" | "delivered" | "cancelled";
 
 export interface Sale {
   id: string;
@@ -180,12 +182,14 @@ export interface Sale {
 }
 
 export interface SaleInsert {
+  sale_no?: string;
   contact_id: string;
   feed_type_id: string;
   warehouse_id?: string | null;
   quantity: number;
   unit?: string;
   unit_price: number;
+  total_amount?: number;
   status?: SaleStatus;
   sale_date: string;
   due_date?: string | null;

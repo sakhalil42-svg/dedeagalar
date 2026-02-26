@@ -44,6 +44,7 @@ import { formatCurrency, formatDate, formatWeight, formatPercent } from "@/lib/u
 import { DeliverySection } from "@/components/forms/delivery-section";
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
+  pending: "Beklemede",
   draft: "Taslak",
   confirmed: "Onaylı",
   delivered: "Teslim Edildi",
@@ -51,13 +52,14 @@ const STATUS_LABELS: Record<SaleStatus, string> = {
 };
 
 const STATUS_COLORS: Record<SaleStatus, string> = {
+  pending: "bg-gray-100 text-gray-800",
   draft: "bg-amber-100 text-amber-800",
   confirmed: "bg-blue-100 text-blue-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
 };
 
-const STATUS_FLOW: SaleStatus[] = ["draft", "confirmed", "delivered"];
+const STATUS_FLOW: SaleStatus[] = ["pending", "draft", "confirmed", "delivered"];
 
 export default function SaleDetailPage() {
   const { id } = useParams<{ id: string }>();

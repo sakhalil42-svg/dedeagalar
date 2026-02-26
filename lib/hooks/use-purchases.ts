@@ -47,10 +47,19 @@ export function useCreatePurchase() {
 
   return useMutation({
     mutationFn: async (values: PurchaseInsert) => {
+      // Generate purchase_no if not provided (trigger may not exist)
+      const purchaseNo = values.purchase_no || `AL-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}`;
+      // Calculate total_amount if not provided
+      const totalAmount = values.total_amount ?? values.quantity * values.unit_price;
+
       const { data, error } = await supabase
         .from("purchases")
-        .insert(values)
-        .select(SELECT_WITH_JOINS)
+        .insert({
+          ...values,
+          purchase_no: purchaseNo,
+          total_amount: totalAmount,
+        })
+        .select()
         .single();
       if (error) throw error;
       return data as Purchase;
