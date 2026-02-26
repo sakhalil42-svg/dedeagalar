@@ -24,7 +24,7 @@ interface PdfParams {
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: "Nakit",
-  transfer: "Havale",
+  bank_transfer: "Havale",
   check: "\u00C7ek",
   promissory_note: "Senet",
 };

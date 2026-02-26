@@ -21,8 +21,7 @@ export function useAccountSummaries() {
         // View might not exist yet, fallback to accounts + contacts join
         const { data: fallback, error: fbErr } = await supabase
           .from("accounts")
-          .select("*, contact:contacts(name, type)")
-          .order("contact(name)");
+          .select("*, contact:contacts(name, type)");
         if (fbErr) throw fbErr;
         return (fallback || []).map((a: Record<string, unknown>) => {
           const contact = a.contact as { name: string; type: string } | null;

@@ -226,11 +226,12 @@ export interface AccountSummary {
 // --- Payments ---
 
 export type PaymentDirection = "inbound" | "outbound";
-export type PaymentMethod = "cash" | "transfer" | "check" | "promissory_note";
+export type PaymentMethod = "cash" | "bank_transfer" | "check" | "promissory_note";
 
 export interface Payment {
   id: string;
   contact_id: string;
+  account_id: string;
   direction: PaymentDirection;
   method: PaymentMethod;
   amount: number;
@@ -245,6 +246,7 @@ export interface Payment {
 
 export interface PaymentInsert {
   contact_id: string;
+  account_id: string;
   direction: PaymentDirection;
   method: PaymentMethod;
   amount: number;

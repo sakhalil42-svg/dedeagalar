@@ -38,7 +38,7 @@ const FREIGHT_PAYER_LABELS: Record<string, string> = {
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: "Nakit",
-  transfer: "Havale",
+  bank_transfer: "Havale",
   check: "Çek",
   promissory_note: "Senet",
 };

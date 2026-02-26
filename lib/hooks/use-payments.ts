@@ -36,7 +36,7 @@ export function useCreatePaymentWithTransaction() {
 
   return useMutation({
     mutationFn: async (
-      values: PaymentInsert & { check_no?: string; bank_name?: string; due_date?: string }
+      values: Omit<PaymentInsert, "account_id"> & { check_no?: string; bank_name?: string; due_date?: string }
     ) => {
       // 1. Get account_id from contact_id
       const { data: account, error: accErr } = await supabase
@@ -46,11 +46,14 @@ export function useCreatePaymentWithTransaction() {
         .single();
       if (accErr) throw new Error("Cari hesap bulunamadı. Önce kişi kaydını kontrol edin.");
 
-      // 2. Insert payment
+      // 2. Insert payment (include account_id)
       const { check_no, bank_name, due_date, ...paymentValues } = values;
       const { data: payment, error: payErr } = await supabase
         .from("payments")
-        .insert(paymentValues)
+        .insert({
+          ...paymentValues,
+          account_id: account.id,
+        })
         .select()
         .single();
       if (payErr) throw payErr;
@@ -59,10 +62,11 @@ export function useCreatePaymentWithTransaction() {
       // inbound (tahsilat) = müşteri bize ödüyor = credit (alacak azalır)
       // outbound (ödeme) = biz üreticiye ödüyoruz = debit (borç azalır)
       const txType = values.direction === "inbound" ? "credit" : "debit";
+      const methodLabel = values.method === "cash" ? "Nakit" : values.method === "bank_transfer" ? "Havale" : values.method === "check" ? "Çek" : "Senet";
       const txDescription =
         values.direction === "inbound"
-          ? `Tahsilat - ${(values.method === "cash" ? "Nakit" : values.method === "transfer" ? "Havale" : values.method === "check" ? "Çek" : "Senet")}`
-          : `Ödeme - ${(values.method === "cash" ? "Nakit" : values.method === "transfer" ? "Havale" : values.method === "check" ? "Çek" : "Senet")}`;
+          ? `Tahsilat - ${methodLabel}`
+          : `Ödeme - ${methodLabel}`;
 
       const { error: txErr } = await supabase
         .from("account_transactions")

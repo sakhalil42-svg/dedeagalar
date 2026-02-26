@@ -30,7 +30,7 @@ const DIRECTION_COLORS: Record<PaymentDirection, string> = {
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: "Nakit",
-  transfer: "Havale",
+  bank_transfer: "Havale",
   check: "Çek",
   promissory_note: "Senet",
 };

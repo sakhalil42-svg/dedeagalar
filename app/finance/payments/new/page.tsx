@@ -43,7 +43,7 @@ export default function NewPaymentPage() {
   );
 }
 
-type PaymentMethod = "cash" | "transfer" | "check" | "promissory_note";
+type PaymentMethod = "cash" | "bank_transfer" | "check" | "promissory_note";
 type Direction = "inbound" | "outbound";
 
 const METHOD_OPTIONS: {
@@ -52,7 +52,7 @@ const METHOD_OPTIONS: {
   icon: typeof Banknote;
 }[] = [
   { value: "cash", label: "Nakit", icon: Banknote },
-  { value: "transfer", label: "Havale/EFT", icon: Building2 },
+  { value: "bank_transfer", label: "Havale/EFT", icon: Building2 },
   { value: "check", label: "Çek", icon: FileText },
   { value: "promissory_note", label: "Senet", icon: ScrollText },
 ];
