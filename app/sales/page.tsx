@@ -268,6 +268,7 @@ function ActiveOrderView({
         unit: "kg",
         unit_price: parseFloat(effectiveCustomerPrice),
         sale_date: new Date().toISOString().split("T")[0],
+        status: "delivered",
       });
       setOrder((prev) => ({ ...prev, saleId: result.id }));
       return result.id;
@@ -1376,9 +1377,18 @@ function HistoryView({
                     {selectedSale.feed_type?.name} · {selectedSale.sale_no}
                   </p>
                 </div>
-                <Badge variant="secondary">
+                <Badge
+                  variant="secondary"
+                  className={
+                    selectedSale.status === "delivered"
+                      ? "bg-green-100 text-green-800"
+                      : selectedSale.status === "confirmed"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-amber-100 text-amber-800"
+                  }
+                >
                   {selectedSale.status === "delivered"
-                    ? "Teslim"
+                    ? "Tamamlandı"
                     : selectedSale.status === "confirmed"
                     ? "Aktif"
                     : "Taslak"}
@@ -1482,7 +1492,7 @@ function HistoryView({
                             }
                           >
                             {s.status === "delivered"
-                              ? "Teslim"
+                              ? "Tamamlandı"
                               : s.status === "confirmed"
                               ? "Aktif"
                               : s.status === "cancelled"
