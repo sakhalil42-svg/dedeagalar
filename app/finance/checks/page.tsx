@@ -27,6 +27,7 @@ import {
 import { Plus, Search, Loader2 } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
+import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { toast } from "sonner";
 
 const STATUS_LABELS: Record<CheckStatus, string> = {
@@ -184,12 +185,15 @@ export default function ChecksPage() {
           <h1 className="text-2xl font-bold">Çek / Senet</h1>
           <p className="text-sm text-muted-foreground">Çek ve senet takibi</p>
         </div>
-        <Button asChild size="sm">
-          <Link href="/finance/checks/new">
-            <Plus className="mr-1 h-4 w-4" />
-            Yeni
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <BalanceToggle />
+          <Button asChild size="sm">
+            <Link href="/finance/checks/new">
+              <Plus className="mr-1 h-4 w-4" />
+              Yeni
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Direction Tabs: Tümü / Alınan / Verilen */}

@@ -8,12 +8,12 @@ interface BalanceVisibilityContextValue {
 }
 
 const BalanceVisibilityContext = createContext<BalanceVisibilityContextValue>({
-  isVisible: false,
+  isVisible: true,
   toggle: () => {},
 });
 
 export function BalanceVisibilityProvider({ children }: { children: ReactNode }) {
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   const toggle = useCallback(() => setIsVisible((v) => !v), []);
 
   return (
