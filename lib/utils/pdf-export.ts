@@ -1,39 +1,18 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { ContactType } from "@/lib/types/database.types";
-import type { DeliveryWithPrice } from "@/lib/hooks/use-deliveries-by-contact";
+import type { ContactType, AccountTransaction } from "@/lib/types/database.types";
 import { LOGO_BASE64 } from "./logo-base64";
 import { ROBOTO_REGULAR, ROBOTO_BOLD } from "./roboto-fonts";
 
 interface PdfParams {
   contactName: string;
   contactType: ContactType;
-  deliveries: DeliveryWithPrice[];
-  payments: Array<{
-    id: string;
-    direction: string;
-    method: string;
-    amount: number;
-    payment_date: string;
-    description: string | null;
-  }>;
-  balance: number;
-  totalDebit: number;
-  totalCredit: number;
+  sevkiyatlar: AccountTransaction[];
+  odemeler: AccountTransaction[];
+  borc: number;
+  alacak: number;
+  bakiye: number;
 }
-
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  cash: "Nakit",
-  bank_transfer: "Havale/EFT",
-  check: "\u00C7ek",
-  promissory_note: "Senet",
-};
-
-const PDF_FREIGHT_PAYER_LABELS: Record<string, string> = {
-  customer: "Al\u0131c\u0131",
-  supplier: "Tedarik\u00E7i",
-  me: "Dedea\u011Falar Grup",
-};
 
 function safeNum(val: unknown): number {
   const n = Number(val);
@@ -45,10 +24,6 @@ function fmt(n: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-}
-
-function fmtInt(n: number): string {
-  return safeNum(n).toLocaleString("tr-TR", { maximumFractionDigits: 0 });
 }
 
 function formatDateLong(date: Date): string {
@@ -84,10 +59,11 @@ function getTableFinalY(doc: jsPDF): number {
 export function generateContactPdf({
   contactName,
   contactType,
-  deliveries,
-  payments,
-  totalDebit,
-  totalCredit,
+  sevkiyatlar,
+  odemeler,
+  borc,
+  alacak,
+  bakiye,
 }: PdfParams) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   setupFonts(doc);
@@ -99,7 +75,7 @@ export function generateContactPdf({
   let y = 15;
 
   // ══════════════════════════════════════════════════════════
-  // HEADER: Logo + Title
+  // HEADER
   // ══════════════════════════════════════════════════════════
   const logoWidth = 60;
   const logoHeight = 30;
@@ -117,95 +93,39 @@ export function generateContactPdf({
 
   y += logoHeight + 5;
 
-  // ── Contact info ──
+  // Contact info
   doc.setFontSize(11);
   doc.setFont("Roboto", "bold");
   const typeLabel = isCustomer ? "M\u00FC\u015Fteri" : "Tedarik\u00E7i";
   doc.text(`${typeLabel}: ${contactName}`, 14, y);
   y += 8;
 
-  // Draw separator line
   doc.setDrawColor(200, 200, 200);
   doc.line(14, y, pageWidth - 14, y);
   y += 6;
 
   // ══════════════════════════════════════════════════════════
-  // SEVKIYATLAR TABLOSU
+  // SEVKIYATLAR TABLOSU (from account_transactions)
   // ══════════════════════════════════════════════════════════
-  if (deliveries.length > 0) {
-    doc.setFontSize(12);
-    doc.setFont("Roboto", "bold");
-    doc.text("Sevkiyatlar", 14, y);
-    y += 2;
+  doc.setFontSize(12);
+  doc.setFont("Roboto", "bold");
+  doc.text("Sevkiyatlar / Al\u0131mlar", 14, y);
+  y += 2;
 
-    const headers = [
-      "Tarih",
-      "Fi\u015F No",
-      "Plaka",
-      "Net Kg",
-      "Fiyat (\u20BA/kg)",
-      "Mal Bedeli",
-      "Nakliye",
-      "Nakliye \u00D6d.",
-      "Net Tutar",
-    ];
+  if (sevkiyatlar.length > 0) {
+    const headers = ["Tarih", "A\u00E7\u0131klama", "Tutar (\u20BA)"];
 
-    const totalKg = deliveries.reduce((s, d) => s + safeNum(d.net_weight), 0);
-    const totalMalBedeli = deliveries.reduce(
-      (s, d) => s + safeNum(d.total_amount),
-      0
-    );
-    const totalFreight = deliveries.reduce(
-      (s, d) => s + safeNum(d.freight_cost),
-      0
-    );
-
-    // Nakliye düşümü
-    const totalFreightDeduction = deliveries.reduce((s, d) => {
-      const freight = safeNum(d.freight_cost);
-      if (isCustomer) {
-        return d.freight_payer === "customer" ? s + freight : s;
-      } else {
-        return d.freight_payer !== "supplier" ? s + freight : s;
-      }
-    }, 0);
-
-    const rows = deliveries.map((d) => {
-      const freight = safeNum(d.freight_cost);
-      let netTutar = safeNum(d.total_amount);
-      if (isCustomer && d.freight_payer === "customer") {
-        netTutar -= freight;
-      } else if (!isCustomer && d.freight_payer !== "supplier") {
-        netTutar -= freight;
-      }
-      return [
-        formatDateShortPdf(d.delivery_date),
-        d.ticket_no || "-",
-        d.vehicle_plate || "-",
-        fmtInt(safeNum(d.net_weight)),
-        fmt(safeNum(d.unit_price)),
-        fmt(safeNum(d.total_amount)),
-        freight > 0 ? fmt(freight) : "-",
-        d.freight_payer
-          ? PDF_FREIGHT_PAYER_LABELS[d.freight_payer] || d.freight_payer
-          : "-",
-        fmt(netTutar),
-      ];
-    });
-
-    // Summary row
-    const totalNet = totalMalBedeli - totalFreightDeduction;
-    rows.push([
-      "",
-      "",
-      "TOPLAM",
-      fmtInt(totalKg),
-      "",
-      fmt(totalMalBedeli),
-      totalFreight > 0 ? fmt(totalFreight) : "-",
-      "",
-      fmt(totalNet),
+    const rows = sevkiyatlar.map((tx) => [
+      formatDateShortPdf(tx.transaction_date),
+      tx.description || "-",
+      fmt(safeNum(tx.amount)),
     ]);
+
+    const sevkiyatTotal = sevkiyatlar.reduce(
+      (s, tx) => s + safeNum(tx.amount),
+      0
+    );
+    rows.push(["", "TOPLAM", fmt(sevkiyatTotal)]);
 
     autoTable(doc, {
       startY: y,
@@ -213,8 +133,8 @@ export function generateContactPdf({
       body: rows,
       theme: "grid",
       styles: {
-        fontSize: 8,
-        cellPadding: 2,
+        fontSize: 9,
+        cellPadding: 2.5,
         halign: "right",
         font: "Roboto",
       },
@@ -224,16 +144,12 @@ export function generateContactPdf({
         halign: "center",
         fontStyle: "bold",
         font: "Roboto",
-        fontSize: 8,
       },
       columnStyles: {
-        0: { halign: "center", cellWidth: 20 },
-        1: { halign: "center", cellWidth: 16 },
-        2: { halign: "center", cellWidth: 20 },
-        7: { halign: "center", cellWidth: 18 },
+        0: { halign: "center", cellWidth: 25 },
+        1: { halign: "left" },
       },
       alternateRowStyles: { fillColor: [245, 245, 245] },
-      // Bold the last (summary) row
       didParseCell: (data) => {
         if (data.section === "body" && data.row.index === rows.length - 1) {
           data.cell.styles.fontStyle = "bold";
@@ -247,14 +163,13 @@ export function generateContactPdf({
   } else {
     doc.setFontSize(10);
     doc.setFont("Roboto", "normal");
-    doc.text("Sevkiyat kayd\u0131 bulunmamaktad\u0131r.", 14, y);
-    y += 8;
+    doc.text("Sevkiyat kayd\u0131 bulunmamaktad\u0131r.", 14, y + 3);
+    y += 10;
   }
 
   // ══════════════════════════════════════════════════════════
-  // ÖDEMELER TABLOSU
+  // ÖDEMELER TABLOSU (from account_transactions)
   // ══════════════════════════════════════════════════════════
-  // Check if we need a new page
   if (y > pageHeight - 80) {
     doc.addPage();
     y = 20;
@@ -265,19 +180,19 @@ export function generateContactPdf({
   doc.text("\u00D6demeler", 14, y);
   y += 2;
 
-  if (payments.length > 0) {
-    const payHeaders = ["Tarih", "Y\u00F6ntem", "A\u00E7\u0131klama", "Tutar (\u20BA)"];
-    const payRows = payments.map((p) => [
-      formatDateShortPdf(p.payment_date),
-      PAYMENT_METHOD_LABELS[p.method] || p.method,
-      p.description || "-",
-      fmt(safeNum(p.amount)),
+  if (odemeler.length > 0) {
+    const payHeaders = ["Tarih", "A\u00E7\u0131klama", "Tutar (\u20BA)"];
+    const payRows = odemeler.map((tx) => [
+      formatDateShortPdf(tx.transaction_date),
+      tx.description || "-",
+      fmt(safeNum(tx.amount)),
     ]);
 
-    const totalPaid = payments.reduce((s, p) => s + safeNum(p.amount), 0);
-
-    // Summary row
-    payRows.push(["", "", "TOPLAM", fmt(totalPaid)]);
+    const odemeTotal = odemeler.reduce(
+      (s, tx) => s + safeNum(tx.amount),
+      0
+    );
+    payRows.push(["", "TOPLAM", fmt(odemeTotal)]);
 
     autoTable(doc, {
       startY: y,
@@ -299,8 +214,7 @@ export function generateContactPdf({
       },
       columnStyles: {
         0: { halign: "center", cellWidth: 25 },
-        1: { halign: "center", cellWidth: 25 },
-        2: { halign: "left" },
+        1: { halign: "left" },
       },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       didParseCell: (data) => {
@@ -328,24 +242,23 @@ export function generateContactPdf({
     y = 20;
   }
 
-  // Separator
   doc.setDrawColor(200, 200, 200);
   doc.line(14, y, pageWidth - 14, y);
   y += 6;
 
-  const borcVal = safeNum(totalDebit);
-  const alacakVal = safeNum(totalCredit);
-  const kalanBakiye = borcVal - alacakVal;
+  const borcVal = safeNum(borc);
+  const alacakVal = safeNum(alacak);
+  const bakiyeVal = safeNum(bakiye);
 
   doc.setFontSize(11);
   doc.setFont("Roboto", "normal");
-  doc.text(`Toplam Bor\u00E7:`, 14, y);
+  doc.text("Toplam Bor\u00E7:", 14, y);
   doc.setFont("Roboto", "bold");
   doc.text(`${fmt(borcVal)} \u20BA`, pageWidth - 14, y, { align: "right" });
   y += 6;
 
   doc.setFont("Roboto", "normal");
-  doc.text(`Toplam \u00D6denen:`, 14, y);
+  doc.text("Toplam \u00D6denen:", 14, y);
   doc.setFont("Roboto", "bold");
   doc.text(`${fmt(alacakVal)} \u20BA`, pageWidth - 14, y, { align: "right" });
   y += 8;
@@ -358,9 +271,9 @@ export function generateContactPdf({
 
   doc.setFontSize(14);
   doc.setFont("Roboto", "bold");
-  const balanceLabel = kalanBakiye > 0 ? "KALAN BOR\u00C7" : "KALAN BAK\u0130YE";
+  const balanceLabel = bakiyeVal > 0 ? "KALAN BOR\u00C7" : "KALAN BAK\u0130YE";
   doc.text(`${balanceLabel}:`, 14, y);
-  doc.text(`${fmt(Math.abs(kalanBakiye))} \u20BA`, pageWidth - 14, y, {
+  doc.text(`${fmt(Math.abs(bakiyeVal))} \u20BA`, pageWidth - 14, y, {
     align: "right",
   });
 
@@ -377,7 +290,7 @@ export function generateContactPdf({
     { align: "center" }
   );
 
-  // ── Save ──
+  // Save
   const safeFileName = contactName
     .replace(/[^\w\s-]/g, "")
     .replace(/\s+/g, "_");

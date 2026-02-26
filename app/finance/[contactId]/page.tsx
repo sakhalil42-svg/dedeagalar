@@ -7,10 +7,6 @@ import {
   useAccountTransactions,
 } from "@/lib/hooks/use-account-transactions";
 import { useContact } from "@/lib/hooks/use-contacts";
-import {
-  useDeliveriesByContact,
-  usePaymentsByContact,
-} from "@/lib/hooks/use-deliveries-by-contact";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,33 +19,11 @@ import {
   Download,
   Truck,
   Banknote,
-  Building2,
-  FileText,
-  ScrollText,
 } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { generateContactPdf } from "@/lib/utils/pdf-export";
-
-const FREIGHT_PAYER_LABELS: Record<string, string> = {
-  customer: "Müşteri",
-  supplier: "Üretici",
-  me: "Firma",
-};
-
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  cash: "Nakit",
-  bank_transfer: "Havale",
-  check: "Çek",
-  promissory_note: "Senet",
-};
-
-const METHOD_ICONS: Record<string, typeof Banknote> = {
-  cash: Banknote,
-  bank_transfer: Building2,
-  check: FileText,
-  promissory_note: ScrollText,
-};
+import type { AccountTransaction } from "@/lib/types/database.types";
 
 function safeNum(val: unknown): number {
   const n = Number(val);
@@ -64,10 +38,6 @@ export default function AccountDetailPage() {
   const { data: transactions, isLoading: txLoading } = useAccountTransactions(
     account?.id || ""
   );
-  const { data: deliveries, isLoading: delLoading } =
-    useDeliveriesByContact(contactId);
-  const { data: payments, isLoading: payLoading } =
-    usePaymentsByContact(contactId);
 
   const isLoading = contactLoading || accountLoading;
   const { isVisible } = useBalanceVisibility();
@@ -90,30 +60,35 @@ export default function AccountDetailPage() {
     );
   }
 
-  // ── Calculate Borç / Alacak from transactions (NaN-safe) ──
   const txList = transactions || [];
+
+  // ── Split transactions by reference_type ──
+  const isCustomer = contact.type === "customer" || contact.type === "both";
+  const purchaseRefType = isCustomer ? "sale" : "purchase";
+
+  const sevkiyatTxs = txList.filter(
+    (t) => t.reference_type === purchaseRefType
+  );
+  const odemeTxs = txList.filter((t) => t.reference_type === "payment");
+
+  // ── Borç/Alacak from transactions ──
+  // credit = tedarikçiye borcumuz (alım)
+  // debit = ödediğimiz (ödeme)
   const borc = txList.reduce((sum, t) => {
-    const amt = safeNum(t.amount);
-    return amt > 0 ? sum + amt : sum;
+    return t.type === "credit" ? sum + safeNum(t.amount) : sum;
   }, 0);
   const alacak = txList.reduce((sum, t) => {
-    const amt = safeNum(t.amount);
-    return amt < 0 ? sum + Math.abs(amt) : sum;
+    return t.type === "debit" ? sum + safeNum(t.amount) : sum;
   }, 0);
-  const bakiye = borc - alacak;
+  // Bakiye from accounts table (always correct, DB trigger updates it)
+  const bakiye = safeNum(account.balance);
 
-  // ── Delivery summary ──
-  const deliverySummary = (deliveries || []).reduce(
-    (acc, d) => ({
-      totalKg: acc.totalKg + safeNum(d.net_weight),
-      totalAmount: acc.totalAmount + safeNum(d.total_amount),
-      count: acc.count + 1,
-    }),
-    { totalKg: 0, totalAmount: 0, count: 0 }
+  const sevkiyatTotal = sevkiyatTxs.reduce(
+    (sum, t) => sum + safeNum(t.amount),
+    0
   );
-
-  const totalPaid = (payments || []).reduce(
-    (acc, p) => acc + safeNum(p.amount),
+  const odemeTotal = odemeTxs.reduce(
+    (sum, t) => sum + safeNum(t.amount),
     0
   );
 
@@ -122,11 +97,11 @@ export default function AccountDetailPage() {
     generateContactPdf({
       contactName: contact.name,
       contactType: contact.type,
-      deliveries: deliveries || [],
-      payments: payments || [],
-      balance: bakiye,
-      totalDebit: borc,
-      totalCredit: alacak,
+      sevkiyatlar: sevkiyatTxs,
+      odemeler: odemeTxs,
+      borc,
+      alacak,
+      bakiye,
     });
   }
 
@@ -160,7 +135,7 @@ export default function AccountDetailPage() {
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Alacak</p>
+              <p className="text-xs text-muted-foreground">Ödenen</p>
               <p className="text-sm font-bold text-green-600">
                 {masked(alacak)}
               </p>
@@ -192,72 +167,44 @@ export default function AccountDetailPage() {
         </Button>
       </div>
 
-      {/* ── Sevkiyatlar ── */}
+      {/* ── Sevkiyatlar (from account_transactions) ── */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Truck className="h-4 w-4" />
-            Sevkiyatlar ({deliverySummary.count})
-            {deliverySummary.totalKg > 0 && (
+            Sevkiyatlar ({sevkiyatTxs.length})
+            {sevkiyatTotal > 0 && (
               <span className="text-sm font-normal text-muted-foreground">
-                {deliverySummary.totalKg.toLocaleString("tr-TR")} kg
+                Toplam: {masked(sevkiyatTotal)}
               </span>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-0 p-0">
-          {delLoading ? (
+          {txLoading ? (
             <div className="flex justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : deliveries && deliveries.length > 0 ? (
-            deliveries.map((d, i) => (
-              <div key={d.id}>
+          ) : sevkiyatTxs.length > 0 ? (
+            sevkiyatTxs.map((tx, i) => (
+              <div key={tx.id}>
                 {i > 0 && <Separator />}
-                <div className="px-4 py-3">
-                  {/* Row 1: Date + ticket + amount */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-medium">
-                        {formatDateShort(d.delivery_date)}
-                      </span>
-                      {d.ticket_no && (
-                        <Badge variant="secondary" className="text-xs">
-                          #{d.ticket_no}
-                        </Badge>
-                      )}
-                    </div>
-                    {d.total_amount > 0 && (
-                      <p className="text-sm font-bold">
-                        {masked(d.total_amount)}
-                      </p>
-                    )}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">
+                      {formatDateShort(tx.transaction_date)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {tx.description || "Sevkiyat"}
+                    </p>
                   </div>
-                  {/* Row 2: Details */}
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                    {d.vehicle_plate && (
-                      <span>{d.vehicle_plate}</span>
-                    )}
-                    {d.driver_name && (
-                      <span>{d.driver_name}</span>
-                    )}
-                    <span>
-                      {safeNum(d.net_weight).toLocaleString("tr-TR")} kg
-                    </span>
-                    {d.unit_price > 0 && (
-                      <span>
-                        {d.unit_price.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        ₺/kg
-                      </span>
-                    )}
-                    {d.freight_cost && safeNum(d.freight_cost) > 0 && (
-                      <span>
-                        Nakliye: {formatCurrency(safeNum(d.freight_cost))} (
-                        {FREIGHT_PAYER_LABELS[d.freight_payer || "me"]})
-                      </span>
-                    )}
+                  <div className="text-right">
+                    <p className="text-sm font-bold">
+                      {masked(safeNum(tx.amount))}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Bakiye: {masked(safeNum(tx.balance_after))}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -270,69 +217,53 @@ export default function AccountDetailPage() {
         </CardContent>
       </Card>
 
-      {/* ── Ödemeler ── */}
+      {/* ── Ödemeler (from account_transactions) ── */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Banknote className="h-4 w-4" />
-            Ödemeler
-            {totalPaid > 0 && (
+            Ödemeler ({odemeTxs.length})
+            {odemeTotal > 0 && (
               <span className="text-sm font-normal text-muted-foreground">
-                Toplam: {masked(totalPaid)}
+                Toplam: {masked(odemeTotal)}
               </span>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-0 p-0">
-          {payLoading ? (
+          {txLoading ? (
             <div className="flex justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : payments && payments.length > 0 ? (
-            payments.map((p, i) => {
-              const MethodIcon = METHOD_ICONS[p.method] || Banknote;
-              return (
-                <div key={p.id}>
-                  {i > 0 && <Separator />}
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                        p.direction === "inbound"
-                          ? "bg-green-100 text-green-600"
-                          : "bg-red-100 text-red-600"
-                      }`}
-                    >
-                      <MethodIcon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium">
-                          {formatDateShort(p.payment_date)}
-                        </span>
-                        <Badge variant="secondary" className="text-xs">
-                          {PAYMENT_METHOD_LABELS[p.method] || p.method}
-                        </Badge>
-                      </div>
-                      {p.description && (
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {p.description}
-                        </p>
-                      )}
-                    </div>
-                    <p
-                      className={`text-sm font-bold ${
-                        p.direction === "inbound"
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {p.direction === "inbound" ? "+" : "-"}
-                      {masked(safeNum(p.amount))}
+          ) : odemeTxs.length > 0 ? (
+            odemeTxs.map((tx, i) => (
+              <div key={tx.id}>
+                {i > 0 && <Separator />}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-600"
+                  >
+                    <ArrowDownLeft className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {formatDateShort(tx.transaction_date)}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {tx.description || "Ödeme"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-green-600">
+                      {masked(safeNum(tx.amount))}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Bakiye: {masked(safeNum(tx.balance_after))}
                     </p>
                   </div>
                 </div>
-              );
-            })
+              </div>
+            ))
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Henüz ödeme yok.
@@ -341,10 +272,10 @@ export default function AccountDetailPage() {
         </CardContent>
       </Card>
 
-      {/* ── Hesap Hareketleri ── */}
+      {/* ── Tüm Hesap Hareketleri ── */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Hesap Hareketleri</CardTitle>
+          <CardTitle className="text-base">Tüm Hareketler</CardTitle>
         </CardHeader>
         <CardContent className="space-y-0 p-0">
           {txLoading ? (
@@ -353,20 +284,19 @@ export default function AccountDetailPage() {
             </div>
           ) : txList.length > 0 ? (
             txList.map((tx, i) => {
-              const amt = safeNum(tx.amount);
-              const isDebit = tx.type === "debit" || amt > 0;
+              const isCredit = tx.type === "credit";
               return (
                 <div key={tx.id}>
                   {i > 0 && <Separator />}
                   <div className="flex items-center gap-3 px-4 py-3">
                     <div
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                        isDebit
+                        isCredit
                           ? "bg-red-100 text-red-600"
                           : "bg-green-100 text-green-600"
                       }`}
                     >
-                      {isDebit ? (
+                      {isCredit ? (
                         <ArrowUpRight className="h-4 w-4" />
                       ) : (
                         <ArrowDownLeft className="h-4 w-4" />
@@ -375,11 +305,17 @@ export default function AccountDetailPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="truncate text-sm font-medium">
-                          {tx.description || (isDebit ? "Borç" : "Alacak")}
+                          {tx.description || (isCredit ? "Borç" : "Ödeme")}
                         </p>
                         {tx.reference_type && (
                           <Badge variant="secondary" className="shrink-0 text-xs">
-                            {tx.reference_type === "sale" ? "Satış" : tx.reference_type === "purchase" ? "Alım" : tx.reference_type === "payment" ? "Ödeme" : tx.reference_type}
+                            {tx.reference_type === "sale"
+                              ? "Satış"
+                              : tx.reference_type === "purchase"
+                                ? "Alım"
+                                : tx.reference_type === "payment"
+                                  ? "Ödeme"
+                                  : tx.reference_type}
                           </Badge>
                         )}
                       </div>
@@ -392,11 +328,11 @@ export default function AccountDetailPage() {
                     </div>
                     <p
                       className={`text-sm font-bold ${
-                        isDebit ? "text-red-600" : "text-green-600"
+                        isCredit ? "text-red-600" : "text-green-600"
                       }`}
                     >
-                      {isDebit ? "" : "-"}
-                      {masked(Math.abs(amt))}
+                      {isCredit ? "+" : "-"}
+                      {masked(safeNum(tx.amount))}
                     </p>
                   </div>
                 </div>
