@@ -24,7 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Loader2, MessageCircle, SlidersHorizontal } from "lucide-react";
+import { Plus, Search, MessageCircle, SlidersHorizontal, CreditCard } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
@@ -290,7 +292,7 @@ export default function ChecksPage() {
     : [];
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 page-enter">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Çek / Senet</h1>
@@ -437,8 +439,10 @@ export default function ChecksPage() {
       <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       ) : filtered.length > 0 ? (
         <div className="space-y-2">
@@ -534,11 +538,21 @@ export default function ChecksPage() {
           })}
         </div>
       ) : (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          {search || statusFilter !== "all" || directionTab !== "all" || contactFilter || startDate || endDate || minAmount || maxAmount
-            ? "Sonuç bulunamadı."
-            : "Henüz çek/senet kaydı yok."}
-        </div>
+        search || statusFilter !== "all" || directionTab !== "all" || contactFilter || startDate || endDate || minAmount || maxAmount ? (
+          <EmptyState
+            icon={Search}
+            title="Sonuç bulunamadı"
+            description="Arama kriterlerini değiştirmeyi deneyin."
+          />
+        ) : (
+          <EmptyState
+            icon={CreditCard}
+            title="Henüz çek/senet kaydı yok"
+            description="Çek veya senet kaydı ekleyin."
+            actionLabel="Yeni Çek/Senet"
+            actionHref="/finance/checks/new"
+          />
+        )
       )}
 
       {/* Status change dialog */}

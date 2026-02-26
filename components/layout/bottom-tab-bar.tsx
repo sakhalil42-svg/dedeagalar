@@ -10,17 +10,20 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const tabs = [
-  { href: "/", label: "Ana Sayfa", icon: LayoutDashboard },
-  { href: "/sales", label: "Satışlar", icon: TrendingUp },
-  { href: "/purchases", label: "Alımlar", icon: ShoppingCart },
-  { href: "/contacts", label: "Kişiler", icon: Users },
-  { href: "/finance", label: "Finans", icon: Wallet },
-] as const;
+import { useTodayDeliveryCount, useOverdueCheckCount } from "@/lib/hooks/use-badge-counts";
 
 export function BottomTabBar() {
   const pathname = usePathname();
+  const { data: todayCount } = useTodayDeliveryCount();
+  const { data: overdueCount } = useOverdueCheckCount();
+
+  const tabs = [
+    { href: "/", label: "Ana Sayfa", icon: LayoutDashboard, badge: todayCount || 0, badgeColor: "bg-green-500" },
+    { href: "/sales", label: "Satışlar", icon: TrendingUp, badge: 0, badgeColor: "" },
+    { href: "/purchases", label: "Alımlar", icon: ShoppingCart, badge: 0, badgeColor: "" },
+    { href: "/contacts", label: "Kişiler", icon: Users, badge: 0, badgeColor: "" },
+    { href: "/finance", label: "Finans", icon: Wallet, badge: overdueCount || 0, badgeColor: "bg-red-500" },
+  ] as const;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background pb-[env(safe-area-inset-bottom)]">
@@ -37,13 +40,25 @@ export function BottomTabBar() {
               key={tab.href}
               href={tab.href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-1 text-xs transition-colors",
+                "relative flex flex-col items-center gap-0.5 px-3 py-1 text-xs transition-colors",
                 isActive
                   ? "text-primary font-medium"
                   : "text-muted-foreground"
               )}
             >
-              <Icon className="h-5 w-5" />
+              <div className="relative">
+                <Icon className="h-5 w-5" />
+                {tab.badge > 0 && (
+                  <span
+                    className={cn(
+                      "absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white",
+                      tab.badgeColor
+                    )}
+                  >
+                    {tab.badge > 99 ? "99+" : tab.badge}
+                  </span>
+                )}
+              </div>
               <span>{tab.label}</span>
             </Link>
           );

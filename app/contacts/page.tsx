@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, Phone, MapPin, Loader2, MessageCircle, SlidersHorizontal } from "lucide-react";
+import { Plus, Search, Phone, MapPin, MessageCircle, SlidersHorizontal, Users } from "lucide-react";
+import { SkeletonRow } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatPhoneForWhatsApp } from "@/lib/utils/whatsapp";
 import { formatCurrency } from "@/lib/utils/format";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
@@ -126,7 +128,7 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 page-enter">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Kişiler</h1>
@@ -226,8 +228,10 @@ export default function ContactsPage() {
       <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonRow key={i} />
+          ))}
         </div>
       ) : filtered && filtered.length > 0 ? (
         <div className="space-y-2">
@@ -299,11 +303,21 @@ export default function ContactsPage() {
           })}
         </div>
       ) : (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          {search || typeFilter !== "all" || balanceFilter !== "all"
-            ? "Sonuç bulunamadı."
-            : "Henüz kişi kaydı yok."}
-        </div>
+        search || typeFilter !== "all" || balanceFilter !== "all" ? (
+          <EmptyState
+            icon={Search}
+            title="Sonuç bulunamadı"
+            description="Arama kriterlerini değiştirmeyi deneyin."
+          />
+        ) : (
+          <EmptyState
+            icon={Users}
+            title="Henüz kişi kaydı yok"
+            description="Üretici veya müşteri ekleyerek başlayın."
+            actionLabel="Yeni Kişi Ekle"
+            actionHref="/contacts/new"
+          />
+        )
       )}
     </div>
   );

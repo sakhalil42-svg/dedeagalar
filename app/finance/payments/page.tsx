@@ -19,11 +19,13 @@ import {
 import {
   Plus,
   Search,
-  Loader2,
   ArrowUpRight,
   ArrowDownLeft,
   SlidersHorizontal,
+  Banknote,
 } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
@@ -190,7 +192,7 @@ export default function PaymentsPage() {
   };
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 page-enter">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Ödemeler</h1>
@@ -355,8 +357,10 @@ export default function PaymentsPage() {
       <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       ) : filtered.length > 0 ? (
         <div className="space-y-2">
@@ -408,11 +412,21 @@ export default function PaymentsPage() {
           ))}
         </div>
       ) : (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          {search || directionFilter !== "all" || methodFilter !== "all" || dateFilter !== "all" || contactFilter || minAmount || maxAmount
-            ? "Sonuç bulunamadı."
-            : "Henüz ödeme kaydı yok."}
-        </div>
+        search || directionFilter !== "all" || methodFilter !== "all" || dateFilter !== "all" || contactFilter || minAmount || maxAmount ? (
+          <EmptyState
+            icon={Search}
+            title="Sonuç bulunamadı"
+            description="Arama kriterlerini değiştirmeyi deneyin."
+          />
+        ) : (
+          <EmptyState
+            icon={Banknote}
+            title="Henüz ödeme kaydı yok"
+            description="Ödeme veya tahsilat kaydı ekleyin."
+            actionLabel="Yeni Ödeme"
+            actionHref="/finance/payments/new"
+          />
+        )
       )}
     </div>
   );

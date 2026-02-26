@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, ShoppingCart } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 
@@ -61,7 +63,7 @@ export default function PurchasesPage() {
   }, [purchases, search, statusFilter]);
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 page-enter">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Alımlar</h1>
@@ -102,8 +104,10 @@ export default function PurchasesPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       ) : filtered.length > 0 ? (
         <div className="space-y-2">
@@ -151,11 +155,21 @@ export default function PurchasesPage() {
           ))}
         </div>
       ) : (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          {search || statusFilter !== "all"
-            ? "Sonuç bulunamadı."
-            : "Henüz alım kaydı yok."}
-        </div>
+        search || statusFilter !== "all" ? (
+          <EmptyState
+            icon={Search}
+            title="Sonuç bulunamadı"
+            description="Arama kriterlerini değiştirmeyi deneyin."
+          />
+        ) : (
+          <EmptyState
+            icon={ShoppingCart}
+            title="Henüz alım kaydı yok"
+            description="Üreticilerden alım kaydı ekleyin."
+            actionLabel="Yeni Alım"
+            actionHref="/purchases/new"
+          />
+        )
       )}
     </div>
   );

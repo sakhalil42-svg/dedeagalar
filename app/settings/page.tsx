@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronRight, Wheat, Warehouse, Users, Truck, MessageCircle, Database } from "lucide-react";
+import { ArrowLeft, ChevronRight, Wheat, Warehouse, Users, Truck, MessageCircle, Database, Palette } from "lucide-react";
 
 const SETTINGS_ITEMS = [
   {
@@ -41,6 +41,12 @@ const SETTINGS_ITEMS = [
     description: "Yedekleme, çöp kutusu ve işlem geçmişi",
     href: "/settings/data",
     icon: Database,
+  },
+  {
+    title: "Görünüm",
+    description: "Açık/koyu tema ve görünüm ayarları",
+    href: "/settings/appearance",
+    icon: Palette,
   },
 ];
 

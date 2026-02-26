@@ -7,7 +7,9 @@ import type { AccountSummary, ContactType } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Loader2, Wallet, Plus, Phone, TrendingUp, SlidersHorizontal } from "lucide-react";
+import { Search, Wallet, Plus, Phone, TrendingUp, SlidersHorizontal, Users } from "lucide-react";
+import { SkeletonRow } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
@@ -135,7 +137,7 @@ export default function FinancePage() {
   };
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 page-enter">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">Finans</h1>
@@ -286,8 +288,10 @@ export default function FinancePage() {
 
       {/* List */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonRow key={i} />
+          ))}
         </div>
       ) : filtered.length > 0 ? (
         <div className="space-y-2">
@@ -332,13 +336,21 @@ export default function FinancePage() {
           ))}
         </div>
       ) : (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          {search || balanceFilter !== "all"
-            ? "Sonuç bulunamadı."
-            : tab === "customers"
-              ? "Henüz müşteri kaydı yok."
-              : "Henüz üretici kaydı yok."}
-        </div>
+        search || balanceFilter !== "all" ? (
+          <EmptyState
+            icon={Search}
+            title="Sonuç bulunamadı"
+            description="Arama kriterlerini değiştirmeyi deneyin."
+          />
+        ) : (
+          <EmptyState
+            icon={Users}
+            title={tab === "customers" ? "Henüz müşteri kaydı yok" : "Henüz üretici kaydı yok"}
+            description="Kişi ekleyip işlem yaptığınızda cari hesaplar burada görünecek."
+            actionLabel="Kişi Ekle"
+            actionHref="/contacts/new"
+          />
+        )
       )}
     </div>
   );

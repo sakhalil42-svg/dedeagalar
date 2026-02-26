@@ -5,6 +5,8 @@ import { Providers } from "@/lib/providers";
 import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 import { AppHeader } from "@/components/layout/app-header";
 import { Toaster } from "@/components/ui/sonner";
+import { OfflineBanner } from "@/components/layout/offline-banner";
+import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr">
+    <html lang="tr" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
@@ -51,9 +53,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>
+          <OfflineBanner />
           <AppHeader />
           <main className="pb-20">{children}</main>
           <BottomTabBar />
+          <KeyboardShortcuts />
           <Toaster position="top-center" richColors />
         </Providers>
       </body>

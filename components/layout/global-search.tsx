@@ -31,6 +31,15 @@ export function GlobalSearch() {
   const router = useRouter();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Listen for keyboard shortcut toggle event
+  useEffect(() => {
+    function handleToggle() {
+      setOpen((prev) => !prev);
+    }
+    window.addEventListener("toggle-global-search", handleToggle);
+    return () => window.removeEventListener("toggle-global-search", handleToggle);
+  }, []);
+
   // Close on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {

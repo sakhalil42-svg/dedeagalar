@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   TrendingUp,
-  Loader2,
   AlertTriangle,
   Truck,
   CircleDollarSign,
@@ -31,6 +30,7 @@ import {
   ArrowRight,
   MessageCircle,
 } from "lucide-react";
+import { SkeletonKpiCard, SkeletonChart, Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import {
@@ -51,6 +51,7 @@ import {
 import { useState } from "react";
 import { openWhatsAppMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
 import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
+import { Onboarding } from "@/components/layout/onboarding";
 
 // ═══════════════════════════════════════════════════════════
 // SHARED COMPONENTS
@@ -90,7 +91,10 @@ function KpiCard({
           <Icon className="hidden sm:block h-3.5 w-3.5 text-muted-foreground" />
         </div>
         {loading ? (
-          <Loader2 className="mt-1 h-4 w-4 animate-spin text-muted-foreground" />
+          <div className="mt-1 space-y-1">
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-2.5 w-12" />
+          </div>
         ) : (
           <>
             <p className={`mt-0.5 text-sm sm:text-base font-bold leading-tight truncate ${color || ""}`}>{value}</p>
@@ -141,8 +145,18 @@ export function DashboardContent() {
 
   const [showFab, setShowFab] = useState(false);
 
+  // Show onboarding when no data
+  const showOnboarding =
+    !kpisLoading &&
+    kpis &&
+    kpis.todayTruckCount === 0 &&
+    kpis.monthProfit === 0 &&
+    kpis.pendingReceivables === 0 &&
+    kpis.pendingPayables === 0;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 page-enter">
+      <Onboarding show={!!showOnboarding} />
       {/* ═══ 6.1 — Günlük Özet Kartları (Üst sıra 4) ═══ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <KpiCard
@@ -401,9 +415,7 @@ export function DashboardContent() {
         </CardHeader>
         <CardContent className="p-2">
           {dailyLoading ? (
-            <div className="flex h-40 items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
+            <SkeletonChart />
           ) : dailyTonnage && dailyTonnage.some((d) => d.tonnage > 0) ? (
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={dailyTonnage} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
@@ -436,9 +448,7 @@ export function DashboardContent() {
         </CardHeader>
         <CardContent className="p-2">
           {weeklyLoading ? (
-            <div className="flex h-40 items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
+            <SkeletonChart />
           ) : weeklyProfit && weeklyProfit.some((d) => d.profit !== 0) ? (
             <ResponsiveContainer width="100%" height={160}>
               <LineChart data={weeklyProfit} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
@@ -477,9 +487,7 @@ export function DashboardContent() {
           </CardHeader>
           <CardContent className="p-2">
             {feedLoading ? (
-              <div className="flex h-40 items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
+              <SkeletonChart />
             ) : feedDist && feedDist.length > 0 ? (
               <div className="flex items-center gap-2">
                 <ResponsiveContainer width="60%" height={160}>
@@ -531,9 +539,7 @@ export function DashboardContent() {
           </CardHeader>
           <CardContent className="p-2">
             {chartLoading ? (
-              <div className="flex h-40 items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
+              <SkeletonChart />
             ) : chartData && chartData.some((d) => d.purchases > 0 || d.sales > 0) ? (
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
@@ -565,8 +571,17 @@ export function DashboardContent() {
         </CardHeader>
         <CardContent className="space-y-0 p-0">
           {activitiesLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="space-y-3 px-4 py-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-3/4" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                  <Skeleton className="h-4 w-16 shrink-0" />
+                </div>
+              ))}
             </div>
           ) : activities && activities.length > 0 ? (
             activities.map((act, i) => {
@@ -623,8 +638,17 @@ export function DashboardContent() {
         </CardHeader>
         <CardContent className="space-y-3 px-4 pb-4">
           {seasonLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="space-y-3 px-4 py-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-3/4" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                  <Skeleton className="h-4 w-16 shrink-0" />
+                </div>
+              ))}
             </div>
           ) : season ? (
             <>

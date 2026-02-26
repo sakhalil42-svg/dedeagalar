@@ -58,6 +58,7 @@ import {
   UserPlus,
   Undo2,
   SlidersHorizontal,
+  Search,
 } from "lucide-react";
 import {
   Dialog,
@@ -70,6 +71,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatPhoneForWhatsApp } from "@/lib/utils/whatsapp";
+import { SkeletonCard } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ─── FREIGHT PAYER OPTIONS ───────────────────────────────────────
 const FREIGHT_PAYER_OPTIONS: { value: FreightPayer; label: string }[] = [
@@ -575,8 +578,10 @@ function TodayDeliveriesList({ masked }: { masked: (amount: number) => string })
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-6">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="space-y-2 py-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
       </div>
     );
   }
@@ -1265,8 +1270,10 @@ function TicketListAndSummary({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="space-y-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
       </div>
     );
   }
@@ -2077,8 +2084,10 @@ function HistoryView({
           </div>
 
           {isLoading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
             </div>
           ) : filteredSales.length > 0 ? (
             <div className="space-y-2">
@@ -2130,9 +2139,19 @@ function HistoryView({
               ))}
             </div>
           ) : (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              {dateFilter !== "all" || contactFilter || feedTypeFilter ? "Filtreye uygun sonuç yok." : "Henüz satış kaydı yok."}
-            </div>
+            dateFilter !== "all" || contactFilter || feedTypeFilter ? (
+              <EmptyState
+                icon={Search}
+                title="Filtreye uygun sonuç yok"
+                description="Arama kriterlerini değiştirmeyi deneyin."
+              />
+            ) : (
+              <EmptyState
+                icon={Truck}
+                title="Henüz satış kaydı yok"
+                description="Yeni satış ekleyerek başlayın."
+              />
+            )
           )}
         </>
       )}
@@ -2299,19 +2318,21 @@ function HistoryTicketList({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-6">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="space-y-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
       </div>
     );
   }
 
   if (!deliveries || deliveries.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-6 text-center text-sm text-muted-foreground">
-          Bu siparişe ait kantar fişi yok.
-        </CardContent>
-      </Card>
+      <EmptyState
+        icon={Truck}
+        title="Kantar fişi yok"
+        description="Bu siparişe ait kantar fişi bulunamadı."
+      />
     );
   }
 

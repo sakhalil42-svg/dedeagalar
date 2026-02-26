@@ -14,14 +14,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
-  Loader2,
   ArrowUpRight,
   ArrowDownLeft,
   Download,
   Truck,
   Banknote,
   MessageCircle,
+  FileText,
 } from "lucide-react";
+import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { generateContactPdf } from "@/lib/utils/pdf-export";
@@ -104,17 +106,34 @@ export default function AccountDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-8 w-48" />
+        <div className="rounded-lg border p-4 space-y-3">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-10 w-full" />
+          <div className="grid grid-cols-2 gap-2">
+            <Skeleton className="h-16" />
+            <Skeleton className="h-16" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (!contact || !account) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
-        Hesap bulunamadı.
-      </div>
+      <EmptyState
+        icon={FileText}
+        title="Hesap bulunamadı"
+        description="Bu kişiye ait bir cari hesap kaydı bulunamadı."
+        actionLabel="Finansa Dön"
+        actionHref="/finance"
+      />
     );
   }
 
@@ -249,8 +268,10 @@ export default function AccountDetailPage() {
         </CardHeader>
         <CardContent className="space-y-0 p-0">
           {txLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
             </div>
           ) : sevkiyatTxs.length > 0 ? (
             sevkiyatTxs.map((tx, i) => {
@@ -327,8 +348,10 @@ export default function AccountDetailPage() {
         </CardHeader>
         <CardContent className="space-y-0 p-0">
           {txLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
             </div>
           ) : odemeTxs.length > 0 ? (
             odemeTxs.map((tx, i) => (
@@ -374,8 +397,10 @@ export default function AccountDetailPage() {
         </CardHeader>
         <CardContent className="space-y-0 p-0">
           {txLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="space-y-2 p-4">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
             </div>
           ) : txList.length > 0 ? (
             txList.map((tx, i) => {
