@@ -50,6 +50,7 @@ import {
 } from "recharts";
 import { useState } from "react";
 import { openWhatsAppMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
+import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 
 // ═══════════════════════════════════════════════════════════
 // SHARED COMPONENTS
@@ -131,6 +132,7 @@ export function DashboardContent() {
   const { data: activities, isLoading: activitiesLoading } = useRecentActivities();
   const { data: season, isLoading: seasonLoading } = useSeasonSummary();
   const { data: dueItems, isLoading: dueLoading } = useDueItems();
+  const { data: carrierBalances, isLoading: carrierLoading } = useCarrierBalances();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
   /** Compact version for KPI cards — shows "142K" on mobile */
@@ -313,6 +315,41 @@ export function DashboardContent() {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ═══ 7.5.5 — Nakliyeci Borç Kartı ═══ */}
+      {!carrierLoading && carrierBalances && carrierBalances.filter((b) => b.balance > 0).length > 0 && (
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Truck className="h-4 w-4" />
+              Nakliyeci Borçları
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 space-y-1">
+            {carrierBalances
+              .filter((b) => b.balance > 0)
+              .slice(0, 5)
+              .map((b) => (
+                <Link
+                  key={b.id}
+                  href={`/settings/carriers/${b.id}`}
+                  className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Truck className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+                    <p className="text-xs sm:text-sm truncate">{b.name}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <p className="text-xs sm:text-sm font-bold text-orange-600">
+                      {maskedCompact(b.balance)}
+                    </p>
+                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                </Link>
+              ))}
           </CardContent>
         </Card>
       )}

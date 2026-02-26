@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useCarriers, useCreateCarrier, useDeleteCarrier } from "@/lib/hooks/use-carriers";
+import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 import { useVehicles, useCreateVehicle, useDeleteVehicle } from "@/lib/hooks/use-vehicles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,11 +30,13 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/utils/format";
 import type { Carrier, Vehicle } from "@/lib/types/database.types";
 
 export default function CarriersPage() {
   const { data: carriers, isLoading: carriersLoading } = useCarriers();
   const { data: vehicles, isLoading: vehiclesLoading } = useVehicles();
+  const { data: balances } = useCarrierBalances();
   const createCarrier = useCreateCarrier();
   const deleteCarrier = useDeleteCarrier();
   const createVehicle = useCreateVehicle();
@@ -264,7 +267,38 @@ export default function CarriersPage() {
                             </p>
                           )}
 
+                          {/* Balance */}
+                          {(() => {
+                            const bal = balances?.find((b) => b.id === carrier.id);
+                            if (bal && bal.total_freight > 0) {
+                              return (
+                                <div className="mt-2 rounded-md bg-muted/50 p-2 text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Toplam Nakliye:</span>
+                                    <span className="font-medium">{formatCurrency(bal.total_freight)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Ödenen:</span>
+                                    <span className="font-medium text-green-600">{formatCurrency(bal.total_paid)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Kalan Borç:</span>
+                                    <span className={`font-bold ${bal.balance > 0 ? "text-red-600" : "text-green-600"}`}>
+                                      {formatCurrency(Math.abs(bal.balance))}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+
                           <div className="mt-3 flex gap-2">
+                            <Button size="sm" variant="outline" className="text-xs" asChild>
+                              <Link href={`/settings/carriers/${carrier.id}`}>
+                                Cari Hesap
+                              </Link>
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"

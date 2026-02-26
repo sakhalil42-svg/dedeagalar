@@ -39,13 +39,10 @@ export function useCreateDeliveryWithTransactions() {
       const freightPayer: FreightPayer = del.freight_payer || "me";
 
       // 2. Calculate amounts
-      // If customer pays freight, deduct from their credit
       const customerCredit =
         freightPayer === "customer"
           ? netKg * customerPrice - freightCost
           : netKg * customerPrice;
-      // Nakliye dahil: üretici fiyatı nakliyeyi içerir
-      // Üretici ödüyorsa düşüm yok (zaten fiyatında), diğer durumlarda düşülür
       const supplierDebit = pricingModel === "nakliye_dahil" && freightPayer !== "supplier"
         ? netKg * supplierPrice - freightCost
         : netKg * supplierPrice;
@@ -93,12 +90,392 @@ export function useCreateDeliveryWithTransactions() {
         });
       if (stxErr) throw stxErr;
 
+      // 6. Carrier transaction — freight_payer='me' → nakliyeci borcuma ekle
+      if (freightPayer === "me" && freightCost > 0 && del.carrier_name) {
+        // Try to find carrier by name
+        const { data: carrier } = await supabase
+          .from("carriers")
+          .select("id")
+          .eq("name", del.carrier_name)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (carrier) {
+          await supabase
+            .from("carrier_transactions")
+            .insert({
+              carrier_id: carrier.id,
+              type: "freight_charge",
+              amount: freightCost,
+              description: `Nakliye - ${netKg.toLocaleString("tr-TR")} kg, ${del.vehicle_plate || "-"}`,
+              reference_id: del.id,
+              transaction_date: del.delivery_date,
+            });
+        }
+      }
+
       return del;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deliveries"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["account_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier_balances"] });
+    },
+  });
+}
+
+// ─── Cancel Sale (iptal) with reverse transactions ───
+export function useCancelSale() {
+  const supabase = createClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      saleId,
+      cancelNote,
+    }: {
+      saleId: string;
+      cancelNote?: string;
+    }) => {
+      // 1. Get the sale
+      const { data: sale, error: saleErr } = await supabase
+        .from("sales")
+        .select("*, contact:contacts(*)")
+        .eq("id", saleId)
+        .single();
+      if (saleErr) throw saleErr;
+
+      // 2. Get all deliveries for this sale
+      const { data: deliveries } = await supabase
+        .from("deliveries")
+        .select("*")
+        .eq("sale_id", saleId);
+
+      // 3. Get customer account
+      const { data: customerAccount } = await supabase
+        .from("accounts")
+        .select("id")
+        .eq("contact_id", sale.contact_id)
+        .single();
+
+      // 4. Reverse customer transactions (credit to reduce their debt)
+      if (customerAccount) {
+        // Find total debited for this sale
+        const { data: existingTxs } = await supabase
+          .from("account_transactions")
+          .select("amount")
+          .eq("reference_type", "sale")
+          .eq("reference_id", saleId)
+          .eq("type", "debit");
+
+        const totalDebited = (existingTxs || []).reduce((s, t) => s + Number(t.amount), 0);
+        if (totalDebited > 0) {
+          await supabase.from("account_transactions").insert({
+            account_id: customerAccount.id,
+            type: "credit",
+            amount: totalDebited,
+            description: `İptal - ${sale.sale_no}${cancelNote ? ` (${cancelNote})` : ""}`,
+            reference_type: "sale",
+            reference_id: saleId,
+            transaction_date: new Date().toISOString().split("T")[0],
+          });
+        }
+      }
+
+      // 5. Reverse supplier transactions for each delivery
+      for (const del of deliveries || []) {
+        if (!del.purchase_id) continue;
+
+        // Find supplier via purchase
+        const { data: purchase } = await supabase
+          .from("purchases")
+          .select("contact_id")
+          .eq("id", del.purchase_id)
+          .maybeSingle();
+
+        if (purchase) {
+          const { data: supplierAccount } = await supabase
+            .from("accounts")
+            .select("id")
+            .eq("contact_id", purchase.contact_id)
+            .single();
+
+          if (supplierAccount) {
+            // Find total credited for this delivery
+            const { data: suppTxs } = await supabase
+              .from("account_transactions")
+              .select("amount")
+              .eq("reference_type", "purchase")
+              .eq("reference_id", del.id)
+              .eq("type", "credit");
+
+            const totalCredited = (suppTxs || []).reduce((s, t) => s + Number(t.amount), 0);
+            if (totalCredited > 0) {
+              await supabase.from("account_transactions").insert({
+                account_id: supplierAccount.id,
+                type: "debit",
+                amount: totalCredited,
+                description: `İptal - ${sale.sale_no}${cancelNote ? ` (${cancelNote})` : ""}`,
+                reference_type: "purchase",
+                reference_id: del.id,
+                transaction_date: new Date().toISOString().split("T")[0],
+              });
+            }
+          }
+        }
+
+        // 6. Reverse carrier transactions for this delivery
+        await supabase
+          .from("carrier_transactions")
+          .delete()
+          .eq("reference_id", del.id);
+      }
+
+      // 7. Update sale status to cancelled
+      await supabase
+        .from("sales")
+        .update({
+          status: "cancelled",
+          notes: cancelNote
+            ? `${sale.notes ? sale.notes + "\n" : ""}İPTAL: ${cancelNote}`
+            : sale.notes,
+        })
+        .eq("id", saleId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["account_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier_balances"] });
+    },
+  });
+}
+
+// ─── Reassign Sale to different customer ───
+export function useReassignSale() {
+  const supabase = createClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      saleId,
+      newCustomerId,
+      newPrice,
+    }: {
+      saleId: string;
+      newCustomerId: string;
+      newPrice?: number;
+    }) => {
+      // 1. Get original sale
+      const { data: sale, error: saleErr } = await supabase
+        .from("sales")
+        .select("*")
+        .eq("id", saleId)
+        .single();
+      if (saleErr) throw saleErr;
+
+      const unitPrice = newPrice ?? sale.unit_price;
+
+      // 2. Get old customer account
+      const { data: oldAccount } = await supabase
+        .from("accounts")
+        .select("id")
+        .eq("contact_id", sale.contact_id)
+        .single();
+
+      // 3. Reverse old customer transactions
+      if (oldAccount) {
+        const { data: existingTxs } = await supabase
+          .from("account_transactions")
+          .select("amount")
+          .eq("reference_type", "sale")
+          .eq("reference_id", saleId)
+          .eq("type", "debit");
+
+        const totalDebited = (existingTxs || []).reduce((s, t) => s + Number(t.amount), 0);
+        if (totalDebited > 0) {
+          await supabase.from("account_transactions").insert({
+            account_id: oldAccount.id,
+            type: "credit",
+            amount: totalDebited,
+            description: `Müşteri değişikliği - ${sale.sale_no}`,
+            reference_type: "sale",
+            reference_id: saleId,
+            transaction_date: new Date().toISOString().split("T")[0],
+          });
+        }
+      }
+
+      // 4. Get new customer account
+      const { data: newAccount } = await supabase
+        .from("accounts")
+        .select("id")
+        .eq("contact_id", newCustomerId)
+        .single();
+      if (!newAccount) throw new Error("Yeni müşterinin cari hesabı bulunamadı");
+
+      // 5. Get deliveries and recalculate
+      const { data: deliveries } = await supabase
+        .from("deliveries")
+        .select("*")
+        .eq("sale_id", saleId);
+
+      let totalNewDebit = 0;
+      for (const del of deliveries || []) {
+        const freightCost = del.freight_cost || 0;
+        const amount =
+          del.freight_payer === "customer"
+            ? del.net_weight * unitPrice - freightCost
+            : del.net_weight * unitPrice;
+        totalNewDebit += amount;
+      }
+
+      // 6. Create new customer transaction
+      if (totalNewDebit > 0) {
+        await supabase.from("account_transactions").insert({
+          account_id: newAccount.id,
+          type: "debit",
+          amount: totalNewDebit,
+          description: `Satış atama - ${sale.sale_no}`,
+          reference_type: "sale",
+          reference_id: saleId,
+          transaction_date: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      // 7. Update sale
+      await supabase
+        .from("sales")
+        .update({
+          contact_id: newCustomerId,
+          unit_price: unitPrice,
+          status: "delivered",
+        })
+        .eq("id", saleId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["account_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+    },
+  });
+}
+
+// ─── Return delivery (iade) ───
+export function useReturnDelivery() {
+  const supabase = createClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      deliveryId,
+      returnKg,
+      returnNote,
+      returnDate,
+    }: {
+      deliveryId: string;
+      returnKg: number;
+      returnNote?: string;
+      returnDate: string;
+    }) => {
+      // 1. Get original delivery
+      const { data: delivery, error: delErr } = await supabase
+        .from("deliveries")
+        .select("*")
+        .eq("id", deliveryId)
+        .single();
+      if (delErr) throw delErr;
+
+      if (!delivery.sale_id) throw new Error("Sale ID bulunamadı");
+
+      // 2. Get sale for price
+      const { data: sale } = await supabase
+        .from("sales")
+        .select("unit_price, contact_id, sale_no")
+        .eq("id", delivery.sale_id)
+        .single();
+      if (!sale) throw new Error("Satış kaydı bulunamadı");
+
+      const returnAmount = returnKg * sale.unit_price;
+
+      // 3. Get customer account
+      const { data: account } = await supabase
+        .from("accounts")
+        .select("id")
+        .eq("contact_id", sale.contact_id)
+        .single();
+      if (!account) throw new Error("Müşteri hesabı bulunamadı");
+
+      // 4. Create return delivery (negative weight flag via notes)
+      const { data: returnDel, error: retErr } = await supabase
+        .from("deliveries")
+        .insert({
+          sale_id: delivery.sale_id,
+          purchase_id: delivery.purchase_id,
+          delivery_date: returnDate,
+          net_weight: -returnKg,
+          vehicle_plate: delivery.vehicle_plate,
+          notes: `İADE: ${returnNote || ""}`.trim(),
+        })
+        .select()
+        .single();
+      if (retErr) throw retErr;
+
+      // 5. Reverse customer credit (reduce their debt)
+      await supabase.from("account_transactions").insert({
+        account_id: account.id,
+        type: "credit",
+        amount: returnAmount,
+        description: `İade - ${returnKg.toLocaleString("tr-TR")} kg × ${sale.unit_price} ₺/kg${returnNote ? ` (${returnNote})` : ""}`,
+        reference_type: "sale",
+        reference_id: delivery.sale_id,
+        transaction_date: returnDate,
+      });
+
+      // 6. Reverse supplier debit if purchase exists
+      if (delivery.purchase_id) {
+        const { data: purchase } = await supabase
+          .from("purchases")
+          .select("contact_id, unit_price")
+          .eq("id", delivery.purchase_id)
+          .maybeSingle();
+
+        if (purchase) {
+          const { data: suppAccount } = await supabase
+            .from("accounts")
+            .select("id")
+            .eq("contact_id", purchase.contact_id)
+            .single();
+
+          if (suppAccount) {
+            const suppReturnAmount = returnKg * purchase.unit_price;
+            await supabase.from("account_transactions").insert({
+              account_id: suppAccount.id,
+              type: "debit",
+              amount: suppReturnAmount,
+              description: `İade - ${returnKg.toLocaleString("tr-TR")} kg × ${purchase.unit_price} ₺/kg`,
+              reference_type: "purchase",
+              reference_id: returnDel.id,
+              transaction_date: returnDate,
+            });
+          }
+        }
+      }
+
+      return returnDel;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["account_summary"] });
       queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
       queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
@@ -120,17 +497,13 @@ export function useDeleteDeliveryWithTransactions() {
       saleId: string | null;
       purchaseId: string | null;
     }) => {
-      // Delete related account_transactions by reference
-      if (saleId) {
-        // Find and delete the customer transaction for this delivery
-        // We match by reference_id (sale_id) — but there could be multiple,
-        // so we also delete the delivery-specific one by matching created_at proximity
-        // Simpler approach: delete transactions that reference this sale/purchase
-        // and were created around the same time as the delivery
-      }
+      // Delete carrier transaction for this delivery
+      await supabase
+        .from("carrier_transactions")
+        .delete()
+        .eq("reference_id", deliveryId);
 
-      // For now, just delete the delivery
-      // The account transactions will need manual cleanup or a DB trigger
+      // Delete the delivery
       const { error } = await supabase
         .from("deliveries")
         .delete()
@@ -144,6 +517,8 @@ export function useDeleteDeliveryWithTransactions() {
       queryClient.invalidateQueries({ queryKey: ["account_summary"] });
       queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
       queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier_balances"] });
     },
   });
 }

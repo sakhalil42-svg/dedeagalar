@@ -402,6 +402,41 @@ export interface VehicleInsert {
 
 export interface VehicleUpdate extends Partial<VehicleInsert> {}
 
+// --- Carrier Transactions ---
+
+export type CarrierTxType = "freight_charge" | "payment";
+
+export interface CarrierTransaction {
+  id: string;
+  carrier_id: string;
+  type: CarrierTxType;
+  amount: number;
+  description: string | null;
+  reference_id: string | null;
+  transaction_date: string;
+  payment_method: string | null;
+  created_at: string;
+}
+
+export interface CarrierTransactionInsert {
+  carrier_id: string;
+  type: CarrierTxType;
+  amount: number;
+  description?: string | null;
+  reference_id?: string | null;
+  transaction_date?: string;
+  payment_method?: string | null;
+}
+
+export interface CarrierBalance {
+  id: string;
+  name: string;
+  phone: string | null;
+  total_freight: number;
+  total_paid: number;
+  balance: number;
+}
+
 // --- Dashboard ---
 
 export interface MonthlyData {

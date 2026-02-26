@@ -5,7 +5,12 @@ import { useSales, useCreateSale } from "@/lib/hooks/use-sales";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
 import { useDeliveriesBySale, useUpdateDelivery } from "@/lib/hooks/use-deliveries";
-import { useCreateDeliveryWithTransactions } from "@/lib/hooks/use-delivery-with-transactions";
+import {
+  useCreateDeliveryWithTransactions,
+  useCancelSale,
+  useReassignSale,
+  useReturnDelivery,
+} from "@/lib/hooks/use-delivery-with-transactions";
 import { useDeleteDelivery } from "@/lib/hooks/use-deliveries";
 import {
   useDeliveryPhotos,
@@ -47,7 +52,20 @@ import {
   Pencil,
   RotateCcw,
   Filter,
+  MoreVertical,
+  Ban,
+  UserPlus,
+  Undo2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatPhoneForWhatsApp } from "@/lib/utils/whatsapp";
 
@@ -1307,6 +1325,89 @@ function HistoryView({
   const { data: allContacts } = useContacts();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
+  const cancelSale = useCancelSale();
+  const reassignSale = useReassignSale();
+  const returnDelivery = useReturnDelivery();
+
+  // Cancel dialog
+  const [cancelTarget, setCancelTarget] = useState<Sale | null>(null);
+  const [cancelNote, setCancelNote] = useState("");
+
+  // Reassign dialog
+  const [reassignTarget, setReassignTarget] = useState<Sale | null>(null);
+  const [reassignCustomerId, setReassignCustomerId] = useState("");
+  const [reassignPrice, setReassignPrice] = useState("");
+
+  // Return dialog
+  const [returnTarget, setReturnTarget] = useState<Delivery | null>(null);
+  const [returnKg, setReturnKg] = useState("");
+  const [returnNote, setReturnNote] = useState("");
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
+
+  // Actions menu
+  const [showActionsFor, setShowActionsFor] = useState<string | null>(null);
+
+  async function handleCancel() {
+    if (!cancelTarget) return;
+    try {
+      await cancelSale.mutateAsync({
+        saleId: cancelTarget.id,
+        cancelNote: cancelNote || undefined,
+      });
+      toast.success("Sipariş iptal edildi, cari hesaplar güncellendi");
+      setCancelTarget(null);
+      setCancelNote("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "İptal hatası");
+    }
+  }
+
+  async function handleReassign() {
+    if (!reassignTarget || !reassignCustomerId) {
+      toast.error("Müşteri seçiniz");
+      return;
+    }
+    try {
+      await reassignSale.mutateAsync({
+        saleId: reassignTarget.id,
+        newCustomerId: reassignCustomerId,
+        newPrice: reassignPrice ? parseFloat(reassignPrice) : undefined,
+      });
+      toast.success("Sipariş yeni müşteriye atandı");
+      setReassignTarget(null);
+      setReassignCustomerId("");
+      setReassignPrice("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Atama hatası");
+    }
+  }
+
+  async function handleReturn() {
+    if (!returnTarget) return;
+    const kg = parseInt(returnKg);
+    if (!kg || kg <= 0) {
+      toast.error("İade miktarı giriniz");
+      return;
+    }
+    if (kg > returnTarget.net_weight) {
+      toast.error("İade miktarı sevkiyat miktarını aşamaz");
+      return;
+    }
+    try {
+      await returnDelivery.mutateAsync({
+        deliveryId: returnTarget.id,
+        returnKg: kg,
+        returnNote: returnNote || undefined,
+        returnDate,
+      });
+      toast.success("İade kaydedildi, cari hesaplar güncellendi");
+      setReturnTarget(null);
+      setReturnKg("");
+      setReturnNote("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "İade hatası");
+    }
+  }
 
   // 3.7 — Filters
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
@@ -1400,6 +1501,32 @@ function HistoryView({
                   {formatDateShort(selectedSale.sale_date)}
                 </span>
               </div>
+              {/* Action buttons */}
+              {selectedSale.status !== "cancelled" && (
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={() => {
+                      setReassignTarget(selectedSale);
+                      setReassignPrice(String(selectedSale.unit_price));
+                    }}
+                  >
+                    <UserPlus className="mr-1 h-3 w-3" />
+                    Müşteri Değiştir
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs text-destructive"
+                    onClick={() => setCancelTarget(selectedSale)}
+                  >
+                    <Ban className="mr-1 h-3 w-3" />
+                    İptal Et
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
           <HistoryTicketList
@@ -1409,6 +1536,7 @@ function HistoryView({
             customerName={selectedSale.contact?.name || ""}
             customerPrice={selectedSale.unit_price || 0}
             feedTypeName={selectedSale.feed_type?.name}
+            onReturn={(d) => setReturnTarget(d)}
           />
         </>
       ) : (
@@ -1522,6 +1650,143 @@ function HistoryView({
           )}
         </>
       )}
+
+      {/* ── Cancel Dialog ── */}
+      <Dialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sipariş İptal</DialogTitle>
+            <DialogDescription>
+              {cancelTarget?.sale_no} — {cancelTarget?.contact?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Bu siparişin tüm cari hesap işlemleri geri alınacaktır.
+            </p>
+            <div>
+              <Label>İptal Nedeni (opsiyonel)</Label>
+              <Textarea
+                value={cancelNote}
+                onChange={(e) => setCancelNote(e.target.value)}
+                placeholder="Neden iptal ediliyor..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelTarget(null)}>Vazgeç</Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={cancelSale.isPending}
+            >
+              {cancelSale.isPending ? "İptal ediliyor..." : "İptal Et"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Reassign Dialog ── */}
+      <Dialog open={!!reassignTarget} onOpenChange={(o) => !o && setReassignTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Müşteri Değiştir</DialogTitle>
+            <DialogDescription>
+              {reassignTarget?.sale_no} — mevcut: {reassignTarget?.contact?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Yeni Müşteri *</Label>
+              <Select value={reassignCustomerId || "pick"} onValueChange={(v) => setReassignCustomerId(v === "pick" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Müşteri seçiniz" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pick" disabled>Müşteri seçiniz</SelectItem>
+                  {allContacts
+                    ?.filter((c) => c.type === "customer" || c.type === "both")
+                    .filter((c) => c.id !== reassignTarget?.contact_id)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Yeni Birim Fiyat (₺/kg)</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={reassignPrice}
+                onChange={(e) => setReassignPrice(e.target.value)}
+                placeholder="Değişmezse boş bırakın"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReassignTarget(null)}>Vazgeç</Button>
+            <Button
+              onClick={handleReassign}
+              disabled={reassignSale.isPending || !reassignCustomerId}
+            >
+              {reassignSale.isPending ? "Kaydediliyor..." : "Müşteriyi Değiştir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Return Dialog ── */}
+      <Dialog open={!!returnTarget} onOpenChange={(o) => !o && setReturnTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>İade Kaydı</DialogTitle>
+            <DialogDescription>
+              Orijinal sevkiyat: {returnTarget?.net_weight.toLocaleString("tr-TR")} kg
+              {returnTarget?.delivery_date && ` · ${formatDateShort(returnTarget.delivery_date)}`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>İade Miktarı (kg) *</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={returnKg}
+                onChange={(e) => setReturnKg(e.target.value)}
+                placeholder={`Maks: ${returnTarget?.net_weight.toLocaleString("tr-TR")} kg`}
+              />
+            </div>
+            <div>
+              <Label>İade Tarihi</Label>
+              <Input
+                type="date"
+                value={returnDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Not (opsiyonel)</Label>
+              <Textarea
+                value={returnNote}
+                onChange={(e) => setReturnNote(e.target.value)}
+                placeholder="İade nedeni..."
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReturnTarget(null)}>Vazgeç</Button>
+            <Button
+              onClick={handleReturn}
+              disabled={returnDelivery.isPending}
+            >
+              {returnDelivery.isPending ? "Kaydediliyor..." : "İade Kaydet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1534,6 +1799,7 @@ function HistoryTicketList({
   customerName,
   customerPrice,
   feedTypeName,
+  onReturn,
 }: {
   saleId: string;
   masked: (amount: number) => string;
@@ -1541,6 +1807,7 @@ function HistoryTicketList({
   customerName: string;
   customerPrice: number;
   feedTypeName?: string;
+  onReturn: (delivery: Delivery) => void;
 }) {
   const { data: deliveries, isLoading } = useDeliveriesBySale(saleId);
 
@@ -1583,6 +1850,7 @@ function HistoryTicketList({
               customerPrice={customerPrice}
               feedTypeName={feedTypeName}
               masked={masked}
+              onReturn={onReturn}
             />
           ))}
         </CardContent>
@@ -1612,6 +1880,7 @@ function HistoryTicketRow({
   customerPrice,
   feedTypeName,
   masked,
+  onReturn,
 }: {
   delivery: Delivery;
   customerPhone: string | null;
@@ -1619,6 +1888,7 @@ function HistoryTicketRow({
   customerPrice: number;
   feedTypeName?: string;
   masked: (amount: number) => string;
+  onReturn: (delivery: Delivery) => void;
 }) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [waSent, setWaSent] = useState(() => isWhatsAppSent(delivery.id));
@@ -1660,28 +1930,39 @@ function HistoryTicketRow({
             ) : null}
           </div>
 
-          {waUrl && (
-            <a
-              href={waUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors shrink-0 ${
-                waSent
-                  ? "text-muted-foreground/50 hover:bg-muted/50"
-                  : "text-green-600 hover:bg-green-50"
-              }`}
-              title={waSent ? "WhatsApp gönderildi" : "WhatsApp ile bildir"}
-              onClick={() => {
-                markWhatsAppSent(delivery.id);
-                setWaSent(true);
-              }}
-            >
-              <MessageCircle className="h-4 w-4" />
-              {waSent && (
-                <Check className="absolute -bottom-0.5 -right-0.5 h-3 w-3 text-green-600" />
-              )}
-            </a>
-          )}
+          <div className="flex flex-col gap-1 shrink-0">
+            {waUrl && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  waSent
+                    ? "text-muted-foreground/50 hover:bg-muted/50"
+                    : "text-green-600 hover:bg-green-50"
+                }`}
+                title={waSent ? "WhatsApp gönderildi" : "WhatsApp ile bildir"}
+                onClick={() => {
+                  markWhatsAppSent(delivery.id);
+                  setWaSent(true);
+                }}
+              >
+                <MessageCircle className="h-4 w-4" />
+                {waSent && (
+                  <Check className="absolute -bottom-0.5 -right-0.5 h-3 w-3 text-green-600" />
+                )}
+              </a>
+            )}
+            {delivery.net_weight > 0 && (
+              <button
+                onClick={() => onReturn(delivery)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-50 transition-colors"
+                title="İade"
+              >
+                <Undo2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Photo thumbnails */}
