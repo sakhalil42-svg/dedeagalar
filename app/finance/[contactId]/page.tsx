@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 
 const REF_LABELS: Record<string, string> = {
   purchase: "Alım",
@@ -34,6 +35,8 @@ export default function AccountDetailPage() {
   );
 
   const isLoading = contactLoading || accountLoading;
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   if (isLoading) {
     return (
@@ -72,13 +75,13 @@ export default function AccountDetailPage() {
             <div>
               <p className="text-xs text-muted-foreground">Borç</p>
               <p className="text-sm font-bold text-red-600">
-                {formatCurrency(account.total_debit)}
+                {masked(account.total_debit)}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Alacak</p>
               <p className="text-sm font-bold text-green-600">
-                {formatCurrency(account.total_credit)}
+                {masked(account.total_credit)}
               </p>
             </div>
             <div>
@@ -88,7 +91,7 @@ export default function AccountDetailPage() {
                   account.balance >= 0 ? "text-green-600" : "text-red-600"
                 }`}
               >
-                {formatCurrency(account.balance)}
+                {masked(account.balance)}
               </p>
             </div>
           </div>
@@ -152,7 +155,7 @@ export default function AccountDetailPage() {
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{formatDateShort(tx.transaction_date)}</span>
-                        <span>Bakiye: {formatCurrency(tx.balance_after)}</span>
+                        <span>Bakiye: {masked(tx.balance_after)}</span>
                       </div>
                     </div>
                     <div className="text-right">
@@ -162,7 +165,7 @@ export default function AccountDetailPage() {
                         }`}
                       >
                         {isDebit ? "-" : "+"}
-                        {formatCurrency(tx.amount)}
+                        {masked(tx.amount)}
                       </p>
                       {refLink && (
                         <Link

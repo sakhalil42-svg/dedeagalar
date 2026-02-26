@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Loader2 } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { toast } from "sonner";
 
 const STATUS_LABELS: Record<CheckStatus, string> = {
@@ -81,6 +82,8 @@ export default function ChecksPage() {
 
   const { data: checks, isLoading } = useChecks();
   const updateCheck = useUpdateCheck();
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   const filtered = useMemo(() => {
     if (!checks) return [];
@@ -187,7 +190,7 @@ export default function ChecksPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold">{formatCurrency(c.amount)}</p>
+                    <p className="text-sm font-bold">{masked(c.amount)}</p>
                     {(c.status === "pending" || c.status === "deposited") && (
                       <button
                         className="mt-1 text-xs text-primary hover:underline"

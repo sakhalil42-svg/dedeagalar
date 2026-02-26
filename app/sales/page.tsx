@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Search, Loader2 } from "lucide-react";
 import { formatCurrency, formatDateShort, formatWeight, formatPercent } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
   draft: "Taslak",
@@ -36,6 +37,8 @@ export default function SalesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SaleStatus | "all">("all");
   const { data: sales, isLoading } = useSales();
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   const filtered = useMemo(() => {
     if (!sales) return [];
@@ -137,7 +140,7 @@ export default function SalesPage() {
                       </div>
                       <div className="ml-3 shrink-0 text-right">
                         <p className="font-semibold">
-                          {formatCurrency(s.total_amount)}
+                          {masked(s.total_amount)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {formatDateShort(s.sale_date)}

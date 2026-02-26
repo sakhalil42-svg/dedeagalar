@@ -16,6 +16,7 @@ import {
   ArrowDownLeft,
 } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 
 const DIRECTION_LABELS: Record<PaymentDirection, string> = {
   inbound: "Tahsilat",
@@ -44,6 +45,8 @@ export default function PaymentsPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<PaymentDirection | "all">("all");
   const { data: payments, isLoading } = usePayments();
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   const filtered = useMemo(() => {
     if (!payments) return [];
@@ -144,7 +147,7 @@ export default function PaymentsPage() {
                       p.direction === "inbound" ? "text-green-600" : "text-red-600"
                     }`}
                   >
-                    {formatCurrency(p.amount)}
+                    {masked(p.amount)}
                   </p>
                 </div>
               </CardContent>

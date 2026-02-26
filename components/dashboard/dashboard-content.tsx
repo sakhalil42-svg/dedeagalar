@@ -19,6 +19,7 @@ import {
   CircleDollarSign,
 } from "lucide-react";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import {
   BarChart,
   Bar,
@@ -66,13 +67,16 @@ function formatCompact(n: number): string {
   return n.toFixed(0);
 }
 
-const tooltipFormatter = (value: number | undefined) => formatCurrency(value ?? 0);
+// tooltipFormatter is defined inside the component to access isVisible
 
 export function DashboardContent() {
   const { data: kpis, isLoading: kpisLoading } = useDashboardKpis();
   const { data: chartData, isLoading: chartLoading } = useMonthlyChart();
   const { data: recentDeliveries, isLoading: deliveriesLoading } = useRecentDeliveries();
   const { data: dueItems, isLoading: dueLoading } = useDueItems();
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
+  const tooltipFormatter = (value: number | undefined) => masked(value ?? 0);
 
   return (
     <div className="space-y-4">
@@ -86,20 +90,20 @@ export function DashboardContent() {
         />
         <KpiCard
           title="Bu Ay Ciro"
-          value={kpis ? formatCurrency(kpis.monthlyRevenue) : "--"}
+          value={kpis ? masked(kpis.monthlyRevenue) : "--"}
           icon={Wallet}
           loading={kpisLoading}
         />
         <KpiCard
           title="Bekleyen Tahsilat"
-          value={kpis ? formatCurrency(kpis.pendingReceivables) : "--"}
+          value={kpis ? masked(kpis.pendingReceivables) : "--"}
           icon={CircleDollarSign}
           loading={kpisLoading}
           color="text-amber-600"
         />
         <KpiCard
           title="Bekleyen Ödeme"
-          value={kpis ? formatCurrency(kpis.pendingPayables) : "--"}
+          value={kpis ? masked(kpis.pendingPayables) : "--"}
           icon={CircleDollarSign}
           loading={kpisLoading}
           color="text-red-600"
@@ -171,7 +175,7 @@ export function DashboardContent() {
                     <p className="mt-0.5 truncate text-sm">{item.contact_name}</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold">{formatCurrency(item.amount)}</p>
+                    <p className="text-sm font-bold">{masked(item.amount)}</p>
                     <p className="text-xs text-muted-foreground">{formatDateShort(item.due_date)}</p>
                   </div>
                 </Link>

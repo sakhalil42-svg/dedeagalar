@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Search, Loader2 } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 
 const STATUS_LABELS: Record<PurchaseStatus, string> = {
   draft: "Taslak",
@@ -41,6 +42,8 @@ export default function PurchasesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<PurchaseStatus | "all">("all");
   const { data: purchases, isLoading } = usePurchases();
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   const filtered = useMemo(() => {
     if (!purchases) return [];
@@ -133,7 +136,7 @@ export default function PurchasesPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold">
-                        {formatCurrency(p.total_amount)}
+                        {masked(p.total_amount)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatDateShort(p.purchase_date)}

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, AlertTriangle, Clock } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 
 interface DueItem {
   id: string;
@@ -56,6 +57,8 @@ export default function CalendarPage() {
   const { data: sales, isLoading: salesLoading } = useSales();
 
   const isLoading = checksLoading || purchasesLoading || salesLoading;
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   const dueItems = useMemo(() => {
     const items: DueItem[] = [];
@@ -205,7 +208,7 @@ export default function CalendarPage() {
                             Vade: {formatDateShort(item.due_date)}
                           </p>
                         </div>
-                        <p className="text-sm font-bold">{formatCurrency(item.amount)}</p>
+                        <p className="text-sm font-bold">{masked(item.amount)}</p>
                       </div>
                     </Link>
                   );
@@ -244,7 +247,7 @@ export default function CalendarPage() {
                             Vade: {formatDateShort(item.due_date)}
                           </p>
                         </div>
-                        <p className="text-sm font-bold">{formatCurrency(item.amount)}</p>
+                        <p className="text-sm font-bold">{masked(item.amount)}</p>
                       </div>
                     </Link>
                   );

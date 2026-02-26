@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Settings } from "lucide-react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
+import { BalanceToggle } from "@/components/layout/balance-toggle";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -23,6 +24,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <BalanceToggle />
           <Link
             href="/settings"
             className="flex h-9 w-9 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted"

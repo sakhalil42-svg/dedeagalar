@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Search, Loader2, Wallet, FileText, CalendarDays } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
+import { BalanceToggle } from "@/components/layout/balance-toggle";
 
 const TYPE_LABELS: Record<ContactType, string> = {
   supplier: "Üretici",
@@ -26,6 +28,8 @@ export default function FinancePage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ContactType | "all">("all");
   const { data: summaries, isLoading } = useAccountSummaries();
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   const filtered = useMemo(() => {
     if (!summaries) return [];
@@ -52,11 +56,14 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-4 p-4">
-      <div>
-        <h1 className="text-2xl font-bold">Cari Hesaplar</h1>
-        <p className="text-sm text-muted-foreground">
-          Hesap bakiyeleri ve hareketler
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Cari Hesaplar</h1>
+          <p className="text-sm text-muted-foreground">
+            Hesap bakiyeleri ve hareketler
+          </p>
+        </div>
+        <BalanceToggle />
       </div>
 
       {/* Quick links */}
@@ -93,16 +100,16 @@ export default function FinancePage() {
           <CardContent className="grid grid-cols-3 gap-2 p-3 text-center text-xs">
             <div>
               <p className="text-muted-foreground">Toplam Borç</p>
-              <p className="font-bold text-red-600">{formatCurrency(totals.debit)}</p>
+              <p className="font-bold text-red-600">{masked(totals.debit)}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Toplam Alacak</p>
-              <p className="font-bold text-green-600">{formatCurrency(totals.credit)}</p>
+              <p className="font-bold text-green-600">{masked(totals.credit)}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Net Bakiye</p>
               <p className={`font-bold ${totals.net >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatCurrency(totals.net)}
+                {masked(totals.net)}
               </p>
             </div>
           </CardContent>
@@ -160,7 +167,7 @@ export default function FinancePage() {
                           s.balance >= 0 ? "text-green-600" : "text-red-600"
                         }`}
                       >
-                        {formatCurrency(s.balance)}
+                        {masked(s.balance)}
                       </p>
                       <p className="text-xs text-muted-foreground">bakiye</p>
                     </div>

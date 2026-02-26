@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Warehouse, ArrowDownToLine, ArrowUpFromLine, RefreshCw } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 
 const MOVEMENT_LABELS: Record<MovementType, string> = {
   purchase_in: "Alım Girişi",
@@ -33,6 +34,8 @@ const MOVEMENT_ICONS: Record<MovementType, React.ElementType> = {
 export default function InventoryPage() {
   const { data: inventory, isLoading: invLoading } = useInventorySummary();
   const { data: movements, isLoading: movLoading } = useInventoryMovements(20);
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   // Group by warehouse
   const grouped = useMemo(() => {
@@ -79,7 +82,7 @@ export default function InventoryPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Toplam Değer</p>
-              <p className="text-lg font-bold">{formatCurrency(totals.value)}</p>
+              <p className="text-lg font-bold">{masked(totals.value)}</p>
             </div>
           </CardContent>
         </Card>
@@ -103,7 +106,7 @@ export default function InventoryPage() {
                     {warehouseName}
                   </span>
                   <span className="text-xs font-normal text-muted-foreground">
-                    {(whQty / 1000).toFixed(1)} ton · {formatCurrency(whTotal)}
+                    {(whQty / 1000).toFixed(1)} ton · {masked(whTotal)}
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -116,11 +119,11 @@ export default function InventoryPage() {
                         <p className="text-sm font-medium">{item.feed_type_name}</p>
                         <p className="text-xs text-muted-foreground">
                           {item.quantity_kg.toLocaleString("tr-TR")} kg ·{" "}
-                          {formatCurrency(item.unit_cost)}/kg
+                          {masked(item.unit_cost)}/kg
                         </p>
                       </div>
                       <p className="text-sm font-bold">
-                        {formatCurrency(item.total_value)}
+                        {masked(item.total_value)}
                       </p>
                     </div>
                   </div>
