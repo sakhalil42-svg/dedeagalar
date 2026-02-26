@@ -20,10 +20,11 @@ import {
   Download,
   Truck,
   Banknote,
+  MessageCircle,
 } from "lucide-react";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
-import { generateContactPdf } from "@/lib/utils/pdf-export";
+import { generateContactPdf, openWhatsApp } from "@/lib/utils/pdf-export";
 import { useDeliveriesForTransactions } from "@/lib/hooks/use-deliveries-for-transactions";
 import type { AccountTransaction, Delivery } from "@/lib/types/database.types";
 
@@ -120,13 +121,20 @@ export default function AccountDetailPage() {
     if (!contact || !account) return;
     generateContactPdf({
       contactName: contact.name,
+      contactPhone: contact.phone,
       contactType: contact.type,
       sevkiyatlar: sevkiyatTxs,
       odemeler: odemeTxs,
+      deliveryMap: deliveryMap || undefined,
       anaKalem,
       odenenKalem,
       bakiye,
     });
+  }
+
+  function handleWhatsApp() {
+    if (!contact) return;
+    openWhatsApp(contact.phone, contact.name);
   }
 
   return (
@@ -197,6 +205,12 @@ export default function AccountDetailPage() {
           <Download className="mr-1 h-4 w-4" />
           PDF
         </Button>
+        {contact.phone && (
+          <Button size="sm" variant="outline" onClick={handleWhatsApp}>
+            <MessageCircle className="mr-1 h-4 w-4" />
+            WhatsApp
+          </Button>
+        )}
       </div>
 
       {/* ── Sevkiyatlar (from account_transactions) ── */}

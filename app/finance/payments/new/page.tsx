@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { generateReceiptPdf } from "@/lib/utils/pdf-export";
 
 export default function NewPaymentPage() {
   return (
@@ -116,8 +117,22 @@ function NewPaymentForm() {
             }
           : {}),
       });
+      // Generate receipt PDF
+      const selectedContact = contacts?.find((c) => c.id === contactId);
+      const receiptNo = `MKB-${Date.now().toString(36).toUpperCase()}`;
+      generateReceiptPdf({
+        receiptNo,
+        direction,
+        contactName: selectedContact?.name || "-",
+        contactPhone: selectedContact?.phone,
+        amount: parseFloat(amount),
+        method,
+        paymentDate,
+        description: description || null,
+      });
+
       toast.success(
-        direction === "inbound" ? "Tahsilat kaydedildi" : "Ödeme kaydedildi"
+        direction === "inbound" ? "Tahsilat kaydedildi — Makbuz indirildi" : "Ödeme kaydedildi — Makbuz indirildi"
       );
       // Kişi detay sayfasına geri dön
       if (preselectedContactId) {

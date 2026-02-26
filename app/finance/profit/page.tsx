@@ -13,7 +13,9 @@ import {
   TrendingDown,
   Minus,
   Truck,
+  Download,
 } from "lucide-react";
+import { generateProfitPdf } from "@/lib/utils/pdf-export";
 import { formatCurrency } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import {
@@ -188,16 +190,40 @@ export default function ProfitPage() {
 
   return (
     <div className="space-y-4 p-4">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/finance">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-xl font-bold">Kar / Zarar</h1>
-          <p className="text-sm text-muted-foreground">Gelir-gider analizi</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/finance">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold">Kar / Zarar</h1>
+            <p className="text-sm text-muted-foreground">Gelir-gider analizi</p>
+          </div>
         </div>
+        {data && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const label = DATE_OPTIONS.find((o) => o.value === dateFilter)?.label || "Tümü";
+              generateProfitPdf({
+                dateLabel: label,
+                totalSales: data.totalSales,
+                totalPurchases: data.totalPurchases,
+                totalFreight: data.totalFreight,
+                grossProfit: data.grossProfit,
+                netProfit: data.netProfit,
+                totalTonnage: data.totalTonnage,
+                deliveryCount: data.deliveryCount,
+              });
+            }}
+          >
+            <Download className="mr-1 h-4 w-4" />
+            PDF
+          </Button>
+        )}
       </div>
 
       {/* Date filter */}
