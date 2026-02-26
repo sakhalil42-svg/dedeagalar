@@ -14,7 +14,7 @@ import {
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
-import type { Sale, Delivery, FreightPayer, Contact } from "@/lib/types/database.types";
+import type { Sale, Delivery, FreightPayer, Contact, PricingModel } from "@/lib/types/database.types";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,7 @@ interface OrderConfig {
   feedTypeId: string;
   customerPrice: string;
   supplierPrice: string;
+  pricingModel: PricingModel;
   saleId: string | null;
   purchaseId: string | null;
 }
@@ -110,6 +111,7 @@ export default function SalesPage() {
     feedTypeId: "",
     customerPrice: "",
     supplierPrice: "",
+    pricingModel: "nakliye_dahil",
     saleId: null,
     purchaseId: null,
   });
@@ -131,6 +133,7 @@ export default function SalesPage() {
             feedTypeId: sale.feed_type_id,
             customerPrice: String(sale.unit_price),
             supplierPrice: "",
+            pricingModel: "nakliye_dahil",
             saleId: sale.id,
             purchaseId: null,
           });
@@ -324,6 +327,32 @@ function ActiveOrderView({
             </div>
           </div>
 
+          {/* Pricing Model Toggle */}
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setOrder((p) => ({ ...p, pricingModel: "nakliye_dahil" }))}
+              className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                order.pricingModel === "nakliye_dahil"
+                  ? "bg-green-600 text-white"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              Nakliye Dahil
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrder((p) => ({ ...p, pricingModel: "tir_ustu" }))}
+              className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                order.pricingModel === "tir_ustu"
+                  ? "bg-green-600 text-white"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              Tır Üstü
+            </button>
+          </div>
+
           {isOrderReady && (
             <div className="flex items-center gap-2 text-xs">
               <Badge variant="secondary" className="bg-green-100 text-green-800">
@@ -366,6 +395,7 @@ function ActiveOrderView({
               supplierContactId={order.supplierId}
               customerPrice={parseFloat(effectiveCustomerPrice)}
               supplierPrice={parseFloat(order.supplierPrice)}
+              pricingModel={order.pricingModel}
               ensureSaleExists={ensureSaleExists}
             />
 
@@ -374,6 +404,7 @@ function ActiveOrderView({
                 saleId={activeSaleId}
                 customerPrice={parseFloat(effectiveCustomerPrice)}
                 supplierPrice={parseFloat(order.supplierPrice)}
+                pricingModel={order.pricingModel}
                 masked={masked}
                 customerContact={customerContact || null}
               />
@@ -393,6 +424,7 @@ function QuickEntryForm({
   supplierContactId,
   customerPrice,
   supplierPrice,
+  pricingModel,
   ensureSaleExists,
 }: {
   saleId: string | null;
@@ -401,6 +433,7 @@ function QuickEntryForm({
   supplierContactId: string;
   customerPrice: number;
   supplierPrice: number;
+  pricingModel: PricingModel;
   ensureSaleExists: () => Promise<string | null>;
 }) {
   const today = new Date().toISOString().split("T")[0];
@@ -590,38 +623,39 @@ function QuickEntryForm({
         )}
 
         {/* Preview */}
-        {netWeight && parseFloat(netWeight) > 0 && (
-          <div className="rounded-lg bg-muted/50 p-2 text-xs space-y-1">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Müşteri alacak:</span>
-              <span className="font-medium">
-                {formatCurrency(
-                  parseFloat(netWeight) * customerPrice -
-                    (freightPayer === "customer" && freightCost
-                      ? parseFloat(freightCost)
-                      : 0)
-                )}
-              </span>
+        {netWeight && parseFloat(netWeight) > 0 && (() => {
+          const kg = parseFloat(netWeight);
+          const freight = freightCost ? parseFloat(freightCost) : 0;
+          const custAmount = kg * customerPrice - (freightPayer === "customer" ? freight : 0);
+          const suppAmount = kg * supplierPrice;
+          const myFreight = pricingModel === "tir_ustu" && freightPayer === "me" ? freight : 0;
+          const profit = custAmount - suppAmount - myFreight;
+
+          return (
+            <div className="rounded-lg bg-muted/50 p-2 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Müşteri alacak:</span>
+                <span className="font-medium">{formatCurrency(custAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Üretici borç:</span>
+                <span className="font-medium">{formatCurrency(suppAmount)}</span>
+              </div>
+              {pricingModel === "tir_ustu" && myFreight > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Nakliye (benim):</span>
+                  <span className="font-medium text-red-600">-{formatCurrency(myFreight)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Kar:</span>
+                <span className={`font-bold ${profit >= 0 ? "text-green-700" : "text-red-700"}`}>
+                  {formatCurrency(profit)}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Üretici borç:</span>
-              <span className="font-medium">
-                {formatCurrency(parseFloat(netWeight) * supplierPrice)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Kar:</span>
-              <span className="font-bold text-green-700">
-                {formatCurrency(
-                  parseFloat(netWeight) * (customerPrice - supplierPrice) -
-                    (freightPayer === "me" && freightCost
-                      ? parseFloat(freightCost)
-                      : 0)
-                )}
-              </span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         <Button
           onClick={handleSave}
@@ -646,12 +680,14 @@ function TicketListAndSummary({
   saleId,
   customerPrice,
   supplierPrice,
+  pricingModel,
   masked,
   customerContact,
 }: {
   saleId: string;
   customerPrice: number;
   supplierPrice: number;
+  pricingModel: PricingModel;
   masked: (amount: number) => string;
   customerContact: Contact | null;
 }) {
@@ -660,7 +696,7 @@ function TicketListAndSummary({
 
   const summary = useMemo(() => {
     if (!deliveries)
-      return { totalKg: 0, customerTotal: 0, supplierTotal: 0, freightTotal: 0, profit: 0 };
+      return { totalKg: 0, customerTotal: 0, supplierTotal: 0, freightTotal: 0, myFreightTotal: 0, profit: 0 };
     return deliveries.reduce(
       (acc, d) => {
         const freight = d.freight_cost || 0;
@@ -669,19 +705,21 @@ function TicketListAndSummary({
             ? d.net_weight * customerPrice - freight
             : d.net_weight * customerPrice;
         const suppAmount = d.net_weight * supplierPrice;
-        const myFreight = d.freight_payer === "me" ? freight : 0;
+        // Tır üstü: nakliye ayrı maliyet; Nakliye dahil: üretici fiyatında zaten var
+        const myFreight = pricingModel === "tir_ustu" && d.freight_payer === "me" ? freight : 0;
 
         return {
           totalKg: acc.totalKg + d.net_weight,
           customerTotal: acc.customerTotal + custAmount,
           supplierTotal: acc.supplierTotal + suppAmount,
           freightTotal: acc.freightTotal + freight,
+          myFreightTotal: acc.myFreightTotal + myFreight,
           profit: acc.profit + (custAmount - suppAmount - myFreight),
         };
       },
-      { totalKg: 0, customerTotal: 0, supplierTotal: 0, freightTotal: 0, profit: 0 }
+      { totalKg: 0, customerTotal: 0, supplierTotal: 0, freightTotal: 0, myFreightTotal: 0, profit: 0 }
     );
-  }, [deliveries, customerPrice, supplierPrice]);
+  }, [deliveries, customerPrice, supplierPrice, pricingModel]);
 
   const handleDelete = async (id: string) => {
     try {
