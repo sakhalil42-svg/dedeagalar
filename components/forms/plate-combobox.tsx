@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useCreateVehicle } from "@/lib/hooks/use-vehicles";
-import { useCarriers } from "@/lib/hooks/use-carriers";
+import { useCarriers, useCreateCarrier } from "@/lib/hooks/use-carriers";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +40,8 @@ interface PlateComboboxProps {
   className?: string;
 }
 
+const NEW_CARRIER_SENTINEL = "__new__";
+
 export function PlateCombobox({
   value,
   onChange,
@@ -53,10 +55,22 @@ export function PlateCombobox({
   const [newDriverName, setNewDriverName] = useState("");
   const [newDriverPhone, setNewDriverPhone] = useState("");
   const [newCarrierId, setNewCarrierId] = useState("");
+  const [newCarrierName, setNewCarrierName] = useState("");
+  const [newCarrierPhone, setNewCarrierPhone] = useState("");
+  const [creatingCarrier, setCreatingCarrier] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: carriers } = useCarriers();
   const createVehicle = useCreateVehicle();
+  const createCarrier = useCreateCarrier();
+
+  const hasCarriers = carriers && carriers.length > 0;
+  const showNewCarrierFields = !hasCarriers || newCarrierId === NEW_CARRIER_SENTINEL;
+
+  // Is carrier selected or entered?
+  const carrierValid = showNewCarrierFields
+    ? newCarrierName.trim().length > 0
+    : newCarrierId.length > 0;
 
   // Fetch ALL vehicles directly on mount — simple, no shared hook complexity
   useEffect(() => {
@@ -155,29 +169,56 @@ export function PlateCombobox({
     setNewDriverName("");
     setNewDriverPhone("");
     setNewCarrierId("");
+    setNewCarrierName("");
+    setNewCarrierPhone("");
+    setCreatingCarrier(false);
     setShowNewForm(true);
   };
 
   const handleSaveNew = async () => {
     if (!value.trim()) return;
+    if (!carrierValid) return;
+
     setSaving(true);
     try {
+      // If creating new carrier, do it first
+      let finalCarrierId = newCarrierId === NEW_CARRIER_SENTINEL ? "" : newCarrierId;
+      let finalCarrierName = "";
+      let finalCarrierPhone = "";
+
+      if (showNewCarrierFields && newCarrierName.trim()) {
+        // Create new carrier
+        setCreatingCarrier(true);
+        const created = await createCarrier.mutateAsync({
+          name: newCarrierName.trim(),
+          phone: newCarrierPhone.trim() || null,
+        });
+        finalCarrierId = created.id;
+        finalCarrierName = newCarrierName.trim();
+        finalCarrierPhone = newCarrierPhone.trim();
+        setCreatingCarrier(false);
+      } else if (finalCarrierId) {
+        const selectedCarrier = carriers?.find((c) => c.id === finalCarrierId);
+        finalCarrierName = selectedCarrier?.name || "";
+        finalCarrierPhone = selectedCarrier?.phone || "";
+      }
+
       await createVehicle.mutateAsync({
         plate: value.trim().toUpperCase(),
         driver_name: newDriverName.trim() || null,
         driver_phone: newDriverPhone.trim() || null,
-        carrier_id: newCarrierId || null,
+        carrier_id: finalCarrierId || null,
       });
-      const selectedCarrier = carriers?.find((c) => c.id === newCarrierId);
+
       // Add to local list immediately
       const newVehicle: SimpleVehicle = {
         id: "new-" + Date.now(),
         plate: value.trim().toUpperCase(),
         driver_name: newDriverName.trim() || null,
         driver_phone: newDriverPhone.trim() || null,
-        carrier_id: newCarrierId || null,
-        carrier_name: selectedCarrier?.name || null,
-        carrier_phone: selectedCarrier?.phone || null,
+        carrier_id: finalCarrierId || null,
+        carrier_name: finalCarrierName || null,
+        carrier_phone: finalCarrierPhone || null,
       };
       setVehicles((prev) => [...prev, newVehicle]);
       onVehicleSelect?.({
@@ -193,6 +234,7 @@ export function PlateCombobox({
       console.error("[PlateCombobox] save error:", err);
     } finally {
       setSaving(false);
+      setCreatingCarrier(false);
     }
   };
 
@@ -293,21 +335,54 @@ export function PlateCombobox({
                 />
               </div>
 
+              {/* Nakliyeci — zorunlu alan */}
               <div>
-                <Label className="text-xs text-muted-foreground">Nakliyeci</Label>
-                <Select value={newCarrierId} onValueChange={setNewCarrierId}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Nakliyeci seç (opsiyonel)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(carriers || []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                        {c.phone ? ` (${c.phone})` : ""}
+                <Label className="text-xs text-muted-foreground">
+                  Nakliyeci *
+                </Label>
+                {hasCarriers ? (
+                  <Select value={newCarrierId} onValueChange={setNewCarrierId}>
+                    <SelectTrigger className={`h-8 text-sm ${!carrierValid ? "border-red-300" : ""}`}>
+                      <SelectValue placeholder="Nakliyeci seç" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {carriers.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                          {c.phone ? ` (${c.phone})` : ""}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={NEW_CARRIER_SENTINEL}>
+                        <span className="flex items-center gap-1 text-primary">
+                          <Plus className="h-3 w-3" />
+                          Yeni Nakliyeci Ekle
+                        </span>
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
+                ) : null}
+
+                {/* Yeni nakliyeci alanları — listede seçenek yoksa veya "Yeni Ekle" seçildiyse */}
+                {showNewCarrierFields && (
+                  <div className="mt-1.5 space-y-1.5 rounded-md border border-dashed border-primary/30 bg-primary/5 p-2">
+                    <p className="text-[10px] font-medium text-primary">Yeni Nakliyeci</p>
+                    <Input
+                      placeholder="Nakliyeci adı *"
+                      value={newCarrierName}
+                      onChange={(e) => setNewCarrierName(e.target.value)}
+                      className={`h-7 text-xs ${!newCarrierName.trim() ? "border-red-300" : ""}`}
+                      autoFocus={newCarrierId === NEW_CARRIER_SENTINEL}
+                    />
+                    <Input
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="Telefon (opsiyonel)"
+                      value={newCarrierPhone}
+                      onChange={(e) => setNewCarrierPhone(e.target.value)}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                )}
               </div>
 
               <Button
@@ -315,11 +390,16 @@ export function PlateCombobox({
                 size="sm"
                 className="w-full"
                 onClick={handleSaveNew}
-                disabled={saving}
+                disabled={saving || creatingCarrier || !carrierValid}
               >
                 <Save className="mr-1 h-3.5 w-3.5" />
-                {saving ? "Kaydediliyor..." : "Kaydet"}
+                {creatingCarrier ? "Nakliyeci oluşturuluyor..." : saving ? "Kaydediliyor..." : "Kaydet"}
               </Button>
+              {!carrierValid && (
+                <p className="text-[10px] text-red-500 text-center">
+                  Nakliyeci seçimi zorunludur
+                </p>
+              )}
             </div>
           )}
         </div>

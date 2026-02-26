@@ -1170,9 +1170,21 @@ function QuickEntryForm({
           );
         })()}
 
+        {/* Plaka varsa nakliyeci zorunlu uyarısı */}
+        {vehiclePlate.trim() && !carrierName.trim() && (
+          <p className="text-xs text-red-500">
+            Plaka girildiğinde nakliyeci adı zorunludur.
+          </p>
+        )}
+
         <Button
           onClick={handleSave}
-          disabled={saving || !netWeight || parseInt(netWeight) <= 0}
+          disabled={
+            saving ||
+            !netWeight ||
+            parseInt(netWeight) <= 0 ||
+            (!!vehiclePlate.trim() && !carrierName.trim())
+          }
           className="w-full h-12 text-base font-bold"
           size="lg"
         >
