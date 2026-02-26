@@ -2,13 +2,13 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useChecks, useUpdateCheck } from "@/lib/hooks/use-checks";
+import { useChecks, useUpdateCheck, useEndorseCheck } from "@/lib/hooks/use-checks";
+import { useContacts } from "@/lib/hooks/use-contacts";
 import type { Check, CheckStatus, CheckType, CheckDirection } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -58,12 +58,12 @@ const DIRECTION_LABELS: Record<CheckDirection, string> = {
   given: "Verilen",
 };
 
-// Valid status transitions
+// Valid status transitions (endorsed handled separately via endorse dialog)
 const STATUS_TRANSITIONS: Record<CheckStatus, CheckStatus[]> = {
   pending: ["deposited", "endorsed", "cancelled"],
   deposited: ["cleared", "bounced", "cancelled"],
   cleared: [],
-  bounced: ["pending"], // can re-try
+  bounced: ["pending"],
   endorsed: ["cancelled"],
   cancelled: [],
 };
@@ -109,18 +109,29 @@ export default function ChecksPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [directionTab, setDirectionTab] = useState<DirectionTab>("all");
+
+  // Status change dialog state
   const [statusChangeTarget, setStatusChangeTarget] = useState<{
     id: string;
     name: string;
     currentStatus: CheckStatus;
   } | null>(null);
   const [newStatus, setNewStatus] = useState<CheckStatus>("deposited");
-  const [endorsedTo, setEndorsedTo] = useState("");
+
+  // Endorse dialog state
+  const [endorseTarget, setEndorseTarget] = useState<Check | null>(null);
+  const [endorseContactId, setEndorseContactId] = useState("");
+  const [endorseDate, setEndorseDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
 
   const { data: checks, isLoading } = useChecks();
+  const { data: contacts } = useContacts();
   const updateCheck = useUpdateCheck();
+  const endorseCheck = useEndorseCheck();
   const { isVisible } = useBalanceVisibility();
-  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
+  const masked = (amount: number) =>
+    isVisible ? formatCurrency(amount) : "••••••";
 
   const filtered = useMemo(() => {
     if (!checks) return [];
@@ -138,9 +149,10 @@ export default function ChecksPage() {
     });
   }, [checks, search, statusFilter, directionTab]);
 
-  // Summary totals
   const summary = useMemo(() => {
-    const pending = filtered.filter((c) => c.status === "pending" || c.status === "deposited");
+    const pending = filtered.filter(
+      (c) => c.status === "pending" || c.status === "deposited"
+    );
     const total = pending.reduce((sum, c) => sum + (c.amount || 0), 0);
     return { count: pending.length, total };
   }, [filtered]);
@@ -148,29 +160,76 @@ export default function ChecksPage() {
   function openStatusChange(check: Check) {
     const transitions = STATUS_TRANSITIONS[check.status];
     if (transitions.length === 0) return;
+
+    // If user will see "endorsed" option, they can choose it from dropdown
+    // but actual endorsement goes through endorse dialog
     setStatusChangeTarget({
       id: check.id,
       name: `${TYPE_LABELS[check.type]} - ${check.contact?.name || ""}`,
       currentStatus: check.status,
     });
-    setNewStatus(transitions[0]);
-    setEndorsedTo("");
+    // Default to first non-endorsed transition
+    const defaultStatus = transitions.find((s) => s !== "endorsed") || transitions[0];
+    setNewStatus(defaultStatus);
   }
 
   async function handleStatusChange() {
     if (!statusChangeTarget) return;
-    try {
-      const updateData: { status: CheckStatus; endorsed_to?: string; notes?: string } = {
-        status: newStatus,
-      };
-      if (newStatus === "endorsed" && endorsedTo.trim()) {
-        updateData.endorsed_to = endorsedTo.trim();
+
+    // If user chose "endorsed", open the endorse dialog instead
+    if (newStatus === "endorsed") {
+      const check = checks?.find((c) => c.id === statusChangeTarget.id);
+      if (check) {
+        setStatusChangeTarget(null);
+        openEndorseDialog(check);
+        return;
       }
-      await updateCheck.mutateAsync({ id: statusChangeTarget.id, ...updateData });
+    }
+
+    try {
+      await updateCheck.mutateAsync({
+        id: statusChangeTarget.id,
+        status: newStatus,
+      });
       toast.success(`Durum güncellendi: ${STATUS_LABELS[newStatus]}`);
       setStatusChangeTarget(null);
     } catch {
       toast.error("Durum güncellenirken hata oluştu");
+    }
+  }
+
+  function openEndorseDialog(check: Check) {
+    setEndorseTarget(check);
+    setEndorseContactId("");
+    setEndorseDate(new Date().toISOString().split("T")[0]);
+  }
+
+  async function handleEndorse() {
+    if (!endorseTarget || !endorseContactId) {
+      toast.error("Ciro edilecek kişiyi seçiniz");
+      return;
+    }
+
+    const targetContact = contacts?.find((c) => c.id === endorseContactId);
+    if (!targetContact) {
+      toast.error("Kişi bulunamadı");
+      return;
+    }
+
+    try {
+      await endorseCheck.mutateAsync({
+        checkId: endorseTarget.id,
+        targetContactId: endorseContactId,
+        targetContactName: targetContact.name,
+        endorseDate,
+      });
+      toast.success(
+        `${TYPE_LABELS[endorseTarget.type]} ${targetContact.name}'a ciro edildi`
+      );
+      setEndorseTarget(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Ciro işlemi başarısız";
+      toast.error(message);
     }
   }
 
@@ -196,7 +255,7 @@ export default function ChecksPage() {
         </div>
       </div>
 
-      {/* Direction Tabs: Tümü / Alınan / Verilen */}
+      {/* Direction Tabs */}
       <div className="flex gap-1 rounded-lg bg-muted p-1">
         {([
           { key: "all" as DirectionTab, label: "Tümü" },
@@ -227,7 +286,9 @@ export default function ChecksPage() {
             </div>
             <div>
               <p className="text-muted-foreground">Bekleyen Toplam</p>
-              <p className="text-lg font-bold text-amber-600">{masked(summary.total)}</p>
+              <p className="text-lg font-bold text-amber-600">
+                {masked(summary.total)}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -270,10 +331,7 @@ export default function ChecksPage() {
             const daysText = getDaysText(c.due_date);
             const canChange = STATUS_TRANSITIONS[c.status].length > 0;
             return (
-              <Card
-                key={c.id}
-                className={getDueClass(c.due_date, c.status)}
-              >
+              <Card key={c.id} className={getDueClass(c.due_date, c.status)}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
@@ -297,11 +355,15 @@ export default function ChecksPage() {
                         {c.bank_name && <span>{c.bank_name}</span>}
                         <span>Vade: {formatDateShort(c.due_date)}</span>
                         {daysText && (
-                          <span className={
-                            daysText.includes("geçmiş") ? "font-medium text-red-600" :
-                            daysText === "Bugün" ? "font-medium text-orange-600" :
-                            "font-medium text-yellow-600"
-                          }>
+                          <span
+                            className={
+                              daysText.includes("geçmiş")
+                                ? "font-medium text-red-600"
+                                : daysText === "Bugün"
+                                  ? "font-medium text-orange-600"
+                                  : "font-medium text-yellow-600"
+                            }
+                          >
                             {daysText}
                           </span>
                         )}
@@ -309,6 +371,11 @@ export default function ChecksPage() {
                       {c.endorsed_to && (
                         <p className="text-xs text-purple-600">
                           Ciro: {c.endorsed_to}
+                        </p>
+                      )}
+                      {c.notes && (
+                        <p className="text-xs text-muted-foreground italic">
+                          {c.notes}
                         </p>
                       )}
                     </div>
@@ -337,7 +404,7 @@ export default function ChecksPage() {
         </div>
       )}
 
-      {/* Status change dialog */}
+      {/* ── Status change dialog ── */}
       <Dialog
         open={!!statusChangeTarget}
         onOpenChange={(open) => !open && setStatusChangeTarget(null)}
@@ -351,7 +418,9 @@ export default function ChecksPage() {
             <div>
               <label className="text-sm font-medium">Mevcut Durum</label>
               <p className="text-sm text-muted-foreground">
-                {statusChangeTarget ? STATUS_LABELS[statusChangeTarget.currentStatus] : ""}
+                {statusChangeTarget
+                  ? STATUS_LABELS[statusChangeTarget.currentStatus]
+                  : ""}
               </p>
             </div>
             <div>
@@ -372,25 +441,114 @@ export default function ChecksPage() {
                 </SelectContent>
               </Select>
             </div>
-            {newStatus === "endorsed" && (
-              <div>
-                <label className="text-sm font-medium">Kime Ciro Edildi?</label>
-                <Textarea
-                  placeholder="Ciro edilen kişi/firma adı..."
-                  value={endorsedTo}
-                  onChange={(e) => setEndorsedTo(e.target.value)}
-                  className="mt-1"
-                  rows={2}
-                />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setStatusChangeTarget(null)}
+            >
+              İptal
+            </Button>
+            <Button
+              onClick={handleStatusChange}
+              disabled={updateCheck.isPending}
+            >
+              {updateCheck.isPending ? "Güncelleniyor..." : "Güncelle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Endorse (Ciro) dialog ── */}
+      <Dialog
+        open={!!endorseTarget}
+        onOpenChange={(open) => !open && setEndorseTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Çek / Senet Ciro Et</DialogTitle>
+            <DialogDescription>
+              {endorseTarget && (
+                <>
+                  {TYPE_LABELS[endorseTarget.type]} —{" "}
+                  {endorseTarget.contact?.name || "—"} —{" "}
+                  {formatCurrency(endorseTarget.amount)}
+                  {endorseTarget.serial_no && ` (No: ${endorseTarget.serial_no})`}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium">
+                Bu çeki kime ciro ediyorsunuz? *
+              </label>
+              <Select
+                value={endorseContactId}
+                onValueChange={setEndorseContactId}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Kişi seçiniz" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contacts
+                    ?.filter(
+                      (c) =>
+                        c.id !== endorseTarget?.contact_id // exclude original owner
+                    )
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          {c.type === "supplier"
+                            ? "(Üretici)"
+                            : c.type === "customer"
+                              ? "(Müşteri)"
+                              : "(Ürt/Müş)"}
+                        </span>
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Ciro Tarihi</label>
+              <Input
+                type="date"
+                value={endorseDate}
+                onChange={(e) => setEndorseDate(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            {endorseTarget && (
+              <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+                <p>Ciro işlemi şunları yapacak:</p>
+                <p>
+                  1. Bu {TYPE_LABELS[endorseTarget.type].toLowerCase()} &quot;Ciro
+                  Edildi&quot; olarak işaretlenecek
+                </p>
+                <p>
+                  2. Seçilen kişiye yeni bir &quot;Verilen{" "}
+                  {TYPE_LABELS[endorseTarget.type].toLowerCase()}&quot; kaydı
+                  oluşturulacak
+                </p>
+                <p>
+                  3. Seçilen kişinin borcu{" "}
+                  {formatCurrency(endorseTarget.amount)} azalacak
+                </p>
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusChangeTarget(null)}>
+            <Button variant="outline" onClick={() => setEndorseTarget(null)}>
               İptal
             </Button>
-            <Button onClick={handleStatusChange} disabled={updateCheck.isPending}>
-              {updateCheck.isPending ? "Güncelleniyor..." : "Güncelle"}
+            <Button
+              onClick={handleEndorse}
+              disabled={endorseCheck.isPending || !endorseContactId}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {endorseCheck.isPending ? "İşleniyor..." : "Ciro Et"}
             </Button>
           </DialogFooter>
         </DialogContent>

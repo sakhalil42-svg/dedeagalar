@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { checkSchema, type CheckFormValues } from "@/lib/schemas/check";
-import { useCreateCheck } from "@/lib/hooks/use-checks";
+import { useCreateCheckWithTransaction } from "@/lib/hooks/use-checks";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ import Link from "next/link";
 
 export default function NewCheckPage() {
   const router = useRouter();
-  const createCheck = useCreateCheck();
+  const createCheck = useCreateCheckWithTransaction();
   const { data: contacts } = useContacts();
 
   const {
