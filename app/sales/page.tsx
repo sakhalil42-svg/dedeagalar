@@ -207,7 +207,6 @@ function ActiveOrderView({
         feed_type_id: order.feedTypeId,
         quantity: 0,
         unit_price: parseFloat(effectiveCustomerPrice),
-        total_amount: 0,
         sale_date: new Date().toISOString().split("T")[0],
       });
       setOrder((prev) => ({ ...prev, saleId: result.id }));
@@ -442,6 +441,7 @@ function QuickEntryForm({
   const [ticketNo, setTicketNo] = useState("");
   const [netWeight, setNetWeight] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
+  const [driverName, setDriverName] = useState("");
   const [carrierName, setCarrierName] = useState("");
   const [carrierPhone, setCarrierPhone] = useState("");
   const [freightCost, setFreightCost] = useState("");
@@ -452,7 +452,7 @@ function QuickEntryForm({
 
   const handleVehicleSelect = useCallback((vehicle: Vehicle) => {
     setVehiclePlate(vehicle.plate);
-    if (vehicle.driver_name) setCarrierName(vehicle.driver_name);
+    if (vehicle.driver_name) setDriverName(vehicle.driver_name);
     if (vehicle.carrier?.name) setCarrierName(vehicle.carrier.name);
     if (vehicle.carrier?.phone) setCarrierPhone(vehicle.carrier.phone);
   }, []);
@@ -485,6 +485,7 @@ function QuickEntryForm({
           ticket_no: ticketNo || null,
           net_weight: kg,
           vehicle_plate: vehiclePlate || null,
+          driver_name: driverName || null,
           carrier_name: carrierName || null,
           carrier_phone: carrierPhone || null,
           freight_cost: freightCost ? parseFloat(freightCost) : null,
