@@ -7,7 +7,10 @@ import {
   useAccountTransactions,
 } from "@/lib/hooks/use-account-transactions";
 import { useContact } from "@/lib/hooks/use-contacts";
-import { useDeliveriesByContact, usePaymentsByContact, type DeliveryWithPrice } from "@/lib/hooks/use-deliveries-by-contact";
+import {
+  useDeliveriesByContact,
+  usePaymentsByContact,
+} from "@/lib/hooks/use-deliveries-by-contact";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +21,11 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Download,
+  Truck,
+  Banknote,
+  Building2,
+  FileText,
+  ScrollText,
 } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
@@ -35,6 +43,18 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   check: "Çek",
   promissory_note: "Senet",
 };
+
+const METHOD_ICONS: Record<string, typeof Banknote> = {
+  cash: Banknote,
+  bank_transfer: Building2,
+  check: FileText,
+  promissory_note: ScrollText,
+};
+
+function safeNum(val: unknown): number {
+  const n = Number(val);
+  return isNaN(n) ? 0 : n;
+}
 
 export default function AccountDetailPage() {
   const { contactId } = useParams<{ contactId: string }>();
@@ -70,23 +90,30 @@ export default function AccountDetailPage() {
     );
   }
 
-  const isCustomer =
-    contact.type === "customer" || contact.type === "both";
+  // ── Calculate Borç / Alacak from transactions (NaN-safe) ──
+  const txList = transactions || [];
+  const borc = txList.reduce((sum, t) => {
+    const amt = safeNum(t.amount);
+    return amt > 0 ? sum + amt : sum;
+  }, 0);
+  const alacak = txList.reduce((sum, t) => {
+    const amt = safeNum(t.amount);
+    return amt < 0 ? sum + Math.abs(amt) : sum;
+  }, 0);
+  const bakiye = borc - alacak;
 
-  // Calculate totals from deliveries (now includes unit_price via DeliveryWithPrice)
+  // ── Delivery summary ──
   const deliverySummary = (deliveries || []).reduce(
-    (acc, d) => {
-      return {
-        totalKg: acc.totalKg + d.net_weight,
-        totalAmount: acc.totalAmount + d.total_amount,
-        count: acc.count + 1,
-      };
-    },
+    (acc, d) => ({
+      totalKg: acc.totalKg + safeNum(d.net_weight),
+      totalAmount: acc.totalAmount + safeNum(d.total_amount),
+      count: acc.count + 1,
+    }),
     { totalKg: 0, totalAmount: 0, count: 0 }
   );
 
   const totalPaid = (payments || []).reduce(
-    (acc, p) => acc + p.amount,
+    (acc, p) => acc + safeNum(p.amount),
     0
   );
 
@@ -97,14 +124,15 @@ export default function AccountDetailPage() {
       contactType: contact.type,
       deliveries: deliveries || [],
       payments: payments || [],
-      balance: account.balance,
-      totalDebit: account.total_debit,
-      totalCredit: account.total_credit,
+      balance: bakiye,
+      totalDebit: borc,
+      totalCredit: alacak,
     });
   }
 
   return (
     <div className="space-y-4 p-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
@@ -121,30 +149,30 @@ export default function AccountDetailPage() {
         </div>
       </div>
 
-      {/* Balance summary */}
+      {/* Balance summary — 3 columns */}
       <Card>
         <CardContent className="p-4">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
               <p className="text-xs text-muted-foreground">Borç</p>
               <p className="text-sm font-bold text-red-600">
-                {masked(account.total_debit)}
+                {masked(borc)}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Alacak</p>
               <p className="text-sm font-bold text-green-600">
-                {masked(account.total_credit)}
+                {masked(alacak)}
               </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Bakiye</p>
               <p
                 className={`text-sm font-bold ${
-                  account.balance >= 0 ? "text-green-600" : "text-red-600"
+                  bakiye > 0 ? "text-red-600" : "text-green-600"
                 }`}
               >
-                {masked(account.balance)}
+                {masked(bakiye)}
               </p>
             </div>
           </div>
@@ -160,18 +188,18 @@ export default function AccountDetailPage() {
         </Button>
         <Button size="sm" variant="outline" onClick={handleDownloadPdf}>
           <Download className="mr-1 h-4 w-4" />
-          PDF İndir
+          PDF
         </Button>
       </div>
 
-      {/* Deliveries */}
+      {/* ── Sevkiyatlar ── */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Truck className="h-4 w-4" />
             Sevkiyatlar ({deliverySummary.count})
             {deliverySummary.totalKg > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                Toplam:{" "}
+              <span className="text-sm font-normal text-muted-foreground">
                 {deliverySummary.totalKg.toLocaleString("tr-TR")} kg
               </span>
             )}
@@ -186,8 +214,9 @@ export default function AccountDetailPage() {
             deliveries.map((d, i) => (
               <div key={d.id}>
                 {i > 0 && <Separator />}
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div className="space-y-0.5">
+                <div className="px-4 py-3">
+                  {/* Row 1: Date + ticket + amount */}
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-medium">
                         {formatDateShort(d.delivery_date)}
@@ -198,29 +227,38 @@ export default function AccountDetailPage() {
                         </Badge>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {d.net_weight.toLocaleString("tr-TR")} kg
-                      </span>
-                      {d.unit_price > 0 && (
-                        <span>
-                          {d.unit_price.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺/kg
-                        </span>
-                      )}
-                      {d.vehicle_plate && <span>{d.vehicle_plate}</span>}
-                      {d.freight_cost && d.freight_cost > 0 && (
-                        <span>
-                          Nakliye: {formatCurrency(d.freight_cost)} (
-                          {FREIGHT_PAYER_LABELS[d.freight_payer || "me"]})
-                        </span>
-                      )}
-                    </div>
+                    {d.total_amount > 0 && (
+                      <p className="text-sm font-bold">
+                        {masked(d.total_amount)}
+                      </p>
+                    )}
                   </div>
-                  {d.total_amount > 0 && (
-                    <p className="text-sm font-bold">
-                      {masked(d.total_amount)}
-                    </p>
-                  )}
+                  {/* Row 2: Details */}
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                    {d.vehicle_plate && (
+                      <span>{d.vehicle_plate}</span>
+                    )}
+                    {d.driver_name && (
+                      <span>{d.driver_name}</span>
+                    )}
+                    <span>
+                      {safeNum(d.net_weight).toLocaleString("tr-TR")} kg
+                    </span>
+                    {d.unit_price > 0 && (
+                      <span>
+                        {d.unit_price.toLocaleString("tr-TR", {
+                          minimumFractionDigits: 2,
+                        })}{" "}
+                        ₺/kg
+                      </span>
+                    )}
+                    {d.freight_cost && safeNum(d.freight_cost) > 0 && (
+                      <span>
+                        Nakliye: {formatCurrency(safeNum(d.freight_cost))} (
+                        {FREIGHT_PAYER_LABELS[d.freight_payer || "me"]})
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
@@ -232,13 +270,14 @@ export default function AccountDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Payments */}
+      {/* ── Ödemeler ── */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Banknote className="h-4 w-4" />
             Ödemeler
             {totalPaid > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
+              <span className="text-sm font-normal text-muted-foreground">
                 Toplam: {masked(totalPaid)}
               </span>
             )}
@@ -250,34 +289,50 @@ export default function AccountDetailPage() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : payments && payments.length > 0 ? (
-            payments.map((p, i) => (
-              <div key={p.id}>
-                {i > 0 && <Separator />}
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">
-                      {formatDateShort(p.payment_date)}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="secondary" className="text-xs">
-                        {PAYMENT_METHOD_LABELS[p.method] || p.method}
-                      </Badge>
-                      {p.description && <span>{p.description}</span>}
+            payments.map((p, i) => {
+              const MethodIcon = METHOD_ICONS[p.method] || Banknote;
+              return (
+                <div key={p.id}>
+                  {i > 0 && <Separator />}
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                        p.direction === "inbound"
+                          ? "bg-green-100 text-green-600"
+                          : "bg-red-100 text-red-600"
+                      }`}
+                    >
+                      <MethodIcon className="h-4 w-4" />
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-medium">
+                          {formatDateShort(p.payment_date)}
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          {PAYMENT_METHOD_LABELS[p.method] || p.method}
+                        </Badge>
+                      </div>
+                      {p.description && (
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {p.description}
+                        </p>
+                      )}
+                    </div>
+                    <p
+                      className={`text-sm font-bold ${
+                        p.direction === "inbound"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {p.direction === "inbound" ? "+" : "-"}
+                      {masked(safeNum(p.amount))}
+                    </p>
                   </div>
-                  <p
-                    className={`text-sm font-bold ${
-                      p.direction === "inbound"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {p.direction === "inbound" ? "+" : "-"}
-                    {masked(p.amount)}
-                  </p>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Henüz ödeme yok.
@@ -286,9 +341,9 @@ export default function AccountDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Account Transactions */}
+      {/* ── Hesap Hareketleri ── */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-2">
           <CardTitle className="text-base">Hesap Hareketleri</CardTitle>
         </CardHeader>
         <CardContent className="space-y-0 p-0">
@@ -296,9 +351,10 @@ export default function AccountDetailPage() {
             <div className="flex justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : transactions && transactions.length > 0 ? (
-            transactions.map((tx, i) => {
-              const isDebit = tx.transaction_type === "debit";
+          ) : txList.length > 0 ? (
+            txList.map((tx, i) => {
+              const amt = safeNum(tx.amount);
+              const isDebit = tx.transaction_type === "debit" || amt > 0;
               return (
                 <div key={tx.id}>
                   {i > 0 && <Separator />}
@@ -322,19 +378,19 @@ export default function AccountDetailPage() {
                       </p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{formatDateShort(tx.created_at)}</span>
-                        <span>Bakiye: {masked(tx.balance_after)}</span>
+                        <span>
+                          Bakiye: {masked(safeNum(tx.balance_after))}
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p
-                        className={`text-sm font-bold ${
-                          isDebit ? "text-red-600" : "text-green-600"
-                        }`}
-                      >
-                        {isDebit ? "-" : "+"}
-                        {masked(tx.amount)}
-                      </p>
-                    </div>
+                    <p
+                      className={`text-sm font-bold ${
+                        isDebit ? "text-red-600" : "text-green-600"
+                      }`}
+                    >
+                      {isDebit ? "" : "-"}
+                      {masked(Math.abs(amt))}
+                    </p>
                   </div>
                 </div>
               );

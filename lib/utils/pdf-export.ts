@@ -24,27 +24,31 @@ interface PdfParams {
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: "Nakit",
-  bank_transfer: "Havale",
+  bank_transfer: "Havale/EFT",
   check: "\u00C7ek",
   promissory_note: "Senet",
 };
 
-// PDF-only kurumsal etiketler
 const PDF_FREIGHT_PAYER_LABELS: Record<string, string> = {
   customer: "Al\u0131c\u0131",
   supplier: "Tedarik\u00E7i",
   me: "Dedea\u011Falar Grup",
 };
 
+function safeNum(val: unknown): number {
+  const n = Number(val);
+  return isNaN(n) ? 0 : n;
+}
+
 function fmt(n: number): string {
-  return n.toLocaleString("tr-TR", {
+  return safeNum(n).toLocaleString("tr-TR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
 function fmtInt(n: number): string {
-  return n.toLocaleString("tr-TR", { maximumFractionDigits: 0 });
+  return safeNum(n).toLocaleString("tr-TR", { maximumFractionDigits: 0 });
 }
 
 function formatDateLong(date: Date): string {
@@ -72,11 +76,18 @@ function setupFonts(doc: jsPDF) {
   doc.setFont("Roboto", "normal");
 }
 
+function getTableFinalY(doc: jsPDF): number {
+  return (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable
+    .finalY;
+}
+
 export function generateContactPdf({
   contactName,
   contactType,
   deliveries,
   payments,
+  totalDebit,
+  totalCredit,
 }: PdfParams) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   setupFonts(doc);
@@ -84,31 +95,43 @@ export function generateContactPdf({
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const isCustomer = contactType === "customer" || contactType === "both";
+  const today = new Date();
   let y = 15;
 
-  // ── Header: Logo + Ba\u015Fl\u0131k ──
+  // ══════════════════════════════════════════════════════════
+  // HEADER: Logo + Title
+  // ══════════════════════════════════════════════════════════
   const logoWidth = 60;
   const logoHeight = 30;
   doc.addImage(LOGO_BASE64, "JPEG", 14, y - 5, logoWidth, logoHeight);
 
   doc.setFont("Roboto", "bold");
   doc.setFontSize(16);
-  doc.text("Cari Hesap Ekstresi", pageWidth - 14, y + 5, { align: "right" });
+  doc.text("Cari Hesap Ekstresi", pageWidth - 14, y + 2, { align: "right" });
+
+  doc.setFont("Roboto", "normal");
+  doc.setFontSize(10);
+  doc.text(`Tarih: ${formatDateLong(today)}`, pageWidth - 14, y + 9, {
+    align: "right",
+  });
 
   y += logoHeight + 5;
 
-  // ── Ki\u015Fi bilgisi ──
+  // ── Contact info ──
   doc.setFontSize(11);
-  doc.setFont("Roboto", "normal");
-  const typeLabel = isCustomer ? "Say\u0131n" : "Tedarik\u00E7i";
+  doc.setFont("Roboto", "bold");
+  const typeLabel = isCustomer ? "M\u00FC\u015Fteri" : "Tedarik\u00E7i";
   doc.text(`${typeLabel}: ${contactName}`, 14, y);
+  y += 8;
+
+  // Draw separator line
+  doc.setDrawColor(200, 200, 200);
+  doc.line(14, y, pageWidth - 14, y);
   y += 6;
 
-  const today = new Date();
-  doc.text(`Tarih: ${formatDateLong(today)}`, 14, y);
-  y += 10;
-
-  // ── Sevkiyatlar ──
+  // ══════════════════════════════════════════════════════════
+  // SEVKIYATLAR TABLOSU
+  // ══════════════════════════════════════════════════════════
   if (deliveries.length > 0) {
     doc.setFontSize(12);
     doc.setFont("Roboto", "bold");
@@ -118,23 +141,70 @@ export function generateContactPdf({
     const headers = [
       "Tarih",
       "Fi\u015F No",
-      "Net (kg)",
+      "Plaka",
+      "Net Kg",
       "Fiyat (\u20BA/kg)",
-      "Tutar (\u20BA)",
-      "Nakliye (\u20BA)",
-      "Nakliye \u00D6deyen",
+      "Mal Bedeli",
+      "Nakliye",
+      "Nakliye \u00D6d.",
+      "Net Tutar",
     ];
 
-    const rows = deliveries.map((d) => [
-      formatDateShortPdf(d.delivery_date),
-      d.ticket_no || "-",
-      fmtInt(d.net_weight),
-      fmt(d.unit_price),
-      fmt(d.total_amount),
-      d.freight_cost ? fmt(d.freight_cost) : "-",
-      d.freight_payer
-        ? PDF_FREIGHT_PAYER_LABELS[d.freight_payer] || d.freight_payer
-        : "-",
+    const totalKg = deliveries.reduce((s, d) => s + safeNum(d.net_weight), 0);
+    const totalMalBedeli = deliveries.reduce(
+      (s, d) => s + safeNum(d.total_amount),
+      0
+    );
+    const totalFreight = deliveries.reduce(
+      (s, d) => s + safeNum(d.freight_cost),
+      0
+    );
+
+    // Nakliye düşümü
+    const totalFreightDeduction = deliveries.reduce((s, d) => {
+      const freight = safeNum(d.freight_cost);
+      if (isCustomer) {
+        return d.freight_payer === "customer" ? s + freight : s;
+      } else {
+        return d.freight_payer !== "supplier" ? s + freight : s;
+      }
+    }, 0);
+
+    const rows = deliveries.map((d) => {
+      const freight = safeNum(d.freight_cost);
+      let netTutar = safeNum(d.total_amount);
+      if (isCustomer && d.freight_payer === "customer") {
+        netTutar -= freight;
+      } else if (!isCustomer && d.freight_payer !== "supplier") {
+        netTutar -= freight;
+      }
+      return [
+        formatDateShortPdf(d.delivery_date),
+        d.ticket_no || "-",
+        d.vehicle_plate || "-",
+        fmtInt(safeNum(d.net_weight)),
+        fmt(safeNum(d.unit_price)),
+        fmt(safeNum(d.total_amount)),
+        freight > 0 ? fmt(freight) : "-",
+        d.freight_payer
+          ? PDF_FREIGHT_PAYER_LABELS[d.freight_payer] || d.freight_payer
+          : "-",
+        fmt(netTutar),
+      ];
+    });
+
+    // Summary row
+    const totalNet = totalMalBedeli - totalFreightDeduction;
+    rows.push([
+      "",
+      "",
+      "TOPLAM",
+      fmtInt(totalKg),
+      "",
+      fmt(totalMalBedeli),
+      totalFreight > 0 ? fmt(totalFreight) : "-",
+      "",
+      fmt(totalNet),
     ]);
 
     autoTable(doc, {
@@ -143,8 +213,8 @@ export function generateContactPdf({
       body: rows,
       theme: "grid",
       styles: {
-        fontSize: 10,
-        cellPadding: 2.5,
+        fontSize: 8,
+        cellPadding: 2,
         halign: "right",
         font: "Roboto",
       },
@@ -154,83 +224,60 @@ export function generateContactPdf({
         halign: "center",
         fontStyle: "bold",
         font: "Roboto",
+        fontSize: 8,
       },
       columnStyles: {
-        0: { halign: "center" },
-        1: { halign: "center" },
-        6: { halign: "center" },
+        0: { halign: "center", cellWidth: 20 },
+        1: { halign: "center", cellWidth: 16 },
+        2: { halign: "center", cellWidth: 20 },
+        7: { halign: "center", cellWidth: 18 },
       },
       alternateRowStyles: { fillColor: [245, 245, 245] },
+      // Bold the last (summary) row
+      didParseCell: (data) => {
+        if (data.section === "body" && data.row.index === rows.length - 1) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [220, 230, 220];
+        }
+      },
       margin: { left: 14, right: 14 },
     });
 
-    y =
-      (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable
-        .finalY + 6;
-
-    // ── Sevkiyat \u00F6zeti ──
-    const totalKg = deliveries.reduce((s, d) => s + d.net_weight, 0);
-    const totalMalBedeli = deliveries.reduce(
-      (s, d) => s + d.total_amount,
-      0
-    );
-
-    // Nakliye d\u00FC\u015F\u00FCm\u00FC hesab\u0131:
-    // M\u00FC\u015Fteri ekstresi: sadece 'customer' (Al\u0131c\u0131) \u00F6dedi\u011Fi nakliyeler d\u00FC\u015F\u00FCl\u00FCr
-    // \u00DCretici ekstresi: 'customer' + 'me' \u00F6dedi\u011Fi nakliyeler d\u00FC\u015F\u00FCl\u00FCr (tedarik\u00E7i \u00F6dedi\u011Finde d\u00FC\u015F\u00FCm yok, fiyata dahil)
-    const totalFreightDeduction = deliveries.reduce((s, d) => {
-      const freight = d.freight_cost || 0;
-      if (isCustomer) {
-        // M\u00FC\u015Fteri ekstresi: sadece m\u00FC\u015Fteri \u00F6dedi\u011Fi nakliye d\u00FC\u015F\u00FCl\u00FCr
-        return d.freight_payer === "customer" ? s + freight : s;
-      } else {
-        // \u00DCretici ekstresi: tedarik\u00E7i hari\u00E7 hepsi d\u00FC\u015F\u00FCl\u00FCr
-        return d.freight_payer !== "supplier" ? s + freight : s;
-      }
-    }, 0);
-    const netAmount = totalMalBedeli - totalFreightDeduction;
-
+    y = getTableFinalY(doc) + 8;
+  } else {
     doc.setFontSize(10);
     doc.setFont("Roboto", "normal");
-    doc.text(`Toplam Tonaj: ${fmtInt(totalKg)} kg`, 14, y);
-    y += 5;
-    doc.text(
-      `Toplam Mal Bedeli: ${fmt(totalMalBedeli)} \u20BA`,
-      14,
-      y
-    );
-    y += 5;
-    if (totalFreightDeduction > 0) {
-      doc.text(
-        `Nakliye D\u00FC\u015F\u00FCm\u00FC: -${fmt(totalFreightDeduction)} \u20BA`,
-        14,
-        y
-      );
-      y += 5;
-    }
-    doc.setFont("Roboto", "bold");
-    doc.setFontSize(12);
-    doc.text(
-      `Net ${isCustomer ? "Alacak" : "Bor\u00E7"}: ${fmt(netAmount)} \u20BA`,
-      14,
-      y
-    );
-    y += 10;
+    doc.text("Sevkiyat kayd\u0131 bulunmamaktad\u0131r.", 14, y);
+    y += 8;
   }
 
-  // ── \u00D6demeler ──
+  // ══════════════════════════════════════════════════════════
+  // ÖDEMELER TABLOSU
+  // ══════════════════════════════════════════════════════════
+  // Check if we need a new page
+  if (y > pageHeight - 80) {
+    doc.addPage();
+    y = 20;
+  }
+
   doc.setFontSize(12);
   doc.setFont("Roboto", "bold");
   doc.text("\u00D6demeler", 14, y);
   y += 2;
 
   if (payments.length > 0) {
-    const payHeaders = ["Tarih", "Y\u00F6ntem", "Tutar (\u20BA)"];
+    const payHeaders = ["Tarih", "Y\u00F6ntem", "A\u00E7\u0131klama", "Tutar (\u20BA)"];
     const payRows = payments.map((p) => [
       formatDateShortPdf(p.payment_date),
       PAYMENT_METHOD_LABELS[p.method] || p.method,
-      fmt(p.amount),
+      p.description || "-",
+      fmt(safeNum(p.amount)),
     ]);
+
+    const totalPaid = payments.reduce((s, p) => s + safeNum(p.amount), 0);
+
+    // Summary row
+    payRows.push(["", "", "TOPLAM", fmt(totalPaid)]);
 
     autoTable(doc, {
       startY: y,
@@ -238,7 +285,7 @@ export function generateContactPdf({
       body: payRows,
       theme: "grid",
       styles: {
-        fontSize: 10,
+        fontSize: 9,
         cellPadding: 2.5,
         halign: "right",
         font: "Roboto",
@@ -251,54 +298,75 @@ export function generateContactPdf({
         font: "Roboto",
       },
       columnStyles: {
-        0: { halign: "center" },
-        1: { halign: "center" },
+        0: { halign: "center", cellWidth: 25 },
+        1: { halign: "center", cellWidth: 25 },
+        2: { halign: "left" },
       },
       alternateRowStyles: { fillColor: [245, 245, 245] },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.row.index === payRows.length - 1) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [220, 230, 220];
+        }
+      },
       margin: { left: 14, right: 14 },
     });
 
-    y =
-      (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable
-        .finalY + 6;
+    y = getTableFinalY(doc) + 8;
   } else {
     doc.setFontSize(10);
     doc.setFont("Roboto", "normal");
-    doc.text("(yok)", 14, y + 3);
-    y += 8;
+    doc.text("\u00D6deme kayd\u0131 bulunmamaktad\u0131r.", 14, y + 3);
+    y += 10;
   }
 
-  const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
-  doc.setFontSize(10);
-  doc.setFont("Roboto", "normal");
-  doc.text(`Toplam \u00D6denen: ${fmt(totalPaid)} \u20BA`, 14, y);
-  y += 10;
+  // ══════════════════════════════════════════════════════════
+  // ÖZET
+  // ══════════════════════════════════════════════════════════
+  if (y > pageHeight - 50) {
+    doc.addPage();
+    y = 20;
+  }
 
-  // ── KALAN BAK\u0130YE ──
-  // = Net Alacak/Bor\u00E7 - Toplam \u00D6denen
-  const totalMalBedeli = deliveries.reduce(
-    (s, d) => s + d.total_amount,
-    0
-  );
-  const totalFreightDed = deliveries.reduce((s, d) => {
-    const freight = d.freight_cost || 0;
-    if (isCustomer) {
-      return d.freight_payer === "customer" ? s + freight : s;
-    } else {
-      return d.freight_payer !== "supplier" ? s + freight : s;
-    }
-  }, 0);
-  const remainingBalance = totalMalBedeli - totalFreightDed - totalPaid;
+  // Separator
+  doc.setDrawColor(200, 200, 200);
+  doc.line(14, y, pageWidth - 14, y);
+  y += 6;
+
+  const borcVal = safeNum(totalDebit);
+  const alacakVal = safeNum(totalCredit);
+  const kalanBakiye = borcVal - alacakVal;
+
+  doc.setFontSize(11);
+  doc.setFont("Roboto", "normal");
+  doc.text(`Toplam Bor\u00E7:`, 14, y);
+  doc.setFont("Roboto", "bold");
+  doc.text(`${fmt(borcVal)} \u20BA`, pageWidth - 14, y, { align: "right" });
+  y += 6;
+
+  doc.setFont("Roboto", "normal");
+  doc.text(`Toplam \u00D6denen:`, 14, y);
+  doc.setFont("Roboto", "bold");
+  doc.text(`${fmt(alacakVal)} \u20BA`, pageWidth - 14, y, { align: "right" });
+  y += 8;
+
+  // Big balance line
+  doc.setDrawColor(22, 101, 52);
+  doc.setLineWidth(0.5);
+  doc.line(14, y, pageWidth - 14, y);
+  y += 6;
 
   doc.setFontSize(14);
   doc.setFont("Roboto", "bold");
-  doc.text(
-    `KALAN BAK\u0130YE: ${fmt(remainingBalance)} \u20BA`,
-    14,
-    y
-  );
+  const balanceLabel = kalanBakiye > 0 ? "KALAN BOR\u00C7" : "KALAN BAK\u0130YE";
+  doc.text(`${balanceLabel}:`, 14, y);
+  doc.text(`${fmt(Math.abs(kalanBakiye))} \u20BA`, pageWidth - 14, y, {
+    align: "right",
+  });
 
-  // ── Footer ──
+  // ══════════════════════════════════════════════════════════
+  // FOOTER
+  // ══════════════════════════════════════════════════════════
   doc.setFontSize(8);
   doc.setFont("Roboto", "normal");
   doc.setTextColor(128, 128, 128);
