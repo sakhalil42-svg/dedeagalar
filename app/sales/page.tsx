@@ -49,7 +49,7 @@ import {
   Filter,
 } from "lucide-react";
 import { toast } from "sonner";
-import { openWhatsAppMessage, buildSevkiyatMessage } from "@/lib/utils/whatsapp";
+import { formatPhoneForWhatsApp } from "@/lib/utils/whatsapp";
 
 // ─── FREIGHT PAYER OPTIONS ───────────────────────────────────────
 const FREIGHT_PAYER_OPTIONS: { value: FreightPayer; label: string }[] = [
@@ -99,37 +99,36 @@ interface OrderConfig {
 // ─── WHATSAPP HELPER ─────────────────────────────────────────────
 function buildWhatsAppUrl(
   customerPhone: string | null,
-  delivery: Delivery
+  customerName: string,
+  delivery: Delivery,
+  customerPrice: number,
+  feedTypeName?: string,
 ): string | null {
   if (!customerPhone) return null;
 
-  let phone = customerPhone.replace(/[\s\-()]/g, "");
-  if (phone.startsWith("+")) phone = phone.slice(1);
-  if (phone.startsWith("0")) phone = "90" + phone.slice(1);
-  if (!phone.startsWith("90") && phone.length === 10) phone = "90" + phone;
+  const phone = formatPhoneForWhatsApp(customerPhone);
+  if (!phone) return null;
 
-  let msg: string;
-  if (delivery.freight_payer === "customer") {
-    msg =
-      `🚛 Sevkiyat Bilgisi\n` +
-      (delivery.carrier_name ? `Nakliyeci: ${delivery.carrier_name}\n` : "") +
-      (delivery.vehicle_plate ? `Plaka: ${delivery.vehicle_plate}\n` : "") +
-      (delivery.carrier_phone ? `Telefon: ${delivery.carrier_phone}\n` : "") +
-      `Net Ağırlık: ${delivery.net_weight.toLocaleString("tr-TR")} kg\n` +
-      (delivery.freight_cost
-        ? `Nakliye Bedeli: ${delivery.freight_cost.toLocaleString("tr-TR")} ₺\n`
-        : "") +
-      `Ödeme nakliyeciye yapılacaktır.`;
-  } else {
-    msg =
-      `🚛 Sevkiyat Bilgisi\n` +
-      (delivery.carrier_name ? `Nakliyeci: ${delivery.carrier_name}\n` : "") +
-      (delivery.vehicle_plate ? `Plaka: ${delivery.vehicle_plate}\n` : "") +
-      (delivery.carrier_phone ? `Telefon: ${delivery.carrier_phone}\n` : "") +
-      `Net Ağırlık: ${delivery.net_weight.toLocaleString("tr-TR")} kg`;
-  }
+  const total = delivery.net_weight * customerPrice;
+  const msg =
+    `Sayın ${customerName},\n` +
+    `${formatDateShort(delivery.delivery_date)} tarihinde ${delivery.net_weight.toLocaleString("tr-TR")} kg ${feedTypeName || "yem"} yüklenmiştir.\n` +
+    (delivery.vehicle_plate ? `Plaka: ${delivery.vehicle_plate}\n` : "") +
+    `Birim Fiyat: ${customerPrice.toLocaleString("tr-TR")} ₺/kg\n` +
+    `Tutar: ${total.toLocaleString("tr-TR")} ₺\n` +
+    `Dedeağalar Grup`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+}
+
+// ─── WHATSAPP SENT TRACKING ──────────────────────────────────────
+function isWhatsAppSent(deliveryId: string): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(`whatsapp_sent_${deliveryId}`) === "true";
+}
+
+function markWhatsAppSent(deliveryId: string) {
+  localStorage.setItem(`whatsapp_sent_${deliveryId}`, "true");
 }
 
 // ─── PAGE COMPONENT ──────────────────────────────────────────────
@@ -481,8 +480,6 @@ function ActiveOrderView({
               supplierPrice={parseFloat(order.supplierPrice)}
               pricingModel={order.pricingModel}
               ensureSaleExists={ensureSaleExists}
-              customerContact={customerContact || null}
-              feedTypeName={feedTypeName || undefined}
             />
 
             {activeSaleId && (
@@ -493,6 +490,7 @@ function ActiveOrderView({
                 pricingModel={order.pricingModel}
                 masked={masked}
                 customerContact={customerContact || null}
+                feedTypeName={feedTypeName}
               />
             )}
           </>
@@ -512,8 +510,6 @@ function QuickEntryForm({
   supplierPrice,
   pricingModel,
   ensureSaleExists,
-  customerContact,
-  feedTypeName,
 }: {
   saleId: string | null;
   purchaseId: string | null;
@@ -523,8 +519,6 @@ function QuickEntryForm({
   supplierPrice: number;
   pricingModel: PricingModel;
   ensureSaleExists: () => Promise<string | null>;
-  customerContact: Contact | null;
-  feedTypeName?: string;
 }) {
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
@@ -619,37 +613,11 @@ function QuickEntryForm({
         pricingModel,
       });
 
-      // 3.2 — Detailed success toast with WhatsApp action
-      const savedDate = date;
-      const savedPlate = vehiclePlate;
-      if (customerContact?.phone) {
-        toast.success(
-          `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${savedPlate ? `, ${savedPlate}` : ""}`,
-          {
-            duration: 5000,
-            action: {
-              label: "WhatsApp Bildir",
-              onClick: () => {
-                openWhatsAppMessage(
-                  customerContact.phone,
-                  buildSevkiyatMessage({
-                    customerName: customerContact.name,
-                    date: savedDate,
-                    netWeight: kg,
-                    feedType: feedTypeName,
-                    plate: savedPlate || undefined,
-                  })
-                );
-              },
-            },
-          }
-        );
-      } else {
-        toast.success(
-          `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${savedPlate ? `, ${savedPlate}` : ""}`,
-          { duration: 2000 }
-        );
-      }
+      // 3.2 — Detailed success toast
+      toast.success(
+        `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${vehiclePlate ? `, ${vehiclePlate}` : ""}`,
+        { duration: 2000 }
+      );
       resetForNextTicket();
       setTimeout(() => {
         document.getElementById("net-weight-input")?.focus();
@@ -858,6 +826,7 @@ function TicketListAndSummary({
   pricingModel,
   masked,
   customerContact,
+  feedTypeName,
 }: {
   saleId: string;
   customerPrice: number;
@@ -865,6 +834,7 @@ function TicketListAndSummary({
   pricingModel: PricingModel;
   masked: (amount: number) => string;
   customerContact: Contact | null;
+  feedTypeName?: string;
 }) {
   const { data: deliveries, isLoading } = useDeliveriesBySale(saleId);
   const deleteDelivery = useDeleteDelivery();
@@ -942,6 +912,8 @@ function TicketListAndSummary({
               key={d.id}
               delivery={d}
               customerContact={customerContact}
+              customerPrice={customerPrice}
+              feedTypeName={feedTypeName}
               masked={masked}
               onDelete={() => handleDelete(d.id)}
               isDeleting={deleteDelivery.isPending}
@@ -997,12 +969,16 @@ function TicketListAndSummary({
 function TicketRow({
   delivery,
   customerContact,
+  customerPrice,
+  feedTypeName,
   masked,
   onDelete,
   isDeleting,
 }: {
   delivery: Delivery;
   customerContact: Contact | null;
+  customerPrice: number;
+  feedTypeName?: string;
   masked: (amount: number) => string;
   onDelete: () => void;
   isDeleting: boolean;
@@ -1015,13 +991,16 @@ function TicketRow({
   const [editFreightPayer, setEditFreightPayer] = useState<FreightPayer>("me");
   const [editCarrier, setEditCarrier] = useState("");
   const [editCarrierPhone, setEditCarrierPhone] = useState("");
+  const [waSent, setWaSent] = useState(() => isWhatsAppSent(delivery.id));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: photos } = useDeliveryPhotos(delivery.id);
   const uploadPhoto = useUploadDeliveryPhoto();
   const updateDelivery = useUpdateDelivery();
 
-  const waUrl = buildWhatsAppUrl(customerContact?.phone || null, delivery);
+  const waUrl = customerContact?.phone
+    ? buildWhatsAppUrl(customerContact.phone, customerContact.name, delivery, customerPrice, feedTypeName)
+    : null;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -1199,10 +1178,21 @@ function TicketRow({
                 href={waUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-green-600 hover:bg-green-50 transition-colors"
-                title="WhatsApp ile gönder"
+                className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                  waSent
+                    ? "text-muted-foreground/50 hover:bg-muted/50"
+                    : "text-green-600 hover:bg-green-50"
+                }`}
+                title={waSent ? "WhatsApp gönderildi" : "WhatsApp ile bildir"}
+                onClick={() => {
+                  markWhatsAppSent(delivery.id);
+                  setWaSent(true);
+                }}
               >
                 <MessageCircle className="h-4 w-4" />
+                {waSent && (
+                  <Check className="absolute -bottom-0.5 -right-0.5 h-3 w-3 text-green-600" />
+                )}
               </a>
             )}
 
@@ -1406,6 +1396,9 @@ function HistoryView({
             saleId={selectedSaleId}
             masked={masked}
             customerPhone={selectedSale.contact?.phone || null}
+            customerName={selectedSale.contact?.name || ""}
+            customerPrice={selectedSale.unit_price || 0}
+            feedTypeName={selectedSale.feed_type?.name}
           />
         </>
       ) : (
@@ -1528,10 +1521,16 @@ function HistoryTicketList({
   saleId,
   masked,
   customerPhone,
+  customerName,
+  customerPrice,
+  feedTypeName,
 }: {
   saleId: string;
   masked: (amount: number) => string;
   customerPhone: string | null;
+  customerName: string;
+  customerPrice: number;
+  feedTypeName?: string;
 }) {
   const { data: deliveries, isLoading } = useDeliveriesBySale(saleId);
 
@@ -1570,6 +1569,9 @@ function HistoryTicketList({
               key={d.id}
               delivery={d}
               customerPhone={customerPhone}
+              customerName={customerName}
+              customerPrice={customerPrice}
+              feedTypeName={feedTypeName}
               masked={masked}
             />
           ))}
@@ -1596,16 +1598,25 @@ function HistoryTicketList({
 function HistoryTicketRow({
   delivery,
   customerPhone,
+  customerName,
+  customerPrice,
+  feedTypeName,
   masked,
 }: {
   delivery: Delivery;
   customerPhone: string | null;
+  customerName: string;
+  customerPrice: number;
+  feedTypeName?: string;
   masked: (amount: number) => string;
 }) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [waSent, setWaSent] = useState(() => isWhatsAppSent(delivery.id));
   const { data: photos } = useDeliveryPhotos(delivery.id);
 
-  const waUrl = buildWhatsAppUrl(customerPhone, delivery);
+  const waUrl = customerPhone
+    ? buildWhatsAppUrl(customerPhone, customerName, delivery, customerPrice, feedTypeName)
+    : null;
 
   return (
     <>
@@ -1644,10 +1655,21 @@ function HistoryTicketRow({
               href={waUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-green-600 hover:bg-green-50 transition-colors shrink-0"
-              title="WhatsApp ile gönder"
+              className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors shrink-0 ${
+                waSent
+                  ? "text-muted-foreground/50 hover:bg-muted/50"
+                  : "text-green-600 hover:bg-green-50"
+              }`}
+              title={waSent ? "WhatsApp gönderildi" : "WhatsApp ile bildir"}
+              onClick={() => {
+                markWhatsAppSent(delivery.id);
+                setWaSent(true);
+              }}
             >
               <MessageCircle className="h-4 w-4" />
+              {waSent && (
+                <Check className="absolute -bottom-0.5 -right-0.5 h-3 w-3 text-green-600" />
+              )}
             </a>
           )}
         </div>

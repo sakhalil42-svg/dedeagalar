@@ -220,7 +220,7 @@ export default function AccountDetailPage() {
           <Download className="mr-1 h-4 w-4" />
           PDF
         </Button>
-        {contact.phone && bakiye > 0 && (
+        {contact.phone && isCustomer && bakiye > 0 && (
           <Button size="sm" variant="outline" onClick={handleWhatsAppHatirlatma} className="text-amber-600 border-amber-300 hover:bg-amber-50">
             <MessageCircle className="mr-1 h-4 w-4" />
             Hatırlat
