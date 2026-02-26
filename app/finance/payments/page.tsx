@@ -3,20 +3,30 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { usePayments } from "@/lib/hooks/use-payments";
+import { useContacts } from "@/lib/hooks/use-contacts";
 import type { PaymentDirection, PaymentMethod } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Plus,
   Search,
   Loader2,
   ArrowUpRight,
   ArrowDownLeft,
+  SlidersHorizontal,
 } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
+import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
 
 const DIRECTION_LABELS: Record<PaymentDirection, string> = {
   inbound: "Tahsilat",
@@ -37,7 +47,7 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
 
 type DirectionFilter = PaymentDirection | "all";
 type MethodFilter = PaymentMethod | "all";
-type DateFilter = "all" | "today" | "week" | "month";
+type DateFilter = "all" | "today" | "week" | "month" | "custom";
 
 const DIRECTION_OPTIONS: { label: string; value: DirectionFilter }[] = [
   { label: "Tümü", value: "all" },
@@ -58,18 +68,31 @@ const DATE_OPTIONS: { label: string; value: DateFilter }[] = [
   { label: "Bugün", value: "today" },
   { label: "Bu Hafta", value: "week" },
   { label: "Bu Ay", value: "month" },
+  { label: "Özel", value: "custom" },
 ];
 
-function isInRange(dateStr: string, range: DateFilter): boolean {
+function isInRange(dateStr: string, range: DateFilter, startDate: string, endDate: string): boolean {
   if (range === "all") return true;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const d = new Date(dateStr);
   d.setHours(0, 0, 0, 0);
 
-  if (range === "today") {
-    return d.getTime() === today.getTime();
+  if (range === "custom") {
+    if (startDate) {
+      const s = new Date(startDate);
+      s.setHours(0, 0, 0, 0);
+      if (d < s) return false;
+    }
+    if (endDate) {
+      const e = new Date(endDate);
+      e.setHours(23, 59, 59, 999);
+      if (d > e) return false;
+    }
+    return true;
   }
+
+  if (range === "today") return d.getTime() === today.getTime();
   if (range === "week") {
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
@@ -88,7 +111,15 @@ export default function PaymentsPage() {
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>("all");
   const [methodFilter, setMethodFilter] = useState<MethodFilter>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [contactFilter, setContactFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
   const { data: payments, isLoading } = usePayments();
+  const { data: contacts } = useContacts();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
@@ -101,12 +132,14 @@ export default function PaymentsPage() {
         p.description?.toLowerCase().includes(search.toLowerCase());
       const matchesDirection = directionFilter === "all" || p.direction === directionFilter;
       const matchesMethod = methodFilter === "all" || p.method === methodFilter;
-      const matchesDate = isInRange(p.payment_date, dateFilter);
-      return matchesSearch && matchesDirection && matchesMethod && matchesDate;
+      const matchesDate = isInRange(p.payment_date, dateFilter, startDate, endDate);
+      const matchesContact = !contactFilter || p.contact_id === contactFilter;
+      const matchesMin = !minAmount || p.amount >= parseFloat(minAmount);
+      const matchesMax = !maxAmount || p.amount <= parseFloat(maxAmount);
+      return matchesSearch && matchesDirection && matchesMethod && matchesDate && matchesContact && matchesMin && matchesMax;
     });
-  }, [payments, search, directionFilter, methodFilter, dateFilter]);
+  }, [payments, search, directionFilter, methodFilter, dateFilter, contactFilter, startDate, endDate, minAmount, maxAmount]);
 
-  // Summary totals
   const summary = useMemo(() => {
     const inbound = filtered.filter((p) => p.direction === "inbound");
     const outbound = filtered.filter((p) => p.direction === "outbound");
@@ -117,6 +150,44 @@ export default function PaymentsPage() {
       outboundCount: outbound.length,
     };
   }, [filtered]);
+
+  // Filter chips
+  const chips: FilterChip[] = [];
+  if (directionFilter !== "all") chips.push({ key: "direction", label: "Yön", value: DIRECTION_LABELS[directionFilter] });
+  if (methodFilter !== "all") chips.push({ key: "method", label: "Yöntem", value: METHOD_LABELS[methodFilter] });
+  if (dateFilter !== "all" && dateFilter !== "custom") {
+    const dLabel = DATE_OPTIONS.find((o) => o.value === dateFilter)?.label || "";
+    chips.push({ key: "date", label: "Tarih", value: dLabel });
+  }
+  if (dateFilter === "custom" && (startDate || endDate)) {
+    chips.push({ key: "date", label: "Tarih", value: `${startDate || "..."} - ${endDate || "..."}` });
+  }
+  if (contactFilter) {
+    const cName = contacts?.find((c) => c.id === contactFilter)?.name || "";
+    chips.push({ key: "contact", label: "Kişi", value: cName });
+  }
+  if (minAmount || maxAmount) {
+    chips.push({ key: "amount", label: "Tutar", value: `${minAmount || "0"} - ${maxAmount || "..."}` });
+  }
+
+  const handleRemoveChip = (key: string) => {
+    if (key === "direction") setDirectionFilter("all");
+    if (key === "method") setMethodFilter("all");
+    if (key === "date") { setDateFilter("all"); setStartDate(""); setEndDate(""); }
+    if (key === "contact") setContactFilter("");
+    if (key === "amount") { setMinAmount(""); setMaxAmount(""); }
+  };
+
+  const handleClearAll = () => {
+    setDirectionFilter("all");
+    setMethodFilter("all");
+    setDateFilter("all");
+    setContactFilter("");
+    setStartDate("");
+    setEndDate("");
+    setMinAmount("");
+    setMaxAmount("");
+  };
 
   return (
     <div className="space-y-4 p-4">
@@ -163,24 +234,35 @@ export default function PaymentsPage() {
         />
       </div>
 
-      {/* Direction filter */}
-      <div className="flex gap-2">
-        {DIRECTION_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => setDirectionFilter(opt.value)}
-            className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-              directionFilter === opt.value
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
+      {/* Direction filter + toggle */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 gap-2">
+          {DIRECTION_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setDirectionFilter(opt.value)}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                directionFilter === opt.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+            showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Method + Date filters */}
+      {/* Method + Date quick filters */}
       <div className="flex gap-4">
         <div className="flex gap-1.5 overflow-x-auto">
           {METHOD_OPTIONS.map((opt) => (
@@ -213,6 +295,64 @@ export default function PaymentsPage() {
           ))}
         </div>
       </div>
+
+      {/* Custom date range */}
+      {dateFilter === "custom" && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-muted-foreground">Başlangıç</label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Bitiş</label>
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 text-sm" />
+          </div>
+        </div>
+      )}
+
+      {/* Extended filters panel */}
+      {showFilters && (
+        <div className="space-y-3 rounded-lg border p-3">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">Kişi</p>
+            <Select value={contactFilter || "all"} onValueChange={(v) => setContactFilter(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="Tüm kişiler" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm kişiler</SelectItem>
+                {(contacts || []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">Tutar Aralığı</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="Min"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="Max"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter chips */}
+      <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -269,7 +409,7 @@ export default function PaymentsPage() {
         </div>
       ) : (
         <div className="py-12 text-center text-sm text-muted-foreground">
-          {search || directionFilter !== "all" || methodFilter !== "all" || dateFilter !== "all"
+          {search || directionFilter !== "all" || methodFilter !== "all" || dateFilter !== "all" || contactFilter || minAmount || maxAmount
             ? "Sonuç bulunamadı."
             : "Henüz ödeme kaydı yok."}
         </div>

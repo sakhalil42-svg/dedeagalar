@@ -7,17 +7,37 @@ import type { AccountSummary, ContactType } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Loader2, Wallet, Plus, Phone, TrendingUp } from "lucide-react";
+import { Search, Loader2, Wallet, Plus, Phone, TrendingUp, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
+import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
 
 type TabType = "customers" | "suppliers" | "checks";
+type BalanceFilter = "all" | "debtor" | "creditor" | "zero";
+type SortOption = "name" | "balance_desc" | "balance_asc";
+
+const BALANCE_OPTIONS: { label: string; value: BalanceFilter }[] = [
+  { label: "Tümü", value: "all" },
+  { label: "Borçlu", value: "debtor" },
+  { label: "Alacaklı", value: "creditor" },
+  { label: "Denk", value: "zero" },
+];
+
+const SORT_OPTIONS: { label: string; value: SortOption }[] = [
+  { label: "A-Z", value: "name" },
+  { label: "Bakiye ↓", value: "balance_desc" },
+  { label: "Bakiye ↑", value: "balance_asc" },
+];
 
 export default function FinancePage() {
   const [tab, setTab] = useState<TabType>("customers");
   const [search, setSearch] = useState("");
+  const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>("all");
+  const [sortBy, setSortBy] = useState<SortOption>("name");
+  const [showFilters, setShowFilters] = useState(false);
+
   const { data: summaries, isLoading } = useAccountSummaries();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) =>
@@ -41,15 +61,38 @@ export default function FinancePage() {
 
   const filtered = useMemo(() => {
     if (!list) return [];
-    if (!search) return list;
-    return list.filter((s) =>
-      s.contact_name.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [list, search]);
+    let result = list;
+
+    // Search
+    if (search) {
+      result = result.filter((s) =>
+        s.contact_name.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    // Balance filter
+    if (balanceFilter !== "all") {
+      result = result.filter((s) => {
+        const bal = s.balance ?? 0;
+        if (balanceFilter === "debtor") return bal > 0;
+        if (balanceFilter === "creditor") return bal < 0;
+        if (balanceFilter === "zero") return bal === 0;
+        return true;
+      });
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      if (sortBy === "name") return a.contact_name.localeCompare(b.contact_name, "tr");
+      const balA = Math.abs(a.balance ?? 0);
+      const balB = Math.abs(b.balance ?? 0);
+      return sortBy === "balance_desc" ? balB - balA : balA - balB;
+    });
+
+    return result;
+  }, [list, search, balanceFilter, sortBy]);
 
   const totals = useMemo(() => {
-    // For customers: positive balance = they owe us (alacak)
-    // For suppliers: positive balance = we owe them (borç)
     const isCustomerTab = tab === "customers";
     let mainTotal = 0;
     let paidTotal = 0;
@@ -59,11 +102,9 @@ export default function FinancePage() {
       const bal = s.balance ?? 0;
       net += bal;
       if (isCustomerTab) {
-        // Customer: debit = what they owe (alacak), credit = what they paid
         mainTotal += s.total_debit || Math.abs(bal);
         paidTotal += s.total_credit || 0;
       } else {
-        // Supplier: credit = what we owe (borç), debit = what we paid
         mainTotal += s.total_credit || Math.abs(bal);
         paidTotal += s.total_debit || 0;
       }
@@ -71,6 +112,27 @@ export default function FinancePage() {
 
     return { mainTotal, paidTotal, net };
   }, [filtered, tab]);
+
+  // Filter chips
+  const chips: FilterChip[] = [];
+  if (balanceFilter !== "all") {
+    const bLabel = BALANCE_OPTIONS.find((o) => o.value === balanceFilter)?.label || "";
+    chips.push({ key: "balance", label: "Bakiye", value: bLabel });
+  }
+  if (sortBy !== "name") {
+    const sLabel = SORT_OPTIONS.find((o) => o.value === sortBy)?.label || "";
+    chips.push({ key: "sort", label: "Sıralama", value: sLabel });
+  }
+
+  const handleRemoveChip = (key: string) => {
+    if (key === "balance") setBalanceFilter("all");
+    if (key === "sort") setSortBy("name");
+  };
+
+  const handleClearAll = () => {
+    setBalanceFilter("all");
+    setSortBy("name");
+  };
 
   return (
     <div className="space-y-4 p-4">
@@ -153,18 +215,74 @@ export default function FinancePage() {
         </Card>
       )}
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder={
-            tab === "customers" ? "Müşteri ara..." : "Üretici ara..."
-          }
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search + filter toggle */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder={
+              tab === "customers" ? "Müşteri ara..." : "Üretici ara..."
+            }
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors ${
+            showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+        </button>
       </div>
+
+      {/* Extended filters */}
+      {showFilters && (
+        <div className="space-y-2 rounded-lg border p-3">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">Bakiye Durumu</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {BALANCE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setBalanceFilter(opt.value)}
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                    balanceFilter === opt.value
+                      ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
+                      : "bg-muted/60 text-muted-foreground"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">Sıralama</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setSortBy(opt.value)}
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                    sortBy === opt.value
+                      ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
+                      : "bg-muted/60 text-muted-foreground"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter chips */}
+      <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
       {/* List */}
       {isLoading ? (
@@ -215,7 +333,7 @@ export default function FinancePage() {
         </div>
       ) : (
         <div className="py-12 text-center text-sm text-muted-foreground">
-          {search
+          {search || balanceFilter !== "all"
             ? "Sonuç bulunamadı."
             : tab === "customers"
               ? "Henüz müşteri kaydı yok."

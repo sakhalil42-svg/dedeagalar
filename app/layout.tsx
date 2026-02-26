@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/lib/providers";
 import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
+import { AppHeader } from "@/components/layout/app-header";
 import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
@@ -50,6 +51,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>
+          <AppHeader />
           <main className="pb-20">{children}</main>
           <BottomTabBar />
           <Toaster position="top-center" richColors />

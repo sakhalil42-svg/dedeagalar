@@ -23,6 +23,7 @@ import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { formatCurrency, formatDateShort, formatNumberInput, parseNumberInput, handleNumberChange } from "@/lib/utils/format";
 import type { Sale, Delivery, FreightPayer, Contact, PricingModel } from "@/lib/types/database.types";
 import { PlateCombobox } from "@/components/forms/plate-combobox";
+import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,11 +54,10 @@ import {
   Image as ImageIcon,
   Pencil,
   RotateCcw,
-  Filter,
-  MoreVertical,
   Ban,
   UserPlus,
   Undo2,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   Dialog,
@@ -1786,8 +1786,14 @@ function HistoryView({
   }
 
   // 3.7 — Filters
-  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month">("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "today" | "week" | "month" | "custom">("all");
   const [contactFilter, setContactFilter] = useState("");
+  const [feedTypeFilter, setFeedTypeFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  const { data: allFeedTypes } = useFeedTypes();
 
   const filteredSales = useMemo(() => {
     if (!sales) return [];
@@ -1810,6 +1816,18 @@ function HistoryView({
           monthAgo.setMonth(monthAgo.getMonth() - 1);
           return d >= monthAgo;
         }
+        if (dateFilter === "custom") {
+          if (startDate) {
+            const s2 = new Date(startDate);
+            s2.setHours(0, 0, 0, 0);
+            if (d < s2) return false;
+          }
+          if (endDate) {
+            const e = new Date(endDate);
+            e.setHours(23, 59, 59, 999);
+            if (d > e) return false;
+          }
+        }
         return true;
       });
     }
@@ -1819,8 +1837,13 @@ function HistoryView({
       list = list.filter((s) => s.contact_id === contactFilter);
     }
 
+    // Feed type filter
+    if (feedTypeFilter) {
+      list = list.filter((s) => s.feed_type_id === feedTypeFilter);
+    }
+
     return list;
-  }, [sales, dateFilter, contactFilter]);
+  }, [sales, dateFilter, contactFilter, feedTypeFilter, startDate, endDate]);
 
   // Summary for filtered
   const totalAmount = filteredSales.reduce((s, sale) => s + (sale.total_amount || 0), 0);
@@ -1919,26 +1942,55 @@ function HistoryView({
         <>
           {/* 3.7 — Filters */}
           <div className="space-y-2">
-            <div className="flex gap-1">
-              {([
-                { key: "all", label: "Tümü" },
-                { key: "today", label: "Bugün" },
-                { key: "week", label: "Bu Hafta" },
-                { key: "month", label: "Bu Ay" },
-              ] as const).map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setDateFilter(f.key)}
-                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                    dateFilter === f.key
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
+            {/* Date filter pills + advanced toggle */}
+            <div className="flex items-center gap-2">
+              <div className="flex flex-1 gap-1">
+                {([
+                  { key: "all" as const, label: "Tümü" },
+                  { key: "today" as const, label: "Bugün" },
+                  { key: "week" as const, label: "Hafta" },
+                  { key: "month" as const, label: "Ay" },
+                  { key: "custom" as const, label: "Özel" },
+                ]).map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setDateFilter(f.key)}
+                    className={`flex-1 rounded-md px-1.5 py-1.5 text-xs font-medium transition-colors ${
+                      dateFilter === f.key
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
+                  showAdvancedFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
             </div>
+
+            {/* Custom date range */}
+            {dateFilter === "custom" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Başlangıç</label>
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground">Bitiş</label>
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 text-sm" />
+                </div>
+              </div>
+            )}
+
+            {/* Customer filter */}
             {allContacts && allContacts.length > 0 && (
               <Select value={contactFilter || "all_contacts"} onValueChange={(v) => setContactFilter(v === "all_contacts" ? "" : v)}>
                 <SelectTrigger className="h-8 text-sm">
@@ -1954,6 +2006,64 @@ function HistoryView({
                 </SelectContent>
               </Select>
             )}
+
+            {/* Advanced filters panel */}
+            {showAdvancedFilters && (
+              <div className="space-y-2 rounded-lg border p-3">
+                {/* Feed type filter */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Yem Türü</p>
+                  <Select value={feedTypeFilter || "all"} onValueChange={(v) => setFeedTypeFilter(v === "all" ? "" : v)}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Tüm yem türleri" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tüm yem türleri</SelectItem>
+                      {(allFeedTypes || []).map((ft) => (
+                        <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Filter chips */}
+            {(() => {
+              const histChips: FilterChip[] = [];
+              if (dateFilter !== "all" && dateFilter !== "custom") {
+                const dLabel = dateFilter === "today" ? "Bugün" : dateFilter === "week" ? "Bu Hafta" : "Bu Ay";
+                histChips.push({ key: "date", label: "Tarih", value: dLabel });
+              }
+              if (dateFilter === "custom" && (startDate || endDate)) {
+                histChips.push({ key: "date", label: "Tarih", value: `${startDate || "..."} - ${endDate || "..."}` });
+              }
+              if (contactFilter) {
+                const cName = allContacts?.find((c) => c.id === contactFilter)?.name || "";
+                histChips.push({ key: "contact", label: "Müşteri", value: cName });
+              }
+              if (feedTypeFilter) {
+                const ftName = allFeedTypes?.find((ft) => ft.id === feedTypeFilter)?.name || "";
+                histChips.push({ key: "feedType", label: "Yem", value: ftName });
+              }
+              return (
+                <FilterChips
+                  chips={histChips}
+                  onRemove={(key) => {
+                    if (key === "date") { setDateFilter("all"); setStartDate(""); setEndDate(""); }
+                    if (key === "contact") setContactFilter("");
+                    if (key === "feedType") setFeedTypeFilter("");
+                  }}
+                  onClearAll={() => {
+                    setDateFilter("all");
+                    setContactFilter("");
+                    setFeedTypeFilter("");
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                />
+              );
+            })()}
 
             {/* Summary */}
             {filteredSales.length > 0 && (
@@ -2021,7 +2131,7 @@ function HistoryView({
             </div>
           ) : (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              {dateFilter !== "all" || contactFilter ? "Filtreye uygun sonuç yok." : "Henüz satış kaydı yok."}
+              {dateFilter !== "all" || contactFilter || feedTypeFilter ? "Filtreye uygun sonuç yok." : "Henüz satış kaydı yok."}
             </div>
           )}
         </>

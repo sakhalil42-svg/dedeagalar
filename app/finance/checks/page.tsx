@@ -24,10 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Loader2, MessageCircle } from "lucide-react";
+import { Plus, Search, Loader2, MessageCircle, SlidersHorizontal } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
+import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
 import { toast } from "sonner";
 import { openWhatsAppMessage, buildCekVadeMessage } from "@/lib/utils/whatsapp";
 
@@ -59,7 +60,6 @@ const DIRECTION_LABELS: Record<CheckDirection, string> = {
   given: "Verilen",
 };
 
-// Valid status transitions (endorsed handled separately via endorse dialog)
 const STATUS_TRANSITIONS: Record<CheckStatus, CheckStatus[]> = {
   pending: ["deposited", "endorsed", "cancelled"],
   deposited: ["cleared", "bounced", "cancelled"],
@@ -110,6 +110,12 @@ export default function ChecksPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [directionTab, setDirectionTab] = useState<DirectionTab>("all");
+  const [contactFilter, setContactFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   // Status change dialog state
   const [statusChangeTarget, setStatusChangeTarget] = useState<{
@@ -146,9 +152,30 @@ export default function ChecksPage() {
         statusFilter === "all" || c.status === statusFilter;
       const matchesDirection =
         directionTab === "all" || c.direction === directionTab;
-      return matchesSearch && matchesStatus && matchesDirection;
+      const matchesContact = !contactFilter || c.contact_id === contactFilter;
+      const matchesMin = !minAmount || c.amount >= parseFloat(minAmount);
+      const matchesMax = !maxAmount || c.amount <= parseFloat(maxAmount);
+
+      // Date range filter (on due_date)
+      let matchesDate = true;
+      if (startDate) {
+        const s = new Date(startDate);
+        s.setHours(0, 0, 0, 0);
+        const d = new Date(c.due_date);
+        d.setHours(0, 0, 0, 0);
+        if (d < s) matchesDate = false;
+      }
+      if (endDate) {
+        const e = new Date(endDate);
+        e.setHours(23, 59, 59, 999);
+        const d = new Date(c.due_date);
+        d.setHours(0, 0, 0, 0);
+        if (d > e) matchesDate = false;
+      }
+
+      return matchesSearch && matchesStatus && matchesDirection && matchesContact && matchesMin && matchesMax && matchesDate;
     });
-  }, [checks, search, statusFilter, directionTab]);
+  }, [checks, search, statusFilter, directionTab, contactFilter, minAmount, maxAmount, startDate, endDate]);
 
   const summary = useMemo(() => {
     const pending = filtered.filter(
@@ -158,26 +185,53 @@ export default function ChecksPage() {
     return { count: pending.length, total };
   }, [filtered]);
 
+  // Filter chips
+  const chips: FilterChip[] = [];
+  if (directionTab !== "all") chips.push({ key: "direction", label: "Yön", value: DIRECTION_LABELS[directionTab] });
+  if (statusFilter !== "all") chips.push({ key: "status", label: "Durum", value: STATUS_LABELS[statusFilter] });
+  if (contactFilter) {
+    const cName = contacts?.find((c) => c.id === contactFilter)?.name || "";
+    chips.push({ key: "contact", label: "Kişi", value: cName });
+  }
+  if (startDate || endDate) {
+    chips.push({ key: "date", label: "Vade", value: `${startDate || "..."} - ${endDate || "..."}` });
+  }
+  if (minAmount || maxAmount) {
+    chips.push({ key: "amount", label: "Tutar", value: `${minAmount || "0"} - ${maxAmount || "..."}` });
+  }
+
+  const handleRemoveChip = (key: string) => {
+    if (key === "direction") setDirectionTab("all");
+    if (key === "status") setStatusFilter("all");
+    if (key === "contact") setContactFilter("");
+    if (key === "date") { setStartDate(""); setEndDate(""); }
+    if (key === "amount") { setMinAmount(""); setMaxAmount(""); }
+  };
+
+  const handleClearAll = () => {
+    setDirectionTab("all");
+    setStatusFilter("all");
+    setContactFilter("");
+    setStartDate("");
+    setEndDate("");
+    setMinAmount("");
+    setMaxAmount("");
+  };
+
   function openStatusChange(check: Check) {
     const transitions = STATUS_TRANSITIONS[check.status];
     if (transitions.length === 0) return;
-
-    // If user will see "endorsed" option, they can choose it from dropdown
-    // but actual endorsement goes through endorse dialog
     setStatusChangeTarget({
       id: check.id,
       name: `${TYPE_LABELS[check.type]} - ${check.contact?.name || ""}`,
       currentStatus: check.status,
     });
-    // Default to first non-endorsed transition
     const defaultStatus = transitions.find((s) => s !== "endorsed") || transitions[0];
     setNewStatus(defaultStatus);
   }
 
   async function handleStatusChange() {
     if (!statusChangeTarget) return;
-
-    // If user chose "endorsed", open the endorse dialog instead
     if (newStatus === "endorsed") {
       const check = checks?.find((c) => c.id === statusChangeTarget.id);
       if (check) {
@@ -186,7 +240,6 @@ export default function ChecksPage() {
         return;
       }
     }
-
     try {
       await updateCheck.mutateAsync({
         id: statusChangeTarget.id,
@@ -210,13 +263,11 @@ export default function ChecksPage() {
       toast.error("Ciro edilecek kişiyi seçiniz");
       return;
     }
-
     const targetContact = contacts?.find((c) => c.id === endorseContactId);
     if (!targetContact) {
       toast.error("Kişi bulunamadı");
       return;
     }
-
     try {
       await endorseCheck.mutateAsync({
         checkId: endorseTarget.id,
@@ -295,14 +346,26 @@ export default function ChecksPage() {
         </Card>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Kişi, çek no veya banka ara..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search + filter toggle */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Kişi, çek no veya banka ara..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors ${
+            showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Status Filters */}
@@ -321,6 +384,57 @@ export default function ChecksPage() {
           </button>
         ))}
       </div>
+
+      {/* Extended filters panel */}
+      {showFilters && (
+        <div className="space-y-3 rounded-lg border p-3">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">Kişi</p>
+            <Select value={contactFilter || "all"} onValueChange={(v) => setContactFilter(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="Tüm kişiler" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm kişiler</SelectItem>
+                {(contacts || []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">Vade Tarihi Aralığı</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-sm" />
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 text-sm" />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">Tutar Aralığı</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="Min"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="Max"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter chips */}
+      <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -421,13 +535,13 @@ export default function ChecksPage() {
         </div>
       ) : (
         <div className="py-12 text-center text-sm text-muted-foreground">
-          {search || statusFilter !== "all" || directionTab !== "all"
+          {search || statusFilter !== "all" || directionTab !== "all" || contactFilter || startDate || endDate || minAmount || maxAmount
             ? "Sonuç bulunamadı."
             : "Henüz çek/senet kaydı yok."}
         </div>
       )}
 
-      {/* ── Status change dialog ── */}
+      {/* Status change dialog */}
       <Dialog
         open={!!statusChangeTarget}
         onOpenChange={(open) => !open && setStatusChangeTarget(null)}
@@ -482,7 +596,7 @@ export default function ChecksPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Endorse (Ciro) dialog ── */}
+      {/* Endorse (Ciro) dialog */}
       <Dialog
         open={!!endorseTarget}
         onOpenChange={(open) => !open && setEndorseTarget(null)}
@@ -517,7 +631,7 @@ export default function ChecksPage() {
                   {contacts
                     ?.filter(
                       (c) =>
-                        c.id !== endorseTarget?.contact_id // exclude original owner
+                        c.id !== endorseTarget?.contact_id
                     )
                     .map((c) => (
                       <SelectItem key={c.id} value={c.id}>
