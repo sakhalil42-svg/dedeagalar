@@ -678,7 +678,6 @@ function QuickEntryForm({
               value={displayWeight}
               onChange={handleNetWeightChange}
               className="flex h-14 w-full rounded-md border border-input bg-background px-3 py-2 text-2xl font-bold text-center ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              autoFocus
             />
             {netWeight && parseInt(netWeight) >= 1000 && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
