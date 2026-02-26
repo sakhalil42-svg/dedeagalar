@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -45,6 +46,60 @@ export default function AccountDetailPage() {
   const masked = (amount: number) =>
     isVisible ? formatCurrency(amount) : "••••••";
 
+  const isCustomer = contact?.type === "customer" || contact?.type === "both";
+
+  const txList = transactions || [];
+
+  // Split transactions by reference_type
+  const sevkiyatTxs = useMemo(() => {
+    const purchaseRefType = isCustomer ? "sale" : "purchase";
+    return txList.filter((t) => t.reference_type === purchaseRefType);
+  }, [txList, isCustomer]);
+
+  const odemeTxs = useMemo(
+    () => txList.filter((t) => t.reference_type === "payment"),
+    [txList]
+  );
+
+  // ALL hooks must be called before any early return
+  const { data: deliveryMap } = useDeliveriesForTransactions(sevkiyatTxs, isCustomer);
+
+  const getDelivery = (tx: AccountTransaction): Delivery | undefined => {
+    if (!deliveryMap || !tx.reference_id) return undefined;
+    return deliveryMap.get(tx.reference_id);
+  };
+
+  // Borç/Alacak from transactions
+  const anaKalem = useMemo(() => {
+    const matchType = isCustomer ? "debit" : "credit";
+    return txList.reduce(
+      (sum, t) => (t.type === matchType ? sum + safeNum(t.amount) : sum),
+      0
+    );
+  }, [txList, isCustomer]);
+
+  const odenenKalem = useMemo(() => {
+    const matchType = isCustomer ? "credit" : "debit";
+    return txList.reduce(
+      (sum, t) => (t.type === matchType ? sum + safeNum(t.amount) : sum),
+      0
+    );
+  }, [txList, isCustomer]);
+
+  const bakiye = safeNum(account?.balance);
+
+  const sevkiyatTotal = useMemo(
+    () => sevkiyatTxs.reduce((sum, t) => sum + safeNum(t.amount), 0),
+    [sevkiyatTxs]
+  );
+
+  const odemeTotal = useMemo(
+    () => odemeTxs.reduce((sum, t) => sum + safeNum(t.amount), 0),
+    [odemeTxs]
+  );
+
+  // ── Early returns AFTER all hooks ──
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -60,47 +115,6 @@ export default function AccountDetailPage() {
       </div>
     );
   }
-
-  const txList = transactions || [];
-
-  // ── Split transactions by reference_type ──
-  const isCustomer = contact.type === "customer" || contact.type === "both";
-  const purchaseRefType = isCustomer ? "sale" : "purchase";
-
-  const sevkiyatTxs = txList.filter(
-    (t) => t.reference_type === purchaseRefType
-  );
-  const odemeTxs = txList.filter((t) => t.reference_type === "payment");
-
-  // Fetch structured delivery data linked to sevkiyat transactions
-  const { data: deliveryMap } = useDeliveriesForTransactions(sevkiyatTxs, isCustomer);
-  const getDelivery = (tx: AccountTransaction): Delivery | undefined => {
-    if (!deliveryMap || !tx.reference_id) return undefined;
-    return deliveryMap.get(tx.reference_id);
-  };
-
-  // ── Borç/Alacak from transactions ──
-  // Tedarikçi: credit=borcumuz (alım), debit=ödediğimiz
-  // Müşteri: debit=alacağımız (satış), credit=tahsil ettiğimiz
-  const anaKalem = txList.reduce((sum, t) => {
-    const matchType = isCustomer ? "debit" : "credit";
-    return t.type === matchType ? sum + safeNum(t.amount) : sum;
-  }, 0);
-  const odenenKalem = txList.reduce((sum, t) => {
-    const matchType = isCustomer ? "credit" : "debit";
-    return t.type === matchType ? sum + safeNum(t.amount) : sum;
-  }, 0);
-  // Bakiye from accounts table (always correct, DB trigger updates it)
-  const bakiye = safeNum(account.balance);
-
-  const sevkiyatTotal = sevkiyatTxs.reduce(
-    (sum, t) => sum + safeNum(t.amount),
-    0
-  );
-  const odemeTotal = odemeTxs.reduce(
-    (sum, t) => sum + safeNum(t.amount),
-    0
-  );
 
   function handleDownloadPdf() {
     if (!contact || !account) return;
@@ -126,7 +140,7 @@ export default function AccountDetailPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-xl font-bold">{contact.name}</h1>
+            <h1 className="text-xl font-bold">{contact.name || ""}</h1>
             <p className="text-sm text-muted-foreground">
               Cari Hesap Detayı
             </p>
@@ -213,7 +227,7 @@ export default function AccountDetailPage() {
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">
-                          {formatDateShort(tx.transaction_date)}
+                          {formatDateShort(tx.transaction_date || "")}
                         </p>
                         {del?.ticket_no && (
                           <Badge variant="outline" className="text-xs">
@@ -226,13 +240,13 @@ export default function AccountDetailPage() {
                           {del.vehicle_plate && (
                             <span className="font-mono">{del.vehicle_plate}</span>
                           )}
-                          <span>{formatWeight(del.net_weight)}</span>
+                          <span>{formatWeight(safeNum(del.net_weight))}</span>
                           {del.carrier_name && (
                             <span>N: {del.carrier_name}</span>
                           )}
-                          {del.freight_cost && del.freight_cost > 0 && (
+                          {del.freight_cost != null && safeNum(del.freight_cost) > 0 && (
                             <span>
-                              Nakliye: {formatCurrency(del.freight_cost)}
+                              Nakliye: {formatCurrency(safeNum(del.freight_cost))}
                               {del.freight_payer === "customer" ? " (müşt.)" : del.freight_payer === "supplier" ? " (ürt.)" : ""}
                             </span>
                           )}
@@ -293,7 +307,7 @@ export default function AccountDetailPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">
-                      {formatDateShort(tx.transaction_date)}
+                      {formatDateShort(tx.transaction_date || "")}
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {tx.description || "Ödeme"}
@@ -361,12 +375,12 @@ export default function AccountDetailPage() {
                                 ? "Alım"
                                 : tx.reference_type === "payment"
                                   ? "Ödeme"
-                                  : tx.reference_type}
+                                  : String(tx.reference_type)}
                           </Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{formatDateShort(tx.transaction_date)}</span>
+                        <span>{formatDateShort(tx.transaction_date || "")}</span>
                         <span>
                           Bakiye: {masked(safeNum(tx.balance_after))}
                         </span>
