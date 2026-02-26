@@ -41,7 +41,6 @@ export default function NewCheckPage() {
       direction: "received",
       check_no: "",
       bank_name: "",
-      branch_name: "",
       amount: "",
       issue_date: new Date().toISOString().split("T")[0],
       due_date: "",
@@ -60,7 +59,6 @@ export default function NewCheckPage() {
         direction: values.direction,
         check_no: values.check_no || null,
         bank_name: values.bank_name || null,
-        branch_name: values.branch_name || null,
         amount: Number(values.amount),
         issue_date: values.issue_date,
         due_date: values.due_date,
@@ -174,23 +172,13 @@ export default function NewCheckPage() {
             </div>
 
             {checkType === "check" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="bank_name">Banka</Label>
-                  <Input
-                    id="bank_name"
-                    {...register("bank_name")}
-                    placeholder="Banka adı"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="branch_name">Şube</Label>
-                  <Input
-                    id="branch_name"
-                    {...register("branch_name")}
-                    placeholder="Şube adı"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="bank_name">Banka</Label>
+                <Input
+                  id="bank_name"
+                  {...register("bank_name")}
+                  placeholder="Banka adı (örn: Yapıkredi - Pursaklar)"
+                />
               </div>
             )}
 

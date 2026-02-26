@@ -275,7 +275,6 @@ export interface Check {
   direction: CheckDirection;
   check_no: string | null;
   bank_name: string | null;
-  branch_name: string | null;
   amount: number;
   issue_date: string;
   due_date: string;
@@ -293,7 +292,6 @@ export interface CheckInsert {
   direction: CheckDirection;
   check_no?: string | null;
   bank_name?: string | null;
-  branch_name?: string | null;
   amount: number;
   issue_date: string;
   due_date: string;
