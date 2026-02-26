@@ -33,6 +33,7 @@ interface PlateComboboxProps {
   onVehicleSelect?: (info: {
     plate: string;
     driverName: string;
+    driverPhone: string;
     carrierName: string;
     carrierPhone: string;
   }) => void;
@@ -68,8 +69,6 @@ export function PlateCombobox({
           console.error("[PlateCombobox] vehicles fetch error:", error);
           return;
         }
-        console.log("[PlateCombobox] vehicles loaded:", data?.length, data?.map((v: Record<string, unknown>) => v.plate));
-
         if (!data || data.length === 0) {
           setVehicles([]);
           return;
@@ -138,13 +137,13 @@ export function PlateCombobox({
 
   const handleSelect = useCallback(
     (v: SimpleVehicle) => {
-      console.log("[PlateCombobox] selected vehicle:", JSON.stringify(v));
       onChange(v.plate);
       onVehicleSelect?.({
         plate: v.plate,
         driverName: v.driver_name || "",
-        carrierName: v.carrier_name || v.driver_name || "",
-        carrierPhone: v.carrier_phone || v.driver_phone || "",
+        driverPhone: v.driver_phone || "",
+        carrierName: v.carrier_name || "",
+        carrierPhone: v.carrier_phone || "",
       });
       setOpen(false);
       setShowNewForm(false);
@@ -184,8 +183,9 @@ export function PlateCombobox({
       onVehicleSelect?.({
         plate: newVehicle.plate,
         driverName: newVehicle.driver_name || "",
-        carrierName: newVehicle.carrier_name || newVehicle.driver_name || "",
-        carrierPhone: newVehicle.carrier_phone || newVehicle.driver_phone || "",
+        driverPhone: newVehicle.driver_phone || "",
+        carrierName: newVehicle.carrier_name || "",
+        carrierPhone: newVehicle.carrier_phone || "",
       });
       setOpen(false);
       setShowNewForm(false);
@@ -227,16 +227,11 @@ export function PlateCombobox({
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
                     >
                       <span className="font-mono font-medium">{v.plate}</span>
-                      {v.driver_name && (
-                        <span className="text-xs text-muted-foreground">
-                          {v.driver_name}
-                        </span>
-                      )}
-                      {v.carrier_name && (
-                        <span className="text-xs text-muted-foreground">
-                          ({v.carrier_name})
-                        </span>
-                      )}
+                      <span className="text-xs text-muted-foreground truncate">
+                        {[v.driver_name, v.carrier_name && `(${v.carrier_name})`]
+                          .filter(Boolean)
+                          .join(" · ") || ""}
+                      </span>
                       {v.plate.toLowerCase().trim() === searchText && (
                         <Check className="ml-auto h-3 w-3 text-green-600" />
                       )}

@@ -813,6 +813,7 @@ function QuickEntryForm({
   const [netWeight, setNetWeight] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [driverName, setDriverName] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
   const [carrierName, setCarrierName] = useState("");
   const [carrierPhone, setCarrierPhone] = useState("");
   const [freightCost, setFreightCost] = useState("");
@@ -825,13 +826,15 @@ function QuickEntryForm({
   const handleVehicleSelect = useCallback((info: {
     plate: string;
     driverName: string;
+    driverPhone: string;
     carrierName: string;
     carrierPhone: string;
   }) => {
     setVehiclePlate(info.plate);
-    if (info.carrierName) setCarrierName(info.carrierName);
-    if (info.carrierPhone) setCarrierPhone(info.carrierPhone);
-    if (info.driverName) setDriverName(info.driverName);
+    setDriverName(info.driverName || "");
+    setDriverPhone(info.driverPhone || "");
+    setCarrierName(info.carrierName || "");
+    setCarrierPhone(info.carrierPhone || "");
   }, []);
 
   // 3.2 — Only clear per-ticket fields, keep carrier/freight settings
@@ -879,17 +882,87 @@ function QuickEntryForm({
       const resolvedSaleId = await ensureSaleExists();
       if (!resolvedSaleId) return;
 
-      const delivery = await createDeliveryTx.mutateAsync({
+      const supabase = (await import("@/lib/supabase/client")).createClient();
+
+      // A) Nakliyeci bul/oluştur
+      let resolvedCarrierName = carrierName.trim() || null;
+      if (resolvedCarrierName) {
+        const { data: existingCarrier } = await supabase
+          .from("carriers")
+          .select("id, name")
+          .ilike("name", resolvedCarrierName)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (!existingCarrier) {
+          await supabase
+            .from("carriers")
+            .insert({ name: resolvedCarrierName })
+            .select("id")
+            .single();
+        }
+      }
+
+      // B) Araç bul/oluştur ve bağla
+      const plate = vehiclePlate.trim().toUpperCase() || null;
+      if (plate) {
+        const { data: existingVehicle } = await supabase
+          .from("vehicles")
+          .select("id, carrier_id")
+          .eq("plate", plate)
+          .maybeSingle();
+
+        // carrier_id bul
+        let linkCarrierId: string | null = null;
+        if (resolvedCarrierName) {
+          const { data: carrier } = await supabase
+            .from("carriers")
+            .select("id")
+            .ilike("name", resolvedCarrierName)
+            .eq("is_active", true)
+            .maybeSingle();
+          linkCarrierId = carrier?.id || null;
+        }
+
+        if (existingVehicle) {
+          // Araç var → şoför bilgilerini güncelle, carrier_id bağla
+          const updates: Record<string, unknown> = {};
+          if (driverName.trim()) updates.driver_name = driverName.trim();
+          if (driverPhone.trim()) updates.driver_phone = driverPhone.trim();
+          if (linkCarrierId && !existingVehicle.carrier_id) {
+            updates.carrier_id = linkCarrierId;
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabase
+              .from("vehicles")
+              .update(updates)
+              .eq("id", existingVehicle.id);
+          }
+        } else {
+          // Araç yok → yeni oluştur
+          await supabase
+            .from("vehicles")
+            .insert({
+              plate,
+              driver_name: driverName.trim() || null,
+              driver_phone: driverPhone.trim() || null,
+              carrier_id: linkCarrierId,
+            });
+        }
+      }
+
+      // C) Delivery kaydı
+      await createDeliveryTx.mutateAsync({
         delivery: {
           sale_id: resolvedSaleId,
           purchase_id: purchaseId,
           delivery_date: date,
           ticket_no: ticketNo || null,
           net_weight: kg,
-          vehicle_plate: vehiclePlate || null,
-          driver_name: driverName || null,
-          carrier_name: carrierName || null,
-          carrier_phone: carrierPhone || null,
+          vehicle_plate: plate,
+          driver_name: driverName.trim() || null,
+          carrier_name: resolvedCarrierName,
+          carrier_phone: carrierPhone.trim() || null,
           freight_cost: freightCost ? parseFloat(freightCost) : null,
           freight_payer: freightCost ? freightPayer : null,
         },
@@ -900,9 +973,8 @@ function QuickEntryForm({
         pricingModel,
       });
 
-      // 3.2 — Detailed success toast
       toast.success(
-        `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${vehiclePlate ? `, ${vehiclePlate}` : ""}`,
+        `Kaydedildi — ${kg.toLocaleString("tr-TR")} kg${plate ? `, ${plate}` : ""}`,
         { duration: 2000 }
       );
       resetForNextTicket();
@@ -998,31 +1070,42 @@ function QuickEntryForm({
           </div>
         </div>
 
-        {/* Row 4: Carrier Name + Phone */}
+        {/* Row 4: Şoför Adı + Şoför Tel */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs text-muted-foreground">Nakliyeci Adı</Label>
+            <Label className="text-xs text-muted-foreground">Şoför Adı</Label>
             <Input
-              placeholder="İsim"
-              value={carrierName}
-              onChange={(e) => setCarrierName(e.target.value)}
+              placeholder="Şoför adı"
+              value={driverName}
+              onChange={(e) => setDriverName(e.target.value)}
               className="h-9 text-sm"
             />
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">
               <Phone className="inline h-3 w-3 mr-0.5" />
-              Nakliyeci Tel
+              Şoför Tel
             </Label>
             <Input
               type="tel"
               inputMode="tel"
               placeholder="05XX XXX XXXX"
-              value={carrierPhone}
-              onChange={(e) => setCarrierPhone(e.target.value)}
+              value={driverPhone}
+              onChange={(e) => setDriverPhone(e.target.value)}
               className="h-9 text-sm"
             />
           </div>
+        </div>
+
+        {/* Row 5: Nakliyeci */}
+        <div>
+          <Label className="text-xs text-muted-foreground">Nakliyeci (firma/patron)</Label>
+          <Input
+            placeholder="Nakliyeci adı"
+            value={carrierName}
+            onChange={(e) => setCarrierName(e.target.value)}
+            className="h-9 text-sm"
+          />
         </div>
 
         {/* Row 5: Freight Payer toggle */}
@@ -1280,6 +1363,7 @@ function TicketRow({
   const [editPlate, setEditPlate] = useState("");
   const [editFreight, setEditFreight] = useState("");
   const [editFreightPayer, setEditFreightPayer] = useState<FreightPayer>("me");
+  const [editDriverName, setEditDriverName] = useState("");
   const [editCarrier, setEditCarrier] = useState("");
   const [editCarrierPhone, setEditCarrierPhone] = useState("");
   const [waSent, setWaSent] = useState(() => isWhatsAppSent(delivery.id));
@@ -1314,6 +1398,7 @@ function TicketRow({
     setEditPlate(delivery.vehicle_plate || "");
     setEditFreight(delivery.freight_cost ? String(delivery.freight_cost) : "");
     setEditFreightPayer((delivery.freight_payer as FreightPayer) || "me");
+    setEditDriverName(delivery.driver_name || "");
     setEditCarrier(delivery.carrier_name || "");
     setEditCarrierPhone(delivery.carrier_phone || "");
     setEditing(true);
@@ -1332,6 +1417,7 @@ function TicketRow({
         vehicle_plate: editPlate || null,
         freight_cost: editFreight ? parseFloat(editFreight) : null,
         freight_payer: editFreight ? editFreightPayer : null,
+        driver_name: editDriverName || null,
         carrier_name: editCarrier || null,
         carrier_phone: editCarrierPhone || null,
       });
@@ -1398,20 +1484,21 @@ function TicketRow({
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
+            <Label className="text-xs text-muted-foreground">Şoför</Label>
+            <Input
+              value={editDriverName}
+              onChange={(e) => setEditDriverName(e.target.value)}
+              className="h-8 text-sm"
+              placeholder="Şoför adı"
+            />
+          </div>
+          <div>
             <Label className="text-xs text-muted-foreground">Nakliyeci</Label>
             <Input
               value={editCarrier}
               onChange={(e) => setEditCarrier(e.target.value)}
               className="h-8 text-sm"
-            />
-          </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Tel</Label>
-            <Input
-              type="tel"
-              value={editCarrierPhone}
-              onChange={(e) => setEditCarrierPhone(e.target.value)}
-              className="h-8 text-sm"
+              placeholder="Firma/patron"
             />
           </div>
         </div>
@@ -1446,6 +1533,11 @@ function TicketRow({
             <p className="text-lg font-bold">
               {delivery.net_weight.toLocaleString("tr-TR")} kg
             </p>
+            {delivery.driver_name && (
+              <p className="text-xs text-muted-foreground">
+                Şoför: {delivery.driver_name}
+              </p>
+            )}
             {delivery.freight_cost ? (
               <p className="text-xs text-muted-foreground">
                 Nakliye: {masked(delivery.freight_cost)} ·{" "}
@@ -1457,7 +1549,7 @@ function TicketRow({
                 {delivery.carrier_name && ` · ${delivery.carrier_name}`}
               </p>
             ) : delivery.carrier_name ? (
-              <p className="text-xs text-muted-foreground">{delivery.carrier_name}</p>
+              <p className="text-xs text-muted-foreground">Nakliyeci: {delivery.carrier_name}</p>
             ) : null}
           </div>
 
@@ -2187,6 +2279,11 @@ function HistoryTicketRow({
             <p className="text-lg font-bold">
               {delivery.net_weight.toLocaleString("tr-TR")} kg
             </p>
+            {delivery.driver_name && (
+              <p className="text-xs text-muted-foreground">
+                Şoför: {delivery.driver_name}
+              </p>
+            )}
             {delivery.freight_cost ? (
               <p className="text-xs text-muted-foreground">
                 Nakliye: {masked(delivery.freight_cost)} ·{" "}
@@ -2198,7 +2295,7 @@ function HistoryTicketRow({
                 {delivery.carrier_name && ` · ${delivery.carrier_name}`}
               </p>
             ) : delivery.carrier_name ? (
-              <p className="text-xs text-muted-foreground">{delivery.carrier_name}</p>
+              <p className="text-xs text-muted-foreground">Nakliyeci: {delivery.carrier_name}</p>
             ) : null}
           </div>
 
