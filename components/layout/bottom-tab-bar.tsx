@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  ShoppingCart,
+  Truck,
   TrendingUp,
   Users,
   Wallet,
@@ -18,9 +18,9 @@ export function BottomTabBar() {
   const { data: overdueCount } = useOverdueCheckCount();
 
   const tabs = [
-    { href: "/", label: "Ana Sayfa", icon: LayoutDashboard, badge: todayCount || 0, badgeColor: "bg-green-500" },
+    { href: "/", label: "Ana Sayfa", icon: LayoutDashboard, badge: 0, badgeColor: "" },
     { href: "/sales", label: "Satışlar", icon: TrendingUp, badge: 0, badgeColor: "" },
-    { href: "/purchases", label: "Alımlar", icon: ShoppingCart, badge: 0, badgeColor: "" },
+    { href: "/purchases", label: "Sevkiyatlar", icon: Truck, badge: todayCount || 0, badgeColor: "bg-green-500" },
     { href: "/contacts", label: "Kişiler", icon: Users, badge: 0, badgeColor: "" },
     { href: "/finance", label: "Finans", icon: Wallet, badge: overdueCount || 0, badgeColor: "bg-red-500" },
   ] as const;
