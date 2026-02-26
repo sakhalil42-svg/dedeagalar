@@ -120,8 +120,8 @@ export function useCreateDeliveryWithTransactions() {
         });
       if (stxErr) throw stxErr;
 
-      // 6. Carrier transaction — müşteri ödemiyorsa → nakliyeci borcuma ekle
-      if (freightPayer !== "customer" && freightCost > 0) {
+      // 6. Carrier transaction — sadece ben ödüyorsam → nakliyeci borcuma ekle
+      if (freightPayer === "me" && freightCost > 0) {
         const carrierId = await findCarrierId(supabase, del.carrier_name, del.vehicle_plate);
         if (carrierId) {
           await supabase
@@ -537,8 +537,8 @@ export function useUpdateDeliveryWithCarrierSync() {
       const newPayer = newDel.freight_payer || "me";
       const oldFreight = oldDel.freight_cost || 0;
       const newFreight = newDel.freight_cost || 0;
-      const oldHadCarrierTx = oldPayer !== "customer" && oldFreight > 0;
-      const newNeedsCarrierTx = newPayer !== "customer" && newFreight > 0;
+      const oldHadCarrierTx = oldPayer === "me" && oldFreight > 0;
+      const newNeedsCarrierTx = newPayer === "me" && newFreight > 0;
 
       // 3. Handle carrier transaction changes
       if (oldHadCarrierTx && !newNeedsCarrierTx) {
