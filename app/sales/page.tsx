@@ -570,8 +570,6 @@ function QuickEntryForm({
               value={vehiclePlate}
               onChange={setVehiclePlate}
               onVehicleSelect={handleVehicleSelect}
-              driverName={carrierName}
-              driverPhone={carrierPhone}
             />
           </div>
           <div>

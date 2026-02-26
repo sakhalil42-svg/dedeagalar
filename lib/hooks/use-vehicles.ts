@@ -46,9 +46,10 @@ export function useCreateVehicle() {
 
   return useMutation({
     mutationFn: async (values: VehicleInsert) => {
+      // Upsert on plate to avoid 409 conflict on duplicate plates
       const { data, error } = await supabase
         .from("vehicles")
-        .insert(values)
+        .upsert(values, { onConflict: "plate" })
         .select()
         .single();
       if (error) throw error;
