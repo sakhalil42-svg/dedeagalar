@@ -9,8 +9,8 @@ interface PdfParams {
   contactType: ContactType;
   sevkiyatlar: AccountTransaction[];
   odemeler: AccountTransaction[];
-  borc: number;
-  alacak: number;
+  anaKalem: number;
+  odenenKalem: number;
   bakiye: number;
 }
 
@@ -61,8 +61,8 @@ export function generateContactPdf({
   contactType,
   sevkiyatlar,
   odemeler,
-  borc,
-  alacak,
+  anaKalem,
+  odenenKalem,
   bakiye,
 }: PdfParams) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -246,21 +246,24 @@ export function generateContactPdf({
   doc.line(14, y, pageWidth - 14, y);
   y += 6;
 
-  const borcVal = safeNum(borc);
-  const alacakVal = safeNum(alacak);
+  const anaKalemVal = safeNum(anaKalem);
+  const odenenKalemVal = safeNum(odenenKalem);
   const bakiyeVal = safeNum(bakiye);
+
+  const anaLabel = isCustomer ? "Toplam Alacak:" : "Toplam Bor\u00E7:";
+  const odenenLabel = isCustomer ? "Toplam Tahsil Edilen:" : "Toplam \u00D6denen:";
 
   doc.setFontSize(11);
   doc.setFont("Roboto", "normal");
-  doc.text("Toplam Bor\u00E7:", 14, y);
+  doc.text(anaLabel, 14, y);
   doc.setFont("Roboto", "bold");
-  doc.text(`${fmt(borcVal)} \u20BA`, pageWidth - 14, y, { align: "right" });
+  doc.text(`${fmt(anaKalemVal)} \u20BA`, pageWidth - 14, y, { align: "right" });
   y += 6;
 
   doc.setFont("Roboto", "normal");
-  doc.text("Toplam \u00D6denen:", 14, y);
+  doc.text(odenenLabel, 14, y);
   doc.setFont("Roboto", "bold");
-  doc.text(`${fmt(alacakVal)} \u20BA`, pageWidth - 14, y, { align: "right" });
+  doc.text(`${fmt(odenenKalemVal)} \u20BA`, pageWidth - 14, y, { align: "right" });
   y += 8;
 
   // Big balance line
@@ -271,7 +274,9 @@ export function generateContactPdf({
 
   doc.setFontSize(14);
   doc.setFont("Roboto", "bold");
-  const balanceLabel = bakiyeVal > 0 ? "KALAN BOR\u00C7" : "KALAN BAK\u0130YE";
+  const balanceLabel = isCustomer
+    ? (bakiyeVal > 0 ? "KALAN ALACAK" : "KALAN BAK\u0130YE")
+    : (bakiyeVal > 0 ? "KALAN BOR\u00C7" : "KALAN BAK\u0130YE");
   doc.text(`${balanceLabel}:`, 14, y);
   doc.text(`${fmt(Math.abs(bakiyeVal))} \u20BA`, pageWidth - 14, y, {
     align: "right",

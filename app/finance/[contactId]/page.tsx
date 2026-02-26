@@ -72,13 +72,15 @@ export default function AccountDetailPage() {
   const odemeTxs = txList.filter((t) => t.reference_type === "payment");
 
   // ── Borç/Alacak from transactions ──
-  // credit = tedarikçiye borcumuz (alım)
-  // debit = ödediğimiz (ödeme)
-  const borc = txList.reduce((sum, t) => {
-    return t.type === "credit" ? sum + safeNum(t.amount) : sum;
+  // Tedarikçi: credit=borcumuz (alım), debit=ödediğimiz
+  // Müşteri: debit=alacağımız (satış), credit=tahsil ettiğimiz
+  const anaKalem = txList.reduce((sum, t) => {
+    const matchType = isCustomer ? "debit" : "credit";
+    return t.type === matchType ? sum + safeNum(t.amount) : sum;
   }, 0);
-  const alacak = txList.reduce((sum, t) => {
-    return t.type === "debit" ? sum + safeNum(t.amount) : sum;
+  const odenenKalem = txList.reduce((sum, t) => {
+    const matchType = isCustomer ? "credit" : "debit";
+    return t.type === matchType ? sum + safeNum(t.amount) : sum;
   }, 0);
   // Bakiye from accounts table (always correct, DB trigger updates it)
   const bakiye = safeNum(account.balance);
@@ -99,8 +101,8 @@ export default function AccountDetailPage() {
       contactType: contact.type,
       sevkiyatlar: sevkiyatTxs,
       odemeler: odemeTxs,
-      borc,
-      alacak,
+      anaKalem,
+      odenenKalem,
       bakiye,
     });
   }
@@ -129,15 +131,19 @@ export default function AccountDetailPage() {
         <CardContent className="p-4">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <p className="text-xs text-muted-foreground">Borç</p>
+              <p className="text-xs text-muted-foreground">
+                {isCustomer ? "Alacak" : "Borç"}
+              </p>
               <p className="text-sm font-bold text-red-600">
-                {masked(borc)}
+                {masked(anaKalem)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Ödenen</p>
+              <p className="text-xs text-muted-foreground">
+                {isCustomer ? "Tahsil Edilen" : "Ödenen"}
+              </p>
               <p className="text-sm font-bold text-green-600">
-                {masked(alacak)}
+                {masked(odenenKalem)}
               </p>
             </div>
             <div>
