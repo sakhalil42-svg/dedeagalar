@@ -16,7 +16,7 @@ export function useVehicles() {
       const { data: vehicles, error } = await supabase
         .from("vehicles")
         .select("*")
-        .eq("is_active", true)
+        .neq("is_active", false)
         .order("plate");
       if (error) throw error;
 

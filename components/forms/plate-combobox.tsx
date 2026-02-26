@@ -41,12 +41,16 @@ export function PlateCombobox({
   const { data: carriers } = useCarriers();
   const createVehicle = useCreateVehicle();
 
+  // Normalize: strip spaces for comparison so "42 BN 010" matches "42BN010"
+  const norm = (s: string) => s.replace(/\s+/g, "").toUpperCase();
+  const normValue = norm(value);
+
   const filtered = (vehicles || []).filter((v) =>
-    v.plate.toLowerCase().includes(value.toLowerCase())
+    norm(v.plate).includes(normValue)
   );
 
   const exactMatch = (vehicles || []).some(
-    (v) => v.plate.toLowerCase() === value.toLowerCase()
+    (v) => norm(v.plate) === normValue
   );
 
   // Close on outside click
@@ -148,7 +152,7 @@ export function PlateCombobox({
                           ({v.carrier.name})
                         </span>
                       )}
-                      {v.plate.toLowerCase() === value.toLowerCase() && (
+                      {norm(v.plate) === normValue && (
                         <Check className="ml-auto h-3 w-3 text-green-600" />
                       )}
                     </button>
