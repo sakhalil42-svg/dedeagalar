@@ -82,7 +82,7 @@ export default function CalendarPage() {
         items.push({
           id: c.id,
           type: "check",
-          label: c.check_type === "check" ? "Çek" : "Senet",
+          label: c.type === "check" ? "Çek" : "Senet",
           contact_name: c.contact?.name || "—",
           amount: c.amount,
           due_date: c.due_date,

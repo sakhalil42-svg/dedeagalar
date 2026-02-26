@@ -288,7 +288,7 @@ export function useDueItems() {
       (checks || []).forEach((c) => {
         items.push({
           id: c.id,
-          type: c.check_type === "check" ? "Çek" : "Senet",
+          type: c.type === "check" ? "Çek" : "Senet",
           contact_name: contactMap.get(c.contact_id) || "—",
           amount: c.amount,
           due_date: c.due_date,

@@ -74,8 +74,9 @@ function NewPaymentForm() {
   const [description, setDescription] = useState("");
 
   // Çek/Senet ek alanları
-  const [checkNo, setCheckNo] = useState("");
+  const [serialNo, setSerialNo] = useState("");
   const [bankName, setBankName] = useState("");
+  const [branch, setBranch] = useState("");
   const [dueDate, setDueDate] = useState("");
 
   const [saving, setSaving] = useState(false);
@@ -108,8 +109,9 @@ function NewPaymentForm() {
         description: description || null,
         ...(isCheckOrNote
           ? {
-              check_no: checkNo || undefined,
+              serial_no: serialNo || undefined,
               bank_name: bankName || undefined,
+              branch: branch || undefined,
               due_date: dueDate || undefined,
             }
           : {}),
@@ -247,8 +249,8 @@ function NewPaymentForm() {
                     {method === "check" ? "Çek No" : "Senet No"}
                   </Label>
                   <Input
-                    value={checkNo}
-                    onChange={(e) => setCheckNo(e.target.value)}
+                    value={serialNo}
+                    onChange={(e) => setSerialNo(e.target.value)}
                     placeholder="Opsiyonel"
                   />
                 </div>
@@ -261,14 +263,24 @@ function NewPaymentForm() {
                   />
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Vade Tarihi *</Label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Şube</Label>
+                  <Input
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    placeholder="Opsiyonel"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Vade Tarihi *</Label>
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

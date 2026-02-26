@@ -37,10 +37,11 @@ export default function NewCheckPage() {
     resolver: zodResolver(checkSchema),
     defaultValues: {
       contact_id: "",
-      check_type: "check",
+      type: "check",
       direction: "received",
-      check_no: "",
+      serial_no: "",
       bank_name: "",
+      branch: "",
       amount: "",
       issue_date: new Date().toISOString().split("T")[0],
       due_date: "",
@@ -49,16 +50,17 @@ export default function NewCheckPage() {
     },
   });
 
-  const checkType = watch("check_type");
+  const checkType = watch("type");
 
   async function onSubmit(values: CheckFormValues) {
     try {
       await createCheck.mutateAsync({
         contact_id: values.contact_id,
-        check_type: values.check_type,
+        type: values.type,
         direction: values.direction,
-        check_no: values.check_no || null,
+        serial_no: values.serial_no || null,
         bank_name: values.bank_name || null,
+        branch: values.branch || null,
         amount: Number(values.amount),
         issue_date: values.issue_date,
         due_date: values.due_date,
@@ -66,7 +68,7 @@ export default function NewCheckPage() {
         notes: values.notes || null,
       });
       toast.success(
-        values.check_type === "check" ? "Çek kaydedildi" : "Senet kaydedildi"
+        values.type === "check" ? "Çek kaydedildi" : "Senet kaydedildi"
       );
       router.push("/finance/checks");
     } catch {
@@ -99,7 +101,7 @@ export default function NewCheckPage() {
                 <Select
                   defaultValue="check"
                   onValueChange={(val) =>
-                    setValue("check_type", val as CheckFormValues["check_type"])
+                    setValue("type", val as CheckFormValues["type"])
                   }
                 >
                   <SelectTrigger>
@@ -114,7 +116,7 @@ export default function NewCheckPage() {
               <div className="space-y-2">
                 <Label>Yön *</Label>
                 <Select
-                  defaultValue="inbound"
+                  defaultValue="received"
                   onValueChange={(val) =>
                     setValue("direction", val as CheckFormValues["direction"])
                   }
@@ -151,10 +153,10 @@ export default function NewCheckPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="check_no">
+                <Label htmlFor="serial_no">
                   {checkType === "check" ? "Çek No" : "Senet No"}
                 </Label>
-                <Input id="check_no" {...register("check_no")} placeholder="No" />
+                <Input id="serial_no" {...register("serial_no")} placeholder="No" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="amount">Tutar (TL) *</Label>
@@ -172,13 +174,23 @@ export default function NewCheckPage() {
             </div>
 
             {checkType === "check" && (
-              <div className="space-y-2">
-                <Label htmlFor="bank_name">Banka</Label>
-                <Input
-                  id="bank_name"
-                  {...register("bank_name")}
-                  placeholder="Banka adı (örn: Yapıkredi - Pursaklar)"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="bank_name">Banka</Label>
+                  <Input
+                    id="bank_name"
+                    {...register("bank_name")}
+                    placeholder="Banka adı"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="branch">Şube</Label>
+                  <Input
+                    id="branch"
+                    {...register("branch")}
+                    placeholder="Şube adı"
+                  />
+                </div>
               </div>
             )}
 

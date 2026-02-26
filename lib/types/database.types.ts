@@ -270,11 +270,13 @@ export type CheckStatus = "pending" | "deposited" | "cleared" | "bounced" | "end
 
 export interface Check {
   id: string;
+  payment_id: string | null;
   contact_id: string;
-  check_type: CheckType;
+  type: CheckType;
   direction: CheckDirection;
-  check_no: string | null;
+  serial_no: string | null;
   bank_name: string | null;
+  branch: string | null;
   amount: number;
   issue_date: string;
   due_date: string;
@@ -287,11 +289,13 @@ export interface Check {
 }
 
 export interface CheckInsert {
+  payment_id?: string | null;
   contact_id: string;
-  check_type: CheckType;
+  type: CheckType;
   direction: CheckDirection;
-  check_no?: string | null;
+  serial_no?: string | null;
   bank_name?: string | null;
+  branch?: string | null;
   amount: number;
   issue_date: string;
   due_date: string;

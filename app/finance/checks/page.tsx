@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useChecks, useUpdateCheck } from "@/lib/hooks/use-checks";
-import type { CheckStatus, CheckType, CheckDirection } from "@/lib/types/database.types";
+import type { Check, CheckStatus, CheckType, CheckDirection } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -127,7 +127,7 @@ export default function ChecksPage() {
       const matchesSearch =
         !search ||
         c.contact?.name?.toLowerCase().includes(search.toLowerCase()) ||
-        c.check_no?.toLowerCase().includes(search.toLowerCase()) ||
+        c.serial_no?.toLowerCase().includes(search.toLowerCase()) ||
         c.bank_name?.toLowerCase().includes(search.toLowerCase());
       const matchesStatus =
         statusFilter === "all" || c.status === statusFilter;
@@ -144,12 +144,12 @@ export default function ChecksPage() {
     return { count: pending.length, total };
   }, [filtered]);
 
-  function openStatusChange(check: { id: string; status: CheckStatus; check_type: CheckType; contact?: { name: string } | null }) {
+  function openStatusChange(check: Check) {
     const transitions = STATUS_TRANSITIONS[check.status];
     if (transitions.length === 0) return;
     setStatusChangeTarget({
       id: check.id,
-      name: `${TYPE_LABELS[check.check_type]} - ${check.contact?.name || ""}`,
+      name: `${TYPE_LABELS[check.type]} - ${check.contact?.name || ""}`,
       currentStatus: check.status,
     });
     setNewStatus(transitions[0]);
@@ -275,7 +275,7 @@ export default function ChecksPage() {
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <Badge variant="secondary" className="text-xs">
-                          {TYPE_LABELS[c.check_type]}
+                          {TYPE_LABELS[c.type]}
                         </Badge>
                         <Badge
                           variant="secondary"
@@ -289,7 +289,7 @@ export default function ChecksPage() {
                       </div>
                       <p className="font-medium">{c.contact?.name || "—"}</p>
                       <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                        {c.check_no && <span>No: {c.check_no}</span>}
+                        {c.serial_no && <span>No: {c.serial_no}</span>}
                         {c.bank_name && <span>{c.bank_name}</span>}
                         <span>Vade: {formatDateShort(c.due_date)}</span>
                         {daysText && (
