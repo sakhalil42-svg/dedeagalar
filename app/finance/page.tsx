@@ -7,7 +7,7 @@ import type { AccountSummary, ContactType } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Loader2, Wallet, Plus, Phone } from "lucide-react";
+import { Search, Loader2, Wallet, Plus, Phone, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
@@ -113,7 +113,7 @@ export default function FinancePage() {
       </div>
 
       {/* Quick actions */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto">
         <Button size="sm" variant="outline" asChild>
           <Link href="/finance/payments">
             <Wallet className="mr-1 h-4 w-4" />
@@ -123,6 +123,12 @@ export default function FinancePage() {
         <Button size="sm" variant="outline" asChild>
           <Link href="/finance/calendar">
             Vade Takvimi
+          </Link>
+        </Button>
+        <Button size="sm" variant="outline" asChild>
+          <Link href="/finance/profit">
+            <TrendingUp className="mr-1 h-4 w-4" />
+            Kar/Zarar
           </Link>
         </Button>
       </div>

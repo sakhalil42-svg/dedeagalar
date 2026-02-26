@@ -12,6 +12,7 @@ export function useDashboardKpis() {
     queryFn: async () => {
       const now = new Date();
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const today = now.toISOString().split("T")[0];
 
       // Active sales count (not cancelled)
       const { count: activeSalesCount } = await supabase
@@ -42,11 +43,104 @@ export function useDashboardKpis() {
       const pendingReceivables = (receivableAccounts || []).reduce((sum, a) => sum + (a.balance || 0), 0);
       const pendingPayables = Math.abs((payableAccounts || []).reduce((sum, a) => sum + (a.balance || 0), 0));
 
+      // --- NEW: Today's profit ---
+      const { data: todaySaleTxs } = await supabase
+        .from("account_transactions")
+        .select("amount")
+        .eq("reference_type", "sale")
+        .eq("type", "debit")
+        .eq("transaction_date", today);
+
+      const { data: todayPurchaseTxs } = await supabase
+        .from("account_transactions")
+        .select("amount")
+        .eq("reference_type", "purchase")
+        .eq("type", "credit")
+        .eq("transaction_date", today);
+
+      const todaySales = (todaySaleTxs || []).reduce((s, t) => s + (t.amount || 0), 0);
+      const todayPurchases = (todayPurchaseTxs || []).reduce((s, t) => s + (t.amount || 0), 0);
+      const todayProfit = todaySales - todayPurchases;
+
+      // --- NEW: Monthly tonnage ---
+      const { data: monthDeliveries } = await supabase
+        .from("deliveries")
+        .select("net_weight")
+        .gte("delivery_date", monthStart);
+
+      const monthlyTonnage = (monthDeliveries || []).reduce((s, d) => s + (d.net_weight || 0), 0);
+
+      // --- NEW: Due checks count & amount (next 7 days) ---
+      const next7 = new Date();
+      next7.setDate(next7.getDate() + 7);
+      const next7Str = next7.toISOString().split("T")[0];
+
+      const { data: dueChecks } = await supabase
+        .from("checks")
+        .select("amount, due_date")
+        .in("status", ["pending", "deposited"])
+        .lte("due_date", next7Str);
+
+      const dueCheckCount = (dueChecks || []).length;
+      const dueCheckTotal = (dueChecks || []).reduce((s, c) => s + (c.amount || 0), 0);
+      const overdueCheckCount = (dueChecks || []).filter((c) => c.due_date < today).length;
+
+      // --- NEW: Top balances ---
+      // We need accounts + contacts to figure out customer vs supplier
+      const { data: accounts } = await supabase
+        .from("accounts")
+        .select("contact_id, balance")
+        .neq("balance", 0)
+        .order("balance", { ascending: false });
+
+      const contactIds = [...new Set((accounts || []).map((a) => a.contact_id).filter(Boolean))];
+      let contactMap = new Map<string, { name: string; type: string }>();
+      if (contactIds.length > 0) {
+        const { data: contacts } = await supabase
+          .from("contacts")
+          .select("id, name, type")
+          .in("id", contactIds);
+        if (contacts) {
+          contactMap = new Map(contacts.map((c) => [c.id, { name: c.name, type: c.type }]));
+        }
+      }
+
+      // Top 3 customers with highest receivable (positive balance, type customer/both)
+      const topCustomers = (accounts || [])
+        .filter((a) => {
+          const c = contactMap.get(a.contact_id);
+          return c && (c.type === "customer" || c.type === "both") && a.balance > 0;
+        })
+        .slice(0, 3)
+        .map((a) => ({
+          name: contactMap.get(a.contact_id)?.name || "—",
+          balance: a.balance,
+        }));
+
+      // Top 3 suppliers with highest payable (we look at positive balance for supplier = we owe)
+      const topSuppliers = (accounts || [])
+        .filter((a) => {
+          const c = contactMap.get(a.contact_id);
+          return c && (c.type === "supplier" || c.type === "both") && a.balance > 0;
+        })
+        .slice(0, 3)
+        .map((a) => ({
+          name: contactMap.get(a.contact_id)?.name || "—",
+          balance: a.balance,
+        }));
+
       return {
         activeSalesCount: activeSalesCount || 0,
         monthlyRevenue,
         pendingReceivables,
         pendingPayables,
+        todayProfit,
+        monthlyTonnage,
+        dueCheckCount,
+        dueCheckTotal,
+        overdueCheckCount,
+        topCustomers,
+        topSuppliers,
       };
     },
   });
@@ -116,7 +210,6 @@ export function useRecentDeliveries() {
 
       if (error) throw error;
 
-      // Fetch related sale/purchase contacts separately
       const items = [];
       for (const d of data || []) {
         let contactName = "—";
@@ -163,7 +256,6 @@ export function useDueItems() {
       next30.setDate(next30.getDate() + 30);
       const next30Str = next30.toISOString().split("T")[0];
 
-      // Fetch checks and contacts separately to avoid FK join issues
       const { data: checks } = await supabase
         .from("checks")
         .select("*")
@@ -172,7 +264,6 @@ export function useDueItems() {
         .order("due_date")
         .limit(10);
 
-      // Get contact names for these checks
       const contactIds = [...new Set((checks || []).map((c) => c.contact_id).filter(Boolean))];
       let contactMap = new Map<string, string>();
       if (contactIds.length > 0) {

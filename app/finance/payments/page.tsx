@@ -35,15 +35,59 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
   promissory_note: "Senet",
 };
 
-const FILTER_OPTIONS: { label: string; value: PaymentDirection | "all" }[] = [
+type DirectionFilter = PaymentDirection | "all";
+type MethodFilter = PaymentMethod | "all";
+type DateFilter = "all" | "today" | "week" | "month";
+
+const DIRECTION_OPTIONS: { label: string; value: DirectionFilter }[] = [
   { label: "Tümü", value: "all" },
   { label: "Ödeme", value: "outbound" },
   { label: "Tahsilat", value: "inbound" },
 ];
 
+const METHOD_OPTIONS: { label: string; value: MethodFilter }[] = [
+  { label: "Tümü", value: "all" },
+  { label: "Nakit", value: "cash" },
+  { label: "Havale", value: "bank_transfer" },
+  { label: "Çek", value: "check" },
+  { label: "Senet", value: "promissory_note" },
+];
+
+const DATE_OPTIONS: { label: string; value: DateFilter }[] = [
+  { label: "Tümü", value: "all" },
+  { label: "Bugün", value: "today" },
+  { label: "Bu Hafta", value: "week" },
+  { label: "Bu Ay", value: "month" },
+];
+
+function isInRange(dateStr: string, range: DateFilter): boolean {
+  if (range === "all") return true;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+
+  if (range === "today") {
+    return d.getTime() === today.getTime();
+  }
+  if (range === "week") {
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return d >= weekAgo;
+  }
+  if (range === "month") {
+    const monthAgo = new Date(today);
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    return d >= monthAgo;
+  }
+  return true;
+}
+
 export default function PaymentsPage() {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<PaymentDirection | "all">("all");
+  const [directionFilter, setDirectionFilter] = useState<DirectionFilter>("all");
+  const [methodFilter, setMethodFilter] = useState<MethodFilter>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const { data: payments, isLoading } = usePayments();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
@@ -55,10 +99,24 @@ export default function PaymentsPage() {
         !search ||
         p.contact?.name?.toLowerCase().includes(search.toLowerCase()) ||
         p.description?.toLowerCase().includes(search.toLowerCase());
-      const matchesFilter = filter === "all" || p.direction === filter;
-      return matchesSearch && matchesFilter;
+      const matchesDirection = directionFilter === "all" || p.direction === directionFilter;
+      const matchesMethod = methodFilter === "all" || p.method === methodFilter;
+      const matchesDate = isInRange(p.payment_date, dateFilter);
+      return matchesSearch && matchesDirection && matchesMethod && matchesDate;
     });
-  }, [payments, search, filter]);
+  }, [payments, search, directionFilter, methodFilter, dateFilter]);
+
+  // Summary totals
+  const summary = useMemo(() => {
+    const inbound = filtered.filter((p) => p.direction === "inbound");
+    const outbound = filtered.filter((p) => p.direction === "outbound");
+    return {
+      inboundTotal: inbound.reduce((s, p) => s + (p.amount || 0), 0),
+      inboundCount: inbound.length,
+      outboundTotal: outbound.reduce((s, p) => s + (p.amount || 0), 0),
+      outboundCount: outbound.length,
+    };
+  }, [filtered]);
 
   return (
     <div className="space-y-4 p-4">
@@ -75,6 +133,26 @@ export default function PaymentsPage() {
         </Button>
       </div>
 
+      {/* Summary Cards */}
+      {!isLoading && filtered.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          <Card className="border-green-200">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-green-700 font-medium">Tahsilat</p>
+              <p className="text-sm font-bold text-green-600">{masked(summary.inboundTotal)}</p>
+              <p className="text-xs text-muted-foreground">{summary.inboundCount} adet</p>
+            </CardContent>
+          </Card>
+          <Card className="border-red-200">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-red-700 font-medium">Ödeme</p>
+              <p className="text-sm font-bold text-red-600">{masked(summary.outboundTotal)}</p>
+              <p className="text-xs text-muted-foreground">{summary.outboundCount} adet</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -85,13 +163,14 @@ export default function PaymentsPage() {
         />
       </div>
 
+      {/* Direction filter */}
       <div className="flex gap-2">
-        {FILTER_OPTIONS.map((opt) => (
+        {DIRECTION_OPTIONS.map((opt) => (
           <button
             key={opt.value}
-            onClick={() => setFilter(opt.value)}
+            onClick={() => setDirectionFilter(opt.value)}
             className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-              filter === opt.value
+              directionFilter === opt.value
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground"
             }`}
@@ -99,6 +178,40 @@ export default function PaymentsPage() {
             {opt.label}
           </button>
         ))}
+      </div>
+
+      {/* Method + Date filters */}
+      <div className="flex gap-4">
+        <div className="flex gap-1.5 overflow-x-auto">
+          {METHOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setMethodFilter(opt.value)}
+              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                methodFilter === opt.value
+                  ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
+                  : "bg-muted/60 text-muted-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto">
+          {DATE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setDateFilter(opt.value)}
+              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                dateFilter === opt.value
+                  ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
+                  : "bg-muted/60 text-muted-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
@@ -156,7 +269,7 @@ export default function PaymentsPage() {
         </div>
       ) : (
         <div className="py-12 text-center text-sm text-muted-foreground">
-          {search || filter !== "all"
+          {search || directionFilter !== "all" || methodFilter !== "all" || dateFilter !== "all"
             ? "Sonuç bulunamadı."
             : "Henüz ödeme kaydı yok."}
         </div>

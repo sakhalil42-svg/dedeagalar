@@ -17,6 +17,8 @@ import {
   AlertTriangle,
   Truck,
   CircleDollarSign,
+  Scale,
+  FileText,
 } from "lucide-react";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
@@ -34,18 +36,22 @@ import {
 function KpiCard({
   title,
   value,
+  subtitle,
   icon: Icon,
   loading,
   color,
+  href,
 }: {
   title: string;
   value: string;
+  subtitle?: string;
   icon: React.ElementType;
   loading?: boolean;
   color?: string;
+  href?: string;
 }) {
-  return (
-    <Card>
+  const content = (
+    <Card className={href ? "transition-colors hover:bg-muted/50" : ""}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">{title}</p>
@@ -54,11 +60,19 @@ function KpiCard({
         {loading ? (
           <Loader2 className="mt-2 h-5 w-5 animate-spin text-muted-foreground" />
         ) : (
-          <p className={`mt-1 text-lg font-bold ${color || ""}`}>{value}</p>
+          <>
+            <p className={`mt-1 text-lg font-bold ${color || ""}`}>{value}</p>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          </>
         )}
       </CardContent>
     </Card>
   );
+
+  if (href) {
+    return <Link href={href}>{content}</Link>;
+  }
+  return content;
 }
 
 function formatCompact(n: number): string {
@@ -66,8 +80,6 @@ function formatCompact(n: number): string {
   if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
   return n.toFixed(0);
 }
-
-// tooltipFormatter is defined inside the component to access isVisible
 
 export function DashboardContent() {
   const { data: kpis, isLoading: kpisLoading } = useDashboardKpis();
@@ -80,13 +92,15 @@ export function DashboardContent() {
 
   return (
     <div className="space-y-4">
-      {/* KPI Cards */}
+      {/* KPI Cards — 2x3 grid */}
       <div className="grid grid-cols-2 gap-3">
         <KpiCard
-          title="Aktif Satışlar"
-          value={kpis ? String(kpis.activeSalesCount) : "--"}
+          title="Bugünkü Kar"
+          value={kpis ? masked(kpis.todayProfit) : "--"}
           icon={TrendingUp}
           loading={kpisLoading}
+          color={kpis ? (kpis.todayProfit >= 0 ? "text-green-600" : "text-red-600") : ""}
+          href="/finance/profit"
         />
         <KpiCard
           title="Bu Ay Ciro"
@@ -95,11 +109,24 @@ export function DashboardContent() {
           loading={kpisLoading}
         />
         <KpiCard
+          title="Bu Ay Tonaj"
+          value={kpis ? formatWeight(kpis.monthlyTonnage) : "--"}
+          icon={Scale}
+          loading={kpisLoading}
+        />
+        <KpiCard
+          title="Aktif Satışlar"
+          value={kpis ? String(kpis.activeSalesCount) : "--"}
+          icon={FileText}
+          loading={kpisLoading}
+        />
+        <KpiCard
           title="Bekleyen Tahsilat"
           value={kpis ? masked(kpis.pendingReceivables) : "--"}
           icon={CircleDollarSign}
           loading={kpisLoading}
           color="text-amber-600"
+          href="/finance"
         />
         <KpiCard
           title="Bekleyen Ödeme"
@@ -107,8 +134,65 @@ export function DashboardContent() {
           icon={CircleDollarSign}
           loading={kpisLoading}
           color="text-red-600"
+          href="/finance"
         />
       </div>
+
+      {/* Due Checks Warning */}
+      {!kpisLoading && kpis && kpis.dueCheckCount > 0 && (
+        <Link href="/finance/calendar">
+          <Card className={kpis.overdueCheckCount > 0 ? "border-red-200 bg-red-50/50" : "border-yellow-200 bg-yellow-50/50"}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <AlertTriangle className={`h-5 w-5 ${kpis.overdueCheckCount > 0 ? "text-red-500" : "text-yellow-500"}`} />
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  {kpis.overdueCheckCount > 0
+                    ? `${kpis.overdueCheckCount} gecikmiş, ${kpis.dueCheckCount - kpis.overdueCheckCount} yaklaşan`
+                    : `${kpis.dueCheckCount} çek/senet vadesi yaklaşıyor`}
+                </p>
+                <p className="text-xs text-muted-foreground">7 gün içinde</p>
+              </div>
+              <p className="text-sm font-bold text-amber-600">{masked(kpis.dueCheckTotal)}</p>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
+      {/* Top Balances — Customers & Suppliers */}
+      {!kpisLoading && kpis && (kpis.topCustomers.length > 0 || kpis.topSuppliers.length > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          {kpis.topCustomers.length > 0 && (
+            <Card>
+              <CardHeader className="pb-1 pt-3 px-4">
+                <CardTitle className="text-xs text-muted-foreground">En Yüksek Alacak</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 px-4 pb-3">
+                {kpis.topCustomers.map((c, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <p className="truncate text-xs">{c.name}</p>
+                    <p className="shrink-0 text-xs font-bold text-red-600">{masked(c.balance)}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+          {kpis.topSuppliers.length > 0 && (
+            <Card>
+              <CardHeader className="pb-1 pt-3 px-4">
+                <CardTitle className="text-xs text-muted-foreground">En Yüksek Borç</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 px-4 pb-3">
+                {kpis.topSuppliers.map((c, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <p className="truncate text-xs">{c.name}</p>
+                    <p className="shrink-0 text-xs font-bold text-amber-600">{masked(c.balance)}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Monthly Chart */}
       <Card>
@@ -160,7 +244,7 @@ export function DashboardContent() {
             {dueItems.map((item, i) => (
               <div key={item.id}>
                 {i > 0 && <Separator />}
-                <Link href="/finance/checks" className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-muted/50">
+                <Link href="/finance/calendar" className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-muted/50">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="shrink-0 text-xs">
