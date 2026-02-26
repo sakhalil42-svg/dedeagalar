@@ -30,35 +30,28 @@ export function formatPercent(value: number): string {
 // ─── Number Input Helpers (binlik nokta + ondalık virgül) ───
 
 /**
- * Format a raw numeric string for display in inputs.
- * Uses Turkish convention: dot as thousands separator, comma as decimal.
+ * Format a raw JS numeric string (decimal dot) for Turkish display in inputs.
+ * Adds thousand separators (dot) and uses comma for decimal.
  *
  *   formatNumberInput("20000")    → "20.000"
  *   formatNumberInput("4.7")      → "4,7"
  *   formatNumberInput("1500000")  → "1.500.000"
- *   formatNumberInput("4,7")      → "4,7"
  *   formatNumberInput("")         → ""
  */
 export function formatNumberInput(value: string): string {
   if (!value) return "";
 
-  // Normalize: replace comma with dot for internal handling
-  let normalized = value.replace(/\./g, "").replace(",", ".");
+  // Value is stored with JS decimal dot (e.g. "4.7", "20000")
+  // Remove any non-numeric except dot
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  if (!cleaned) return "";
 
-  // Remove non-numeric chars except dot
-  normalized = normalized.replace(/[^0-9.]/g, "");
+  const dotIdx = cleaned.indexOf(".");
+  const intPart = dotIdx >= 0 ? cleaned.slice(0, dotIdx) : cleaned;
+  const decPart = dotIdx >= 0 ? cleaned.slice(dotIdx + 1) : null;
 
-  // Only allow one dot
-  const parts = normalized.split(".");
-  if (parts.length > 2) {
-    normalized = parts[0] + "." + parts.slice(1).join("");
-  }
-
-  const intPart = parts[0] || "0";
-  const decPart = parts.length > 1 ? parts[1] : null;
-
-  // Add thousands separators to integer part
-  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  // Add thousand separators to integer part
+  const formatted = (intPart || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
   if (decPart !== null) {
     return formatted + "," + decPart;
@@ -83,32 +76,55 @@ export function parseNumberInput(formatted: string): number {
 }
 
 /**
- * Filter input to only allow digits, comma, and dot.
- * Replaces dot with comma (Turkish decimal convention).
- * Only allows one comma.
+ * Handle onChange for Turkish-formatted number inputs.
+ * Takes raw input value (which is the formatted display string),
+ * sanitizes it, and returns the JS numeric string (dot decimal).
+ *
+ * User types "4,7" → returns "4.7"
+ * User types "4.7" (English keyboard) → returns "4.7"
+ * User types "20.000" (thousand sep) → returns "20000"
+ * User types "abc" → returns ""
  */
-export function sanitizeNumberInput(raw: string, allowDecimal: boolean = true): string {
-  // Only keep digits, comma, dot
-  let filtered = raw.replace(/[^0-9.,]/g, "");
+export function handleNumberChange(displayValue: string, allowDecimal: boolean = true): string {
+  // Step 1: Keep only digits, dots, commas
+  let filtered = displayValue.replace(/[^0-9.,]/g, "");
+  if (!filtered) return "";
 
   if (!allowDecimal) {
-    // Remove all commas and dots, only digits
+    // Integer only: strip all separators
     return filtered.replace(/[.,]/g, "");
   }
 
-  // Replace dots with commas (user typing on English keyboard)
-  // But only if it looks like a decimal separator, not thousands
-  // Strategy: the last comma/dot is the decimal separator
-  // For input, we just normalize any dot to comma and allow only one
-  filtered = filtered.replace(/\./g, ",");
+  // Step 2: Find the decimal separator.
+  // In Turkish formatted display, dots are thousands and comma is decimal.
+  // But user might also type a dot as decimal (English keyboard).
+  // Strategy: the LAST comma or dot is the decimal separator IF it has <= 2 digits after it.
+  // Otherwise, treat all as thousand separators.
 
-  // Only keep one comma (the first one)
-  const firstComma = filtered.indexOf(",");
-  if (firstComma !== -1) {
-    filtered =
-      filtered.slice(0, firstComma + 1) +
-      filtered.slice(firstComma + 1).replace(/,/g, "");
+  // Simple approach: find if there's a comma — that's always decimal in TR
+  const commaIdx = filtered.lastIndexOf(",");
+  if (commaIdx >= 0) {
+    // Comma is decimal separator
+    const intRaw = filtered.slice(0, commaIdx).replace(/[.,]/g, "");
+    const decRaw = filtered.slice(commaIdx + 1).replace(/[.,]/g, "");
+    return intRaw + "." + decRaw;
   }
 
-  return filtered;
+  // No comma — check dots
+  const dots = filtered.split(".");
+  if (dots.length === 1) {
+    // No separators at all, plain number
+    return dots[0];
+  }
+
+  // Multiple parts split by dots. The last part could be decimal.
+  // Heuristic: if last part has exactly 1-2 chars AND there's only one dot,
+  // treat as decimal. Otherwise all dots are thousands.
+  if (dots.length === 2 && dots[1].length <= 2) {
+    // Could be "4.7" or "4.70" — decimal
+    return dots[0] + "." + dots[1];
+  }
+
+  // All dots are thousand separators (e.g. "20.000" or "1.500.000")
+  return dots.join("");
 }

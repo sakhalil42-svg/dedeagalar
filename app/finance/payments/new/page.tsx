@@ -26,7 +26,7 @@ import {
   FileText,
   ScrollText,
 } from "lucide-react";
-import { formatNumberInput, parseNumberInput, sanitizeNumberInput } from "@/lib/utils/format";
+import { formatNumberInput, parseNumberInput, handleNumberChange } from "@/lib/utils/format";
 import { toast } from "sonner";
 import Link from "next/link";
 import { generateReceiptPdf } from "@/lib/utils/pdf-export";
@@ -313,11 +313,7 @@ function NewPaymentForm() {
               type="text"
               inputMode="decimal"
               value={amount ? formatNumberInput(amount) : ""}
-              onChange={(e) => {
-                const sanitized = sanitizeNumberInput(e.target.value, true);
-                const raw = sanitized.replace(/\./g, "").replace(",", ".");
-                setAmount(raw);
-              }}
+              onChange={(e) => setAmount(handleNumberChange(e.target.value, true))}
               placeholder="0,00"
               className="h-14 pl-8 text-2xl font-bold"
               required

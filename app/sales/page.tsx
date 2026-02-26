@@ -13,7 +13,7 @@ import {
 } from "@/lib/hooks/use-delivery-photos";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
-import { formatCurrency, formatDateShort, formatNumberInput, parseNumberInput, sanitizeNumberInput } from "@/lib/utils/format";
+import { formatCurrency, formatDateShort, formatNumberInput, parseNumberInput, handleNumberChange } from "@/lib/utils/format";
 import type { Sale, Delivery, FreightPayer, Contact, PricingModel } from "@/lib/types/database.types";
 import { PlateCombobox } from "@/components/forms/plate-combobox";
 
@@ -382,9 +382,7 @@ function ActiveOrderView({
                 placeholder="0,00"
                 value={formatNumberInput(effectiveCustomerPrice)}
                 onChange={(e) => {
-                  const sanitized = sanitizeNumberInput(e.target.value, true);
-                  const raw = sanitized.replace(/\./g, "").replace(",", ".");
-                  setOrder((p) => ({ ...p, customerPrice: raw }));
+                  setOrder((p) => ({ ...p, customerPrice: handleNumberChange(e.target.value, true) }));
                 }}
                 className="h-9 text-sm"
               />
@@ -397,9 +395,7 @@ function ActiveOrderView({
                 placeholder="0,00"
                 value={formatNumberInput(order.supplierPrice)}
                 onChange={(e) => {
-                  const sanitized = sanitizeNumberInput(e.target.value, true);
-                  const raw = sanitized.replace(/\./g, "").replace(",", ".");
-                  setOrder((p) => ({ ...p, supplierPrice: raw }));
+                  setOrder((p) => ({ ...p, supplierPrice: handleNumberChange(e.target.value, true) }));
                 }}
                 className="h-9 text-sm"
               />
@@ -709,11 +705,7 @@ function QuickEntryForm({
               inputMode="decimal"
               placeholder="0"
               value={freightCost ? formatNumberInput(freightCost) : ""}
-              onChange={(e) => {
-                const sanitized = sanitizeNumberInput(e.target.value, true);
-                const raw = sanitized.replace(/\./g, "").replace(",", ".");
-                setFreightCost(raw);
-              }}
+              onChange={(e) => setFreightCost(handleNumberChange(e.target.value, true))}
               className="h-9 text-sm"
             />
           </div>
@@ -1064,10 +1056,7 @@ function TicketRow({
               type="text"
               inputMode="numeric"
               value={editWeight ? formatNumberInput(editWeight) : ""}
-              onChange={(e) => {
-                const sanitized = sanitizeNumberInput(e.target.value, false);
-                setEditWeight(sanitized);
-              }}
+              onChange={(e) => setEditWeight(handleNumberChange(e.target.value, false))}
               className="h-8 text-sm"
             />
           </div>
@@ -1087,11 +1076,7 @@ function TicketRow({
               type="text"
               inputMode="decimal"
               value={editFreight ? formatNumberInput(editFreight) : ""}
-              onChange={(e) => {
-                const sanitized = sanitizeNumberInput(e.target.value, true);
-                const raw = sanitized.replace(/\./g, "").replace(",", ".");
-                setEditFreight(raw);
-              }}
+              onChange={(e) => setEditFreight(handleNumberChange(e.target.value, true))}
               className="h-8 text-sm"
             />
           </div>
