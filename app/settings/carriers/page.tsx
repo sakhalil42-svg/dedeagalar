@@ -197,11 +197,24 @@ export default function CarriersPage() {
                             )}
                           </div>
                         </div>
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        )}
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const bal = balances?.find((b) => b.id === carrier.id);
+                            if (bal && bal.balance > 0) {
+                              return (
+                                <span className="text-sm font-bold text-red-600">
+                                  {formatCurrency(bal.balance)}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
                       </button>
 
                       {isExpanded && (

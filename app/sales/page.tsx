@@ -8,11 +8,12 @@ import { useDeliveriesBySale, useUpdateDelivery, useTodayDeliveries } from "@/li
 import type { TodayDelivery } from "@/lib/hooks/use-deliveries";
 import {
   useCreateDeliveryWithTransactions,
+  useUpdateDeliveryWithCarrierSync,
+  useDeleteDeliveryWithTransactions,
   useCancelSale,
   useReassignSale,
   useReturnDelivery,
 } from "@/lib/hooks/use-delivery-with-transactions";
-import { useDeleteDelivery } from "@/lib/hooks/use-deliveries";
 import {
   useDeliveryPhotos,
   useUploadDeliveryPhoto,
@@ -526,17 +527,21 @@ function ActiveOrderView({
 // ─── TODAY'S DELIVERIES LIST ─────────────────────────────────────
 function TodayDeliveriesList({ masked }: { masked: (amount: number) => string }) {
   const { data: todayDeliveries, isLoading } = useTodayDeliveries();
-  const deleteDelivery = useDeleteDelivery();
+  const deleteDelivery = useDeleteDeliveryWithTransactions();
   const updateDelivery = useUpdateDelivery();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState("");
   const [editPlate, setEditPlate] = useState("");
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (d: TodayDelivery) => {
     if (!confirm("Bu sevkiyatı silmek istediğinize emin misiniz?")) return;
     try {
-      await deleteDelivery.mutateAsync(id);
+      await deleteDelivery.mutateAsync({
+        deliveryId: d.id,
+        saleId: d.sale_id,
+        purchaseId: d.purchase_id,
+      });
       toast.success("Fiş silindi");
     } catch {
       toast.error("Silme hatası");
@@ -624,7 +629,7 @@ function TodayDeliveriesList({ masked }: { masked: (amount: number) => string })
               onStartEdit={() => startEdit(d)}
               onSaveEdit={() => saveEdit(d)}
               onCancelEdit={() => setEditingId(null)}
-              onDelete={() => handleDelete(d.id)}
+              onDelete={() => handleDelete(d)}
               isDeleting={deleteDelivery.isPending}
               isSaving={updateDelivery.isPending}
             />
@@ -1119,7 +1124,7 @@ function TicketListAndSummary({
   feedTypeName?: string;
 }) {
   const { data: deliveries, isLoading } = useDeliveriesBySale(saleId);
-  const deleteDelivery = useDeleteDelivery();
+  const deleteDelivery = useDeleteDeliveryWithTransactions();
 
   const summary = useMemo(() => {
     if (!deliveries)
@@ -1149,10 +1154,14 @@ function TicketListAndSummary({
     );
   }, [deliveries, customerPrice, supplierPrice, pricingModel]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (d: Delivery) => {
     if (!confirm("Bu sevkiyatı silmek istediğinize emin misiniz?\nCari bakiye otomatik güncellenecektir.")) return;
     try {
-      await deleteDelivery.mutateAsync(id);
+      await deleteDelivery.mutateAsync({
+        deliveryId: d.id,
+        saleId: d.sale_id,
+        purchaseId: d.purchase_id,
+      });
       toast.success("Fiş silindi");
     } catch {
       toast.error("Silme hatası");
@@ -1197,7 +1206,7 @@ function TicketListAndSummary({
               customerPrice={customerPrice}
               feedTypeName={feedTypeName}
               masked={masked}
-              onDelete={() => handleDelete(d.id)}
+              onDelete={() => handleDelete(d)}
               isDeleting={deleteDelivery.isPending}
             />
           ))}
@@ -1278,7 +1287,7 @@ function TicketRow({
 
   const { data: photos } = useDeliveryPhotos(delivery.id);
   const uploadPhoto = useUploadDeliveryPhoto();
-  const updateDelivery = useUpdateDelivery();
+  const updateDelivery = useUpdateDeliveryWithCarrierSync();
 
   const waUrl = customerContact?.phone
     ? buildWhatsAppUrl(customerContact.phone, customerContact.name, delivery, customerPrice, feedTypeName)

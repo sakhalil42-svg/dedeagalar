@@ -2,7 +2,37 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { DeliveryInsert, FreightPayer, PricingModel } from "@/lib/types/database.types";
+import type { DeliveryInsert, DeliveryUpdate, FreightPayer, PricingModel } from "@/lib/types/database.types";
+
+// ─── Helper: find carrier ID by name or plate ───
+async function findCarrierId(
+  supabase: ReturnType<typeof createClient>,
+  carrierName: string | null | undefined,
+  vehiclePlate: string | null | undefined
+): Promise<string | null> {
+  // 1. Try by carrier name
+  if (carrierName) {
+    const { data: carrier } = await supabase
+      .from("carriers")
+      .select("id")
+      .eq("name", carrierName)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (carrier) return carrier.id;
+  }
+
+  // 2. Try by plate → vehicle → carrier_id
+  if (vehiclePlate) {
+    const { data: vehicle } = await supabase
+      .from("vehicles")
+      .select("carrier_id")
+      .eq("plate", vehiclePlate)
+      .maybeSingle();
+    if (vehicle?.carrier_id) return vehicle.carrier_id;
+  }
+
+  return null;
+}
 
 interface CreateDeliveryWithTxParams {
   delivery: DeliveryInsert;
@@ -91,20 +121,13 @@ export function useCreateDeliveryWithTransactions() {
       if (stxErr) throw stxErr;
 
       // 6. Carrier transaction — freight_payer='me' → nakliyeci borcuma ekle
-      if (freightPayer === "me" && freightCost > 0 && del.carrier_name) {
-        // Try to find carrier by name
-        const { data: carrier } = await supabase
-          .from("carriers")
-          .select("id")
-          .eq("name", del.carrier_name)
-          .eq("is_active", true)
-          .maybeSingle();
-
-        if (carrier) {
+      if (freightPayer === "me" && freightCost > 0) {
+        const carrierId = await findCarrierId(supabase, del.carrier_name, del.vehicle_plate);
+        if (carrierId) {
           await supabase
             .from("carrier_transactions")
             .insert({
-              carrier_id: carrier.id,
+              carrier_id: carrierId,
               type: "freight_charge",
               amount: freightCost,
               description: `Nakliye - ${netKg.toLocaleString("tr-TR")} kg, ${del.vehicle_plate || "-"}`,
@@ -479,6 +502,110 @@ export function useReturnDelivery() {
       queryClient.invalidateQueries({ queryKey: ["account_summary"] });
       queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
       queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+    },
+  });
+}
+
+// ─── Update delivery with carrier transaction sync ───
+export function useUpdateDeliveryWithCarrierSync() {
+  const supabase = createClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...values
+    }: DeliveryUpdate & { id: string }) => {
+      // 1. Get old delivery state
+      const { data: oldDel } = await supabase
+        .from("deliveries")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (!oldDel) throw new Error("Delivery bulunamadı");
+
+      // 2. Update the delivery
+      const { data: newDel, error } = await supabase
+        .from("deliveries")
+        .update(values)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+
+      const oldPayer = oldDel.freight_payer || "me";
+      const newPayer = newDel.freight_payer || "me";
+      const oldFreight = oldDel.freight_cost || 0;
+      const newFreight = newDel.freight_cost || 0;
+      const oldHadCarrierTx = oldPayer === "me" && oldFreight > 0;
+      const newNeedsCarrierTx = newPayer === "me" && newFreight > 0;
+
+      // 3. Handle carrier transaction changes
+      if (oldHadCarrierTx && !newNeedsCarrierTx) {
+        // Was "me" → now not "me" OR freight removed: delete carrier tx
+        await supabase
+          .from("carrier_transactions")
+          .delete()
+          .eq("reference_id", id);
+      } else if (!oldHadCarrierTx && newNeedsCarrierTx) {
+        // Was not "me" → now "me": create carrier tx
+        const carrierId = await findCarrierId(supabase, newDel.carrier_name, newDel.vehicle_plate);
+        if (carrierId) {
+          await supabase
+            .from("carrier_transactions")
+            .insert({
+              carrier_id: carrierId,
+              type: "freight_charge",
+              amount: newFreight,
+              description: `Nakliye - ${newDel.net_weight.toLocaleString("tr-TR")} kg, ${newDel.vehicle_plate || "-"}`,
+              reference_id: id,
+              transaction_date: newDel.delivery_date,
+            });
+        }
+      } else if (oldHadCarrierTx && newNeedsCarrierTx) {
+        // Still "me" — check if amount or carrier changed
+        const oldCarrierId = await findCarrierId(supabase, oldDel.carrier_name, oldDel.vehicle_plate);
+        const newCarrierId = await findCarrierId(supabase, newDel.carrier_name, newDel.vehicle_plate);
+
+        if (oldCarrierId !== newCarrierId) {
+          // Carrier changed — delete old, create new
+          await supabase
+            .from("carrier_transactions")
+            .delete()
+            .eq("reference_id", id);
+          if (newCarrierId) {
+            await supabase
+              .from("carrier_transactions")
+              .insert({
+                carrier_id: newCarrierId,
+                type: "freight_charge",
+                amount: newFreight,
+                description: `Nakliye - ${newDel.net_weight.toLocaleString("tr-TR")} kg, ${newDel.vehicle_plate || "-"}`,
+                reference_id: id,
+                transaction_date: newDel.delivery_date,
+              });
+          }
+        } else if (oldFreight !== newFreight && newCarrierId) {
+          // Same carrier, amount changed — update
+          await supabase
+            .from("carrier_transactions")
+            .update({ amount: newFreight })
+            .eq("reference_id", id)
+            .eq("type", "freight_charge");
+        }
+      }
+
+      return newDel;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["account_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["carrier_balances"] });
     },
   });
 }

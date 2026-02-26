@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useCarriers } from "@/lib/hooks/use-carriers";
@@ -140,75 +140,7 @@ export default function CarrierDetailPage() {
       </Button>
 
       {/* Transactions */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">İşlem Geçmişi</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-0 p-0">
-          {txLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : transactions && transactions.length > 0 ? (
-            transactions.map((tx, i) => {
-              const isPayment = tx.type === "payment";
-              return (
-                <div key={tx.id}>
-                  {i > 0 && <Separator />}
-                  <div className="flex items-center gap-3 px-4 py-3">
-                    <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                        isPayment
-                          ? "bg-green-100 text-green-600"
-                          : "bg-red-100 text-red-600"
-                      }`}
-                    >
-                      {isPayment ? (
-                        <Banknote className="h-4 w-4" />
-                      ) : (
-                        <Truck className="h-4 w-4" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-medium">
-                          {tx.description || (isPayment ? "Ödeme" : "Nakliye")}
-                        </p>
-                        <Badge
-                          variant="secondary"
-                          className={`text-xs ${
-                            isPayment
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {isPayment ? "Ödeme" : "Nakliye"}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDateShort(tx.transaction_date)}
-                        {tx.payment_method && ` · ${tx.payment_method}`}
-                      </p>
-                    </div>
-                    <p
-                      className={`text-sm font-bold ${
-                        isPayment ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {isPayment ? "-" : "+"}
-                      {formatCurrency(tx.amount)}
-                    </p>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Henüz işlem yok.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <TransactionList transactions={transactions || []} isLoading={txLoading} />
 
       {/* Payment Dialog */}
       <Dialog open={showPayment} onOpenChange={setShowPayment}>
@@ -266,5 +198,98 @@ export default function CarrierDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ─── Transaction List with Running Balance ───
+function TransactionList({
+  transactions,
+  isLoading,
+}: {
+  transactions: { id: string; type: string; amount: number; description: string | null; transaction_date: string; payment_method: string | null }[];
+  isLoading: boolean;
+}) {
+  // Sort chronologically (oldest first) to compute running balance, then reverse for display
+  const withBalance = useMemo(() => {
+    if (!transactions || transactions.length === 0) return [];
+    const sorted = [...transactions].sort(
+      (a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
+    );
+    let running = 0;
+    const items = sorted.map((tx) => {
+      if (tx.type === "freight_charge") running += Number(tx.amount);
+      else running -= Number(tx.amount);
+      return { ...tx, runningBalance: running };
+    });
+    return items.reverse(); // newest first
+  }, [transactions]);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">İşlem Geçmişi</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-0 p-0">
+        {isLoading ? (
+          <div className="flex justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : withBalance.length > 0 ? (
+          withBalance.map((tx, i) => {
+            const isPayment = tx.type === "payment";
+            return (
+              <div key={tx.id}>
+                {i > 0 && <Separator />}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                      isPayment
+                        ? "bg-green-100 text-green-600"
+                        : "bg-red-100 text-red-600"
+                    }`}
+                  >
+                    {isPayment ? (
+                      <Banknote className="h-4 w-4" />
+                    ) : (
+                      <Truck className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {tx.description || (isPayment ? "Ödeme" : "Nakliye")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateShort(tx.transaction_date)}
+                      {tx.payment_method && ` · ${tx.payment_method}`}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p
+                      className={`text-sm font-bold ${
+                        isPayment ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {isPayment ? "-" : "+"}
+                      {formatCurrency(tx.amount)}
+                    </p>
+                    <p
+                      className={`text-[10px] ${
+                        tx.runningBalance > 0 ? "text-red-500" : "text-green-500"
+                      }`}
+                    >
+                      Bakiye: {formatCurrency(Math.abs(tx.runningBalance))}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Henüz işlem yok.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
