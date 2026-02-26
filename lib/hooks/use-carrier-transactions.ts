@@ -23,6 +23,7 @@ export function useCarrierTransactions(carrierId: string) {
         .from("carrier_transactions")
         .select("*")
         .eq("carrier_id", carrierId)
+        .is("deleted_at", null)
         .order("transaction_date", { ascending: false });
       if (error) throw error;
       return data as CarrierTransaction[];

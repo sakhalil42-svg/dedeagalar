@@ -16,6 +16,7 @@ export function useSales() {
       const { data, error } = await supabase
         .from("sales")
         .select(SELECT_WITH_JOINS)
+        .is("deleted_at", null)
         .order("sale_date", { ascending: false });
       if (error) throw error;
       return data as Sale[];
@@ -99,7 +100,7 @@ export function useDeleteSale() {
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("sales")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },

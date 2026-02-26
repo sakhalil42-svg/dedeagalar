@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { DeliveryInsert, DeliveryUpdate, FreightPayer, PricingModel } from "@/lib/types/database.types";
+import { writeAuditLog } from "./use-audit-log";
 
 // ─── Helper: find carrier ID by name or plate ───
 async function findCarrierId(
@@ -136,6 +137,14 @@ export function useCreateDeliveryWithTransactions() {
             });
         }
       }
+
+      // Audit log
+      writeAuditLog({
+        table_name: "deliveries",
+        record_id: del.id,
+        action: "create",
+        new_values: { net_weight: del.net_weight, vehicle_plate: del.vehicle_plate, carrier_name: del.carrier_name },
+      }).catch(() => {}); // fire-and-forget
 
       return del;
     },
@@ -624,18 +633,27 @@ export function useDeleteDeliveryWithTransactions() {
       saleId: string | null;
       purchaseId: string | null;
     }) => {
-      // Delete carrier transaction for this delivery
+      const now = new Date().toISOString();
+
+      // Soft delete carrier transaction for this delivery
       await supabase
         .from("carrier_transactions")
-        .delete()
+        .update({ deleted_at: now })
         .eq("reference_id", deliveryId);
 
-      // Delete the delivery
+      // Soft delete the delivery
       const { error } = await supabase
         .from("deliveries")
-        .delete()
+        .update({ deleted_at: now })
         .eq("id", deliveryId);
       if (error) throw error;
+
+      // Audit log
+      writeAuditLog({
+        table_name: "deliveries",
+        record_id: deliveryId,
+        action: "delete",
+      }).catch(() => {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deliveries"] });

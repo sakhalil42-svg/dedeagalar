@@ -16,6 +16,7 @@ export function useDeliveriesBySale(saleId: string) {
         .from("deliveries")
         .select("*")
         .eq("sale_id", saleId)
+        .is("deleted_at", null)
         .order("delivery_date", { ascending: false });
       if (error) throw error;
       return data as Delivery[];
@@ -34,6 +35,7 @@ export function useDeliveriesByPurchase(purchaseId: string) {
         .from("deliveries")
         .select("*")
         .eq("purchase_id", purchaseId)
+        .is("deleted_at", null)
         .order("delivery_date", { ascending: false });
       if (error) throw error;
       return data as Delivery[];
@@ -109,6 +111,7 @@ export function useTodayDeliveries() {
         .from("deliveries")
         .select("*, sale:sales(contact_id, unit_price, feed_type_id, contact:contacts(id, name, phone), feed_type:feed_types(id, name))")
         .eq("delivery_date", today)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as TodayDelivery[];
@@ -124,7 +127,7 @@ export function useDeleteDelivery() {
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("deliveries")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },

@@ -77,6 +77,7 @@ export function useDeliveriesByContact(contactId: string) {
         .from("deliveries")
         .select("*")
         .or(conditions.join(","))
+        .is("deleted_at", null)
         .order("delivery_date", { ascending: false });
       if (error) throw error;
 

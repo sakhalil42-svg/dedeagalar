@@ -25,6 +25,7 @@ export function useChecks() {
       const { data, error } = await supabase
         .from("checks")
         .select("*, contact:contacts(id, name, type)")
+        .is("deleted_at", null)
         .order("due_date", { ascending: true });
 
       if (!error) return data as Check[];
@@ -33,6 +34,7 @@ export function useChecks() {
       const { data: checks, error: chkErr } = await supabase
         .from("checks")
         .select("*")
+        .is("deleted_at", null)
         .order("due_date", { ascending: true });
       if (chkErr) throw chkErr;
 
@@ -275,7 +277,7 @@ export function useDeleteCheck() {
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("checks")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },

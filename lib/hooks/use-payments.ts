@@ -15,12 +15,14 @@ export function usePayments() {
       const { data, error } = await supabase
         .from("payments")
         .select("*, contact:contacts(id, name, type)")
+        .is("deleted_at", null)
         .order("payment_date", { ascending: false });
       if (error) {
         // Fallback without join if relation fails
         const { data: fallback, error: fbErr } = await supabase
           .from("payments")
           .select("*")
+          .is("deleted_at", null)
           .order("payment_date", { ascending: false });
         if (fbErr) throw fbErr;
         return fallback as Payment[];
@@ -122,7 +124,7 @@ export function useDeletePayment() {
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("payments")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },

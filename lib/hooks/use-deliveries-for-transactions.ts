@@ -33,6 +33,7 @@ export function useDeliveriesForTransactions(
           .from("deliveries")
           .select("*")
           .in("sale_id", referenceIds)
+          .is("deleted_at", null)
           .order("delivery_date", { ascending: false });
         if (!error && data) deliveries = data as Delivery[];
       } else {
@@ -41,6 +42,7 @@ export function useDeliveriesForTransactions(
           .from("deliveries")
           .select("*")
           .in("id", referenceIds)
+          .is("deleted_at", null)
           .order("delivery_date", { ascending: false });
         if (!error && data) deliveries = data as Delivery[];
       }
