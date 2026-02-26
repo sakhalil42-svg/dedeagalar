@@ -16,13 +16,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kaba Yem Ticaret",
-  description: "Kaba yem alım-satım ticaret uygulaması",
+  title: "Dedeağalar Grup",
+  description: "Dedeağalar Grup ticaret uygulaması",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "KabaYem",
+    title: "Dedeağalar",
   },
 };
 
@@ -43,7 +43,8 @@ export default function RootLayout({
   return (
     <html lang="tr">
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

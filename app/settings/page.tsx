@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronRight, Wheat, Warehouse } from "lucide-react";
+import { ArrowLeft, ChevronRight, Wheat, Warehouse, Users } from "lucide-react";
 
 const SETTINGS_ITEMS = [
   {
@@ -17,6 +17,12 @@ const SETTINGS_ITEMS = [
     description: "Depo ve lokasyonları yönetin",
     href: "/settings/warehouses",
     icon: Warehouse,
+  },
+  {
+    title: "Kullanıcı Yönetimi",
+    description: "Kullanıcıları ve rollerini yönetin",
+    href: "/settings/users",
+    icon: Users,
   },
 ];
 

@@ -4,6 +4,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { DashboardContent } from "@/components/dashboard/dashboard-content";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
 import Link from "next/link";
+import Image from "next/image";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -17,8 +18,14 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-4 p-4">
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Kaba Yem Ticaret</h1>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo.jpeg"
+            alt="Dedeağalar Grup"
+            width={120}
+            height={60}
+            className="h-10 w-auto"
+          />
           <p className="text-sm text-muted-foreground">
             Hoş geldin, {fullName}
           </p>

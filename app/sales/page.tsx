@@ -628,10 +628,12 @@ function QuickEntryForm({
           const kg = parseFloat(netWeight);
           const freight = freightCost ? parseFloat(freightCost) : 0;
           const custAmount = freightPayer === "customer" ? kg * customerPrice - freight : kg * customerPrice;
-          const suppAmount = pricingModel === "nakliye_dahil"
+          const suppAmount = pricingModel === "nakliye_dahil" && freightPayer !== "supplier"
             ? kg * supplierPrice - freight
             : kg * supplierPrice;
-          const myFreight = freightPayer === "me" ? freight : 0;
+          const myFreight = pricingModel === "nakliye_dahil"
+            ? (freightPayer === "me" ? freight : 0)
+            : (freightPayer === "me" ? freight : 0);
           const profit = custAmount - suppAmount - myFreight;
 
           return (
@@ -707,7 +709,7 @@ function TicketListAndSummary({
           d.freight_payer === "customer"
             ? d.net_weight * customerPrice - freight
             : d.net_weight * customerPrice;
-        const suppAmount = pricingModel === "nakliye_dahil"
+        const suppAmount = pricingModel === "nakliye_dahil" && d.freight_payer !== "supplier"
           ? d.net_weight * supplierPrice - freight
           : d.net_weight * supplierPrice;
         const myFreight = d.freight_payer === "me" ? freight : 0;

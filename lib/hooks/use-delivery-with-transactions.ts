@@ -44,8 +44,9 @@ export function useCreateDeliveryWithTransactions() {
         freightPayer === "customer"
           ? netKg * customerPrice - freightCost
           : netKg * customerPrice;
-      // Nakliye dahil: üretici fiyatı nakliyeyi içerir, HER ZAMAN düşülür
-      const supplierDebit = pricingModel === "nakliye_dahil"
+      // Nakliye dahil: üretici fiyatı nakliyeyi içerir
+      // Üretici ödüyorsa düşüm yok (zaten fiyatında), diğer durumlarda düşülür
+      const supplierDebit = pricingModel === "nakliye_dahil" && freightPayer !== "supplier"
         ? netKg * supplierPrice - freightCost
         : netKg * supplierPrice;
 
@@ -85,7 +86,7 @@ export function useCreateDeliveryWithTransactions() {
           account_id: supplierAccount.id,
           type: "credit",
           amount: supplierDebit,
-          description: `Alım - ${netKg.toLocaleString("tr-TR")} kg × ${supplierPrice} ₺/kg${pricingModel === "nakliye_dahil" ? ` (nakliye -${freightCost} ₺)` : ""}`,
+          description: `Alım - ${netKg.toLocaleString("tr-TR")} kg × ${supplierPrice} ₺/kg${pricingModel === "nakliye_dahil" && freightPayer !== "supplier" ? ` (nakliye -${freightCost} ₺)` : ""}`,
           reference_type: "purchase",
           reference_id: del.purchase_id,
           transaction_date: del.delivery_date,

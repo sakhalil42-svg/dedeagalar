@@ -1,7 +1,7 @@
 {
-  "name": "Kaba Yem Ticaret",
-  "short_name": "KabaYem",
-  "description": "Kaba yem alım-satım ticaret uygulaması",
+  "name": "Dedeağalar Grup",
+  "short_name": "Dedeağalar",
+  "description": "Dedeağalar Grup ticaret uygulaması",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

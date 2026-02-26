@@ -3,19 +3,17 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Image from "next/image";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
-import { Wheat } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -49,11 +47,19 @@ export default function LoginPage() {
     <div className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Wheat className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-2">
+            <Image
+              src="/logo.jpeg"
+              alt="Dedeağalar Grup"
+              width={200}
+              height={100}
+              className="mx-auto"
+              priority
+            />
           </div>
-          <CardTitle className="text-2xl">Kaba Yem Ticaret</CardTitle>
-          <CardDescription>Hesabınıza giriş yapın</CardDescription>
+          <p className="text-sm text-muted-foreground">
+            Hesabınıza giriş yapın
+          </p>
         </CardHeader>
 
         <form onSubmit={handleLogin}>
@@ -91,16 +97,10 @@ export default function LoginPage() {
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col gap-3">
+          <CardFooter>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Hesabınız yok mu?{" "}
-              <Link href="/register" className="text-primary underline-offset-4 hover:underline">
-                Kayıt Ol
-              </Link>
-            </p>
           </CardFooter>
         </form>
       </Card>
