@@ -27,6 +27,7 @@ const REF_LABELS: Record<string, string> = {
   purchase: "Alım",
   sale: "Satış",
   payment: "Ödeme",
+  delivery: "Sevkiyat",
 };
 
 const FREIGHT_PAYER_LABELS: Record<string, string> = {

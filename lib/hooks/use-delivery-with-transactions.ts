@@ -80,6 +80,7 @@ export function useCreateDeliveryWithTransactions() {
       if (ctxErr) throw ctxErr;
 
       // 5. Insert supplier transaction (we owe supplier → credit)
+      // reference_id = delivery id (not purchase_id) so we can trace supplier→delivery
       const { error: stxErr } = await supabase
         .from("account_transactions")
         .insert({
@@ -87,8 +88,8 @@ export function useCreateDeliveryWithTransactions() {
           type: "credit",
           amount: supplierDebit,
           description: `Alım - ${netKg.toLocaleString("tr-TR")} kg × ${supplierPrice} ₺/kg${pricingModel === "nakliye_dahil" && freightPayer !== "supplier" ? ` (nakliye -${freightCost} ₺)` : ""}`,
-          reference_type: "purchase",
-          reference_id: del.purchase_id,
+          reference_type: "delivery",
+          reference_id: del.id,
           transaction_date: del.delivery_date,
         });
       if (stxErr) throw stxErr;

@@ -1,16 +1,14 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { paymentSchema, type PaymentFormValues } from "@/lib/schemas/payment";
-import { useCreatePayment } from "@/lib/hooks/use-payments";
+import { useCreatePaymentWithTransaction } from "@/lib/hooks/use-payments";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -18,206 +16,325 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Banknote,
+  Building2,
+  FileText,
+  ScrollText,
+} from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
 export default function NewPaymentPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
       <NewPaymentForm />
     </Suspense>
   );
 }
 
+type PaymentMethod = "cash" | "transfer" | "check" | "promissory_note";
+type Direction = "inbound" | "outbound";
+
+const METHOD_OPTIONS: {
+  value: PaymentMethod;
+  label: string;
+  icon: typeof Banknote;
+}[] = [
+  { value: "cash", label: "Nakit", icon: Banknote },
+  { value: "transfer", label: "Havale/EFT", icon: Building2 },
+  { value: "check", label: "Çek", icon: FileText },
+  { value: "promissory_note", label: "Senet", icon: ScrollText },
+];
+
 function NewPaymentForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedContactId = searchParams.get("contact_id") || "";
-  const createPayment = useCreatePayment();
+  const createPayment = useCreatePaymentWithTransaction();
   const { data: contacts } = useContacts();
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<PaymentFormValues>({
-    resolver: zodResolver(paymentSchema),
-    defaultValues: {
-      contact_id: preselectedContactId,
-      direction: "outbound",
-      method: "cash",
-      amount: "",
-      payment_date: new Date().toISOString().split("T")[0],
-      description: "",
-      reference_type: "",
-      reference_id: "",
-    },
-  });
+  const [direction, setDirection] = useState<Direction>("outbound");
+  const [contactId, setContactId] = useState(preselectedContactId);
+  const [method, setMethod] = useState<PaymentMethod>("cash");
+  const [amount, setAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [description, setDescription] = useState("");
 
-  const direction = watch("direction");
+  // Çek/Senet ek alanları
+  const [checkNo, setCheckNo] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [dueDate, setDueDate] = useState("");
 
-  async function onSubmit(values: PaymentFormValues) {
+  const [saving, setSaving] = useState(false);
+
+  const isCheckOrNote = method === "check" || method === "promissory_note";
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!contactId) {
+      toast.error("Kişi seçiniz");
+      return;
+    }
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error("Geçerli tutar giriniz");
+      return;
+    }
+    if (isCheckOrNote && !dueDate) {
+      toast.error("Vade tarihi giriniz");
+      return;
+    }
+
+    setSaving(true);
     try {
       await createPayment.mutateAsync({
-        contact_id: values.contact_id,
-        direction: values.direction,
-        method: values.method,
-        amount: Number(values.amount),
-        payment_date: values.payment_date,
-        description: values.description || null,
-        reference_type: values.reference_type || null,
-        reference_id: values.reference_id || null,
+        contact_id: contactId,
+        direction,
+        method,
+        amount: parseFloat(amount),
+        payment_date: paymentDate,
+        description: description || null,
+        ...(isCheckOrNote
+          ? {
+              check_no: checkNo || undefined,
+              bank_name: bankName || undefined,
+              due_date: dueDate || undefined,
+            }
+          : {}),
       });
       toast.success(
-        values.direction === "inbound"
-          ? "Tahsilat kaydedildi"
-          : "Ödeme kaydedildi"
+        direction === "inbound" ? "Tahsilat kaydedildi" : "Ödeme kaydedildi"
       );
-      router.push("/finance/payments");
-    } catch {
-      toast.error("Kayıt sırasında hata oluştu");
+      // Kişi detay sayfasına geri dön
+      if (preselectedContactId) {
+        router.push(`/finance/${preselectedContactId}`);
+      } else {
+        router.push("/finance");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Hata oluştu";
+      toast.error(message);
+    } finally {
+      setSaving(false);
     }
   }
 
   return (
-    <div className="p-4">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="space-y-4 p-4">
+      <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/finance/payments">
+          <Link
+            href={
+              preselectedContactId
+                ? `/finance/${preselectedContactId}`
+                : "/finance"
+            }
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <h1 className="text-xl font-bold">Yeni Ödeme / Tahsilat</h1>
+        <div>
+          <h1 className="text-xl font-bold">Ödeme / Tahsilat</h1>
+          <p className="text-sm text-muted-foreground">
+            Yeni ödeme veya tahsilat kaydı
+          </p>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ödeme Bilgileri</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Yön *</Label>
-              <Select
-                defaultValue="outbound"
-                onValueChange={(val) =>
-                  setValue("direction", val as PaymentFormValues["direction"])
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="outbound">Ödeme (Biz ödüyoruz)</SelectItem>
-                  <SelectItem value="inbound">Tahsilat (Bize ödeniyor)</SelectItem>
-                </SelectContent>
-              </Select>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Yön seçimi */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setDirection("outbound")}
+            className={`flex items-center justify-center gap-2 rounded-lg border-2 p-4 text-sm font-medium transition-colors ${
+              direction === "outbound"
+                ? "border-red-500 bg-red-50 text-red-700"
+                : "border-muted bg-background text-muted-foreground"
+            }`}
+          >
+            <ArrowUpRight className="h-5 w-5" />
+            <div className="text-left">
+              <p className="font-bold">Ödeme</p>
+              <p className="text-xs opacity-75">Biz ödüyoruz</p>
             </div>
-
-            <div className="space-y-2">
-              <Label>
-                {direction === "inbound" ? "Tahsilat Yapılan Kişi *" : "Ödeme Yapılan Kişi *"}
-              </Label>
-              <Select
-                defaultValue={preselectedContactId}
-                onValueChange={(val) => setValue("contact_id", val)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Kişi seçiniz" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contacts?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.contact_id && (
-                <p className="text-sm text-destructive">{errors.contact_id.message}</p>
-              )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDirection("inbound")}
+            className={`flex items-center justify-center gap-2 rounded-lg border-2 p-4 text-sm font-medium transition-colors ${
+              direction === "inbound"
+                ? "border-green-500 bg-green-50 text-green-700"
+                : "border-muted bg-background text-muted-foreground"
+            }`}
+          >
+            <ArrowDownLeft className="h-5 w-5" />
+            <div className="text-left">
+              <p className="font-bold">Tahsilat</p>
+              <p className="text-xs opacity-75">Bize ödeniyor</p>
             </div>
+          </button>
+        </div>
 
-            <div className="space-y-2">
-              <Label>Yöntem *</Label>
-              <Select
-                defaultValue="cash"
-                onValueChange={(val) =>
-                  setValue("method", val as PaymentFormValues["method"])
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Nakit</SelectItem>
-                  <SelectItem value="transfer">Havale / EFT</SelectItem>
-                  <SelectItem value="check">Çek</SelectItem>
-                  <SelectItem value="promissory_note">Senet</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Kişi seçimi */}
+        <div className="space-y-2">
+          <Label>
+            {direction === "inbound"
+              ? "Tahsilat Yapılan Kişi"
+              : "Ödeme Yapılan Kişi"}
+          </Label>
+          <Select value={contactId} onValueChange={setContactId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Kişi seçiniz" />
+            </SelectTrigger>
+            <SelectContent>
+              {contacts?.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="amount">Tutar (TL) *</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  {...register("amount")}
-                  placeholder="0.00"
-                />
-                {errors.amount && (
-                  <p className="text-sm text-destructive">{errors.amount.message}</p>
-                )}
+        {/* Ödeme yöntemi */}
+        <div className="space-y-2">
+          <Label>Ödeme Yöntemi</Label>
+          <div className="grid grid-cols-4 gap-2">
+            {METHOD_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setMethod(opt.value)}
+                  className={`flex flex-col items-center gap-1 rounded-lg border-2 p-3 text-xs font-medium transition-colors ${
+                    method === opt.value
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-muted bg-background text-muted-foreground"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Çek/Senet ek alanları */}
+        {isCheckOrNote && (
+          <Card>
+            <CardContent className="space-y-3 p-4">
+              <p className="text-sm font-medium">
+                {method === "check" ? "Çek Bilgileri" : "Senet Bilgileri"}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">
+                    {method === "check" ? "Çek No" : "Senet No"}
+                  </Label>
+                  <Input
+                    value={checkNo}
+                    onChange={(e) => setCheckNo(e.target.value)}
+                    placeholder="Opsiyonel"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Banka Adı</Label>
+                  <Input
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    placeholder="Opsiyonel"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="payment_date">Tarih *</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Vade Tarihi *</Label>
                 <Input
-                  id="payment_date"
                   type="date"
-                  {...register("payment_date")}
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  required
                 />
-                {errors.payment_date && (
-                  <p className="text-sm text-destructive">{errors.payment_date.message}</p>
-                )}
               </div>
-            </div>
+            </CardContent>
+          </Card>
+        )}
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Açıklama</Label>
-              <Textarea
-                id="description"
-                {...register("description")}
-                placeholder="Ödeme açıklaması..."
-                rows={2}
-              />
-            </div>
+        {/* Tutar */}
+        <div className="space-y-2">
+          <Label>Tutar</Label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold text-muted-foreground">
+              ₺
+            </span>
+            <Input
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0,00"
+              className="h-14 pl-8 text-2xl font-bold"
+              required
+            />
+          </div>
+        </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={createPayment.isPending}
-            >
-              {createPayment.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Kaydediliyor...
-                </>
-              ) : direction === "inbound" ? (
-                "Tahsilat Kaydet"
-              ) : (
-                "Ödeme Kaydet"
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+        {/* Tarih */}
+        <div className="space-y-2">
+          <Label>Tarih</Label>
+          <Input
+            type="date"
+            value={paymentDate}
+            onChange={(e) => setPaymentDate(e.target.value)}
+            required
+          />
+        </div>
+
+        {/* Açıklama */}
+        <div className="space-y-2">
+          <Label>Açıklama</Label>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Ödeme açıklaması (opsiyonel)..."
+            rows={2}
+          />
+        </div>
+
+        {/* Kaydet */}
+        <Button
+          type="submit"
+          disabled={saving}
+          className={`w-full h-12 text-base font-bold ${
+            direction === "inbound"
+              ? "bg-green-600 hover:bg-green-700"
+              : "bg-red-600 hover:bg-red-700"
+          }`}
+          size="lg"
+        >
+          {saving ? (
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          ) : direction === "inbound" ? (
+            "Tahsilat Kaydet"
+          ) : (
+            "Ödeme Kaydet"
+          )}
+        </Button>
+      </form>
     </div>
   );
 }

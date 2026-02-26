@@ -15,49 +15,131 @@ export function useDeliveriesByContact(contactId: string) {
   return useQuery({
     queryKey: ["deliveries", "contact", contactId],
     queryFn: async () => {
-      // Get sales for this contact (customer)
+      // ── Customer path: sales → deliveries ──
       const { data: sales } = await supabase
         .from("sales")
         .select("id, unit_price")
         .eq("contact_id", contactId);
 
-      // Get purchases for this contact (supplier)
+      const saleMap = new Map(
+        (sales || []).map((s) => [s.id, s.unit_price])
+      );
+      const saleIds = (sales || []).map((s) => s.id);
+
+      // ── Supplier path: purchases → deliveries ──
       const { data: purchases } = await supabase
         .from("purchases")
         .select("id, unit_price")
         .eq("contact_id", contactId);
 
-      const saleMap = new Map((sales || []).map((s) => [s.id, s.unit_price]));
-      const purchaseMap = new Map((purchases || []).map((p) => [p.id, p.unit_price]));
-
-      const saleIds = (sales || []).map((s) => s.id);
+      const purchaseMap = new Map(
+        (purchases || []).map((p) => [p.id, p.unit_price])
+      );
       const purchaseIds = (purchases || []).map((p) => p.id);
 
-      if (saleIds.length === 0 && purchaseIds.length === 0) return [];
+      // ── Supplier fallback: account_transactions → delivery ids ──
+      // When deliveries were created via Hızlı Sevkiyat without a purchase record,
+      // the supplier transaction has reference_type="delivery" and reference_id=delivery.id
+      let txDeliveryIds: string[] = [];
+      if (purchaseIds.length === 0 && saleIds.length === 0) {
+        // No direct link, try via account_transactions
+        const { data: account } = await supabase
+          .from("accounts")
+          .select("id")
+          .eq("contact_id", contactId)
+          .single();
 
-      let query = supabase.from("deliveries").select("*");
+        if (account) {
+          const { data: txs } = await supabase
+            .from("account_transactions")
+            .select("reference_type, reference_id")
+            .eq("account_id", account.id)
+            .eq("reference_type", "delivery")
+            .not("reference_id", "is", null);
 
-      if (saleIds.length > 0 && purchaseIds.length > 0) {
-        query = query.or(
-          `sale_id.in.(${saleIds.join(",")}),purchase_id.in.(${purchaseIds.join(",")})`
-        );
-      } else if (saleIds.length > 0) {
-        query = query.in("sale_id", saleIds);
-      } else {
-        query = query.in("purchase_id", purchaseIds);
+          txDeliveryIds = (txs || []).map((t) => t.reference_id as string);
+        }
+      }
+      // Also check for suppliers that have purchases but deliveries might not use purchase_id
+      if (saleIds.length === 0 && txDeliveryIds.length === 0) {
+        const { data: account } = await supabase
+          .from("accounts")
+          .select("id")
+          .eq("contact_id", contactId)
+          .single();
+
+        if (account) {
+          const { data: txs } = await supabase
+            .from("account_transactions")
+            .select("reference_type, reference_id")
+            .eq("account_id", account.id)
+            .eq("reference_type", "delivery")
+            .not("reference_id", "is", null);
+
+          txDeliveryIds = (txs || []).map((t) => t.reference_id as string);
+        }
       }
 
-      const { data, error } = await query.order("delivery_date", {
-        ascending: false,
-      });
+      // ── Build delivery query ──
+      const conditions: string[] = [];
+      if (saleIds.length > 0)
+        conditions.push(`sale_id.in.(${saleIds.join(",")})`);
+      if (purchaseIds.length > 0)
+        conditions.push(`purchase_id.in.(${purchaseIds.join(",")})`);
+      if (txDeliveryIds.length > 0)
+        conditions.push(`id.in.(${txDeliveryIds.join(",")})`);
+
+      if (conditions.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from("deliveries")
+        .select("*")
+        .or(conditions.join(","))
+        .order("delivery_date", { ascending: false });
       if (error) throw error;
 
-      // Attach unit_price from sale or purchase
+      // ── Get supplier unit_price from account_transactions description ──
+      // For supplier context (no sales), parse price from transaction description
+      let supplierPriceFromTx = 0;
+      if (saleIds.length === 0 && txDeliveryIds.length > 0) {
+        const { data: account } = await supabase
+          .from("accounts")
+          .select("id")
+          .eq("contact_id", contactId)
+          .single();
+
+        if (account) {
+          const { data: txs } = await supabase
+            .from("account_transactions")
+            .select("description")
+            .eq("account_id", account.id)
+            .eq("reference_type", "delivery")
+            .limit(1);
+
+          if (txs && txs.length > 0) {
+            // Parse "Alım - 21.000 kg × 4 ₺/kg" → extract 4
+            const match = txs[0].description?.match(
+              /×\s*([\d.,]+)\s*₺\/kg/
+            );
+            if (match) {
+              supplierPriceFromTx = parseFloat(
+                match[1].replace(/\./g, "").replace(",", ".")
+              );
+            }
+          }
+        }
+      }
+
+      // ── Attach unit_price ──
       return (data as Delivery[]).map((d) => {
+        // Customer path: use sale unit_price
+        // Supplier path: use purchase unit_price OR parsed from transaction
+        const salePrice = d.sale_id ? saleMap.get(d.sale_id) : null;
+        const purchasePrice = d.purchase_id
+          ? purchaseMap.get(d.purchase_id)
+          : null;
         const unitPrice =
-          (d.sale_id ? saleMap.get(d.sale_id) : null) ||
-          (d.purchase_id ? purchaseMap.get(d.purchase_id) : null) ||
-          0;
+          salePrice || purchasePrice || supplierPriceFromTx || 0;
         return {
           ...d,
           unit_price: unitPrice,
