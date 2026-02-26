@@ -15,15 +15,14 @@ export function useAccountSummaries() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("v_account_summary")
-        .select("*")
-        .order("contact_name");
+        .select("*");
       if (error) {
         // View might not exist yet, fallback to accounts + contacts join
         const { data: fallback, error: fbErr } = await supabase
           .from("accounts")
           .select("*, contact:contacts(name, type)");
         if (fbErr) throw fbErr;
-        return (fallback || []).map((a: Record<string, unknown>) => {
+        const result = (fallback || []).map((a: Record<string, unknown>) => {
           const contact = a.contact as { name: string; type: string } | null;
           return {
             account_id: a.id as string,
@@ -35,8 +34,13 @@ export function useAccountSummaries() {
             total_credit: a.total_credit as number,
           };
         }) as AccountSummary[];
+        return result.sort((a, b) =>
+          a.contact_name.localeCompare(b.contact_name, "tr")
+        );
       }
-      return data as AccountSummary[];
+      return (data as AccountSummary[]).sort((a, b) =>
+        a.contact_name.localeCompare(b.contact_name, "tr")
+      );
     },
   });
 }

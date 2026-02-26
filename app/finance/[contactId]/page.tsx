@@ -20,10 +20,11 @@ import {
   Truck,
   Banknote,
 } from "lucide-react";
-import { formatCurrency, formatDateShort } from "@/lib/utils/format";
+import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { generateContactPdf } from "@/lib/utils/pdf-export";
-import type { AccountTransaction } from "@/lib/types/database.types";
+import { useDeliveriesForTransactions } from "@/lib/hooks/use-deliveries-for-transactions";
+import type { AccountTransaction, Delivery } from "@/lib/types/database.types";
 
 function safeNum(val: unknown): number {
   const n = Number(val);
@@ -70,6 +71,13 @@ export default function AccountDetailPage() {
     (t) => t.reference_type === purchaseRefType
   );
   const odemeTxs = txList.filter((t) => t.reference_type === "payment");
+
+  // Fetch structured delivery data linked to sevkiyat transactions
+  const { data: deliveryMap } = useDeliveriesForTransactions(sevkiyatTxs, isCustomer);
+  const getDelivery = (tx: AccountTransaction): Delivery | undefined => {
+    if (!deliveryMap || !tx.reference_id) return undefined;
+    return deliveryMap.get(tx.reference_id);
+  };
 
   // ── Borç/Alacak from transactions ──
   // Tedarikçi: credit=borcumuz (alım), debit=ödediğimiz
@@ -147,13 +155,17 @@ export default function AccountDetailPage() {
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Bakiye</p>
+              <p className="text-xs text-muted-foreground">
+                {isCustomer
+                  ? (bakiye > 0 ? "Kalan Alacak" : "Bakiye")
+                  : (bakiye > 0 ? "Kalan Borç" : "Bakiye")}
+              </p>
               <p
                 className={`text-sm font-bold ${
                   bakiye > 0 ? "text-red-600" : "text-green-600"
                 }`}
               >
-                {masked(bakiye)}
+                {masked(Math.abs(bakiye))}
               </p>
             </div>
           </div>
@@ -192,29 +204,57 @@ export default function AccountDetailPage() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : sevkiyatTxs.length > 0 ? (
-            sevkiyatTxs.map((tx, i) => (
-              <div key={tx.id}>
-                {i > 0 && <Separator />}
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">
-                      {formatDateShort(tx.transaction_date)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {tx.description || "Sevkiyat"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">
-                      {masked(safeNum(tx.amount))}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Bakiye: {masked(safeNum(tx.balance_after))}
-                    </p>
+            sevkiyatTxs.map((tx, i) => {
+              const del = getDelivery(tx);
+              return (
+                <div key={tx.id}>
+                  {i > 0 && <Separator />}
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">
+                          {formatDateShort(tx.transaction_date)}
+                        </p>
+                        {del?.ticket_no && (
+                          <Badge variant="outline" className="text-xs">
+                            #{del.ticket_no}
+                          </Badge>
+                        )}
+                      </div>
+                      {del ? (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                          {del.vehicle_plate && (
+                            <span className="font-mono">{del.vehicle_plate}</span>
+                          )}
+                          <span>{formatWeight(del.net_weight)}</span>
+                          {del.carrier_name && (
+                            <span>N: {del.carrier_name}</span>
+                          )}
+                          {del.freight_cost && del.freight_cost > 0 && (
+                            <span>
+                              Nakliye: {formatCurrency(del.freight_cost)}
+                              {del.freight_payer === "customer" ? " (müşt.)" : del.freight_payer === "supplier" ? " (ürt.)" : ""}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {tx.description || "Sevkiyat"}
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-bold">
+                        {masked(safeNum(tx.amount))}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Bakiye: {masked(safeNum(tx.balance_after))}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Henüz sevkiyat yok.
