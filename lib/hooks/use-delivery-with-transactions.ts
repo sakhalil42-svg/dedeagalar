@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { DeliveryInsert, FreightPayer } from "@/lib/types/database.types";
+import type { DeliveryInsert, FreightPayer, PricingModel } from "@/lib/types/database.types";
 
 interface CreateDeliveryWithTxParams {
   delivery: DeliveryInsert;
@@ -10,6 +10,7 @@ interface CreateDeliveryWithTxParams {
   supplierContactId: string;
   customerPrice: number; // ₺/kg
   supplierPrice: number; // ₺/kg
+  pricingModel: PricingModel;
 }
 
 export function useCreateDeliveryWithTransactions() {
@@ -23,6 +24,7 @@ export function useCreateDeliveryWithTransactions() {
       supplierContactId,
       customerPrice,
       supplierPrice,
+      pricingModel,
     }: CreateDeliveryWithTxParams) => {
       // 1. Insert delivery
       const { data: del, error: delErr } = await supabase
@@ -37,12 +39,15 @@ export function useCreateDeliveryWithTransactions() {
       const freightPayer: FreightPayer = del.freight_payer || "me";
 
       // 2. Calculate amounts
-      const supplierDebit = netKg * supplierPrice;
       // If customer pays freight, deduct from their credit
       const customerCredit =
         freightPayer === "customer"
           ? netKg * customerPrice - freightCost
           : netKg * customerPrice;
+      // Nakliye dahil: üretici fiyatı nakliyeyi içerir, HER ZAMAN düşülür
+      const supplierDebit = pricingModel === "nakliye_dahil"
+        ? netKg * supplierPrice - freightCost
+        : netKg * supplierPrice;
 
       // 3. Get account IDs
       const { data: customerAccount, error: caErr } = await supabase
@@ -80,7 +85,7 @@ export function useCreateDeliveryWithTransactions() {
           account_id: supplierAccount.id,
           type: "credit",
           amount: supplierDebit,
-          description: `Alım - ${netKg.toLocaleString("tr-TR")} kg × ${supplierPrice} ₺/kg`,
+          description: `Alım - ${netKg.toLocaleString("tr-TR")} kg × ${supplierPrice} ₺/kg${pricingModel === "nakliye_dahil" ? ` (nakliye -${freightCost} ₺)` : ""}`,
           reference_type: "purchase",
           reference_id: del.purchase_id,
           transaction_date: del.delivery_date,

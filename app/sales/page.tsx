@@ -486,6 +486,7 @@ function QuickEntryForm({
         supplierContactId,
         customerPrice,
         supplierPrice,
+        pricingModel,
       });
 
       toast.success(`${kg.toLocaleString("tr-TR")} kg kaydedildi`);
@@ -626,9 +627,11 @@ function QuickEntryForm({
         {netWeight && parseFloat(netWeight) > 0 && (() => {
           const kg = parseFloat(netWeight);
           const freight = freightCost ? parseFloat(freightCost) : 0;
-          const custAmount = kg * customerPrice - (freightPayer === "customer" ? freight : 0);
-          const suppAmount = kg * supplierPrice;
-          const myFreight = pricingModel === "tir_ustu" && freightPayer === "me" ? freight : 0;
+          const custAmount = freightPayer === "customer" ? kg * customerPrice - freight : kg * customerPrice;
+          const suppAmount = pricingModel === "nakliye_dahil"
+            ? kg * supplierPrice - freight
+            : kg * supplierPrice;
+          const myFreight = freightPayer === "me" ? freight : 0;
           const profit = custAmount - suppAmount - myFreight;
 
           return (
@@ -641,7 +644,7 @@ function QuickEntryForm({
                 <span className="text-muted-foreground">Üretici borç:</span>
                 <span className="font-medium">{formatCurrency(suppAmount)}</span>
               </div>
-              {pricingModel === "tir_ustu" && myFreight > 0 && (
+              {myFreight > 0 && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Nakliye (benim):</span>
                   <span className="font-medium text-red-600">-{formatCurrency(myFreight)}</span>
@@ -704,9 +707,10 @@ function TicketListAndSummary({
           d.freight_payer === "customer"
             ? d.net_weight * customerPrice - freight
             : d.net_weight * customerPrice;
-        const suppAmount = d.net_weight * supplierPrice;
-        // Tır üstü: nakliye ayrı maliyet; Nakliye dahil: üretici fiyatında zaten var
-        const myFreight = pricingModel === "tir_ustu" && d.freight_payer === "me" ? freight : 0;
+        const suppAmount = pricingModel === "nakliye_dahil"
+          ? d.net_weight * supplierPrice - freight
+          : d.net_weight * supplierPrice;
+        const myFreight = d.freight_payer === "me" ? freight : 0;
 
         return {
           totalKg: acc.totalKg + d.net_weight,
