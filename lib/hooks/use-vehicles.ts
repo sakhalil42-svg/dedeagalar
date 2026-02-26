@@ -49,7 +49,7 @@ export function useCreateVehicle() {
       // Upsert on plate to avoid 409 conflict on duplicate plates
       const { data, error } = await supabase
         .from("vehicles")
-        .upsert(values, { onConflict: "plate" })
+        .upsert({ ...values, is_active: true }, { onConflict: "plate" })
         .select()
         .single();
       if (error) throw error;
