@@ -5,11 +5,8 @@ import Link from "next/link";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useAccountSummaries } from "@/lib/hooks/use-account-transactions";
 import type { ContactType } from "@/lib/types/database.types";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, Phone, MapPin, MessageCircle, SlidersHorizontal, Users } from "lucide-react";
+import { Plus, Search, Phone, MapPin, MessageCircle, SlidersHorizontal, Users, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { SkeletonRow } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatPhoneForWhatsApp } from "@/lib/utils/whatsapp";
@@ -23,9 +20,15 @@ const TYPE_LABELS: Record<ContactType, string> = {
 };
 
 const TYPE_COLORS: Record<ContactType, string> = {
-  supplier: "bg-blue-100 text-blue-800",
-  customer: "bg-green-100 text-green-800",
-  both: "bg-purple-100 text-purple-800",
+  supplier: "bg-blue-100 text-blue-700",
+  customer: "bg-emerald-100 text-emerald-700",
+  both: "bg-purple-100 text-purple-700",
+};
+
+const AVATAR_COLORS: Record<ContactType, string> = {
+  supplier: "bg-blue-500",
+  customer: "bg-emerald-500",
+  both: "bg-purple-500",
 };
 
 type TypeFilter = ContactType | "all";
@@ -51,6 +54,10 @@ const SORT_OPTIONS: { label: string; value: SortOption }[] = [
   { label: "Bakiye ↑", value: "balance_asc" },
 ];
 
+function getInitials(name: string): string {
+  return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+}
+
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -63,7 +70,6 @@ export default function ContactsPage() {
   );
   const { data: summaries } = useAccountSummaries();
 
-  // Build balance map
   const balanceMap = useMemo(() => {
     const map = new Map<string, number>();
     if (summaries) {
@@ -74,6 +80,21 @@ export default function ContactsPage() {
     return map;
   }, [summaries]);
 
+  // Summary stats
+  const stats = useMemo(() => {
+    if (!contacts) return { total: 0, suppliers: 0, customers: 0, totalDebt: 0, totalCredit: 0 };
+    const suppliers = contacts.filter(c => c.type === "supplier" || c.type === "both").length;
+    const customers = contacts.filter(c => c.type === "customer" || c.type === "both").length;
+    let totalDebt = 0;
+    let totalCredit = 0;
+    contacts.forEach(c => {
+      const bal = balanceMap.get(c.id) || 0;
+      if (bal > 0) totalDebt += bal;
+      else if (bal < 0) totalCredit += Math.abs(bal);
+    });
+    return { total: contacts.length, suppliers, customers, totalDebt, totalCredit };
+  }, [contacts, balanceMap]);
+
   const filtered = useMemo(() => {
     if (!contacts) return [];
 
@@ -81,7 +102,6 @@ export default function ContactsPage() {
       c.name.toLowerCase().includes(search.toLowerCase())
     );
 
-    // Balance filter
     if (balanceFilter !== "all") {
       list = list.filter((c) => {
         const bal = balanceMap.get(c.id) || 0;
@@ -92,7 +112,6 @@ export default function ContactsPage() {
       });
     }
 
-    // Sort
     list.sort((a, b) => {
       if (sortBy === "name") return a.name.localeCompare(b.name, "tr");
       const balA = Math.abs(balanceMap.get(a.id) || 0);
@@ -128,42 +147,72 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="space-y-4 p-4 page-enter">
-      <div className="flex items-center justify-between">
+    <div className="p-4 page-enter">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold">Kişiler</h1>
-          <p className="text-sm text-muted-foreground">
-            Üretici ve müşteri kayıtları
+          <h1 className="text-xl font-bold">Kişiler</h1>
+          <p className="text-xs text-muted-foreground">
+            {stats.total} kişi kayıtlı
           </p>
         </div>
-        <Button asChild size="sm">
-          <Link href="/contacts/new">
-            <Plus className="mr-1 h-4 w-4" />
-            Yeni
-          </Link>
-        </Button>
+        <Link
+          href="/contacts/new"
+          className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+        >
+          <Plus className="h-4 w-4" />
+          Yeni Kişi
+        </Link>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
+      {/* Summary Cards */}
+      {!isLoading && stats.total > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="rounded-2xl bg-card p-3 shadow-sm text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+            <p className="text-lg font-extrabold">{stats.total}</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Toplam</p>
+          </div>
+          <div className="rounded-2xl bg-card p-3 shadow-sm text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <ArrowUpRight className="h-3.5 w-3.5 text-red-500" />
+            </div>
+            <p className="text-lg font-extrabold text-red-600">{formatCurrency(stats.totalDebt)}</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Alacak</p>
+          </div>
+          <div className="rounded-2xl bg-card p-3 shadow-sm text-center">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <ArrowDownLeft className="h-3.5 w-3.5 text-green-500" />
+            </div>
+            <p className="text-lg font-extrabold text-green-600">{formatCurrency(stats.totalCredit)}</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Borç</p>
+          </div>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="relative mb-3">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
           placeholder="İsim ile ara..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
+          className="w-full rounded-xl bg-muted px-4 py-3 pl-10 text-sm outline-none ring-0 focus:ring-2 focus:ring-primary/30 transition-shadow placeholder:text-muted-foreground/60"
         />
       </div>
 
       {/* Type filter + toggle */}
-      <div className="flex items-center gap-2">
-        <div className="flex flex-1 gap-2">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex flex-1 gap-1.5">
           {TYPE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => setTypeFilter(opt.value)}
-              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                 typeFilter === opt.value
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary text-white"
                   : "bg-muted text-muted-foreground"
               }`}
             >
@@ -174,8 +223,8 @@ export default function ContactsPage() {
         <button
           type="button"
           onClick={() => setShowFilters(!showFilters)}
-          className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-            showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+          className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+            showFilters ? "bg-primary text-white" : "bg-muted text-muted-foreground"
           }`}
         >
           <SlidersHorizontal className="h-4 w-4" />
@@ -184,18 +233,18 @@ export default function ContactsPage() {
 
       {/* Extended filters */}
       {showFilters && (
-        <div className="space-y-2 rounded-lg border p-3">
+        <div className="rounded-xl bg-card p-3 shadow-sm mb-3 space-y-3">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">Bakiye Durumu</p>
+            <p className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground mb-1.5">Bakiye Durumu</p>
             <div className="flex gap-1.5 flex-wrap">
               {BALANCE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setBalanceFilter(opt.value)}
-                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     balanceFilter === opt.value
-                      ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
-                      : "bg-muted/60 text-muted-foreground"
+                      ? "bg-primary text-white"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {opt.label}
@@ -204,16 +253,16 @@ export default function ContactsPage() {
             </div>
           </div>
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">Sıralama</p>
+            <p className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground mb-1.5">Sıralama</p>
             <div className="flex gap-1.5 flex-wrap">
               {SORT_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setSortBy(opt.value)}
-                  className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                     sortBy === opt.value
-                      ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
-                      : "bg-muted/60 text-muted-foreground"
+                      ? "bg-primary text-white"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {opt.label}
@@ -228,98 +277,102 @@ export default function ContactsPage() {
       <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="space-y-2 mt-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <SkeletonRow key={i} />
           ))}
         </div>
       ) : filtered && filtered.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-2 mt-3">
           {filtered.map((contact) => {
             const balance = balanceMap.get(contact.id) || 0;
             const creditLimit = contact.credit_limit;
             const hasLimit = creditLimit != null && creditLimit > 0;
             const limitRatio = hasLimit ? (balance / creditLimit) * 100 : 0;
-            const limitColor = limitRatio >= 100 ? "text-red-600" : limitRatio >= 80 ? "text-yellow-600" : "text-green-600";
             const limitBarColor = limitRatio >= 100 ? "bg-red-500" : limitRatio >= 80 ? "bg-yellow-500" : "bg-green-500";
             return (
               <Link key={contact.id} href={`/contacts/${contact.id}`}>
-                <Card className="transition-colors hover:bg-muted/50">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-medium truncate">{contact.name}</p>
-                          {hasLimit && balance > 0 && limitRatio >= 100 && (
-                            <Badge variant="secondary" className="bg-red-100 text-red-800 text-[9px] px-1 py-0 shrink-0">
-                              LİMİT AŞIMI
-                            </Badge>
-                          )}
-                        </div>
-                        {contact.phone && (
-                          <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Phone className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{contact.phone}</span>
-                          </p>
-                        )}
-                        {contact.city && (
-                          <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <MapPin className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{contact.city}</span>
-                          </p>
-                        )}
-                        {hasLimit && balance > 0 && (
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <div className="h-1 flex-1 rounded-full bg-muted max-w-[120px]">
-                              <div className={`h-full rounded-full transition-all ${limitBarColor}`} style={{ width: `${Math.min(limitRatio, 100)}%` }} />
-                            </div>
-                            <span className={`text-[10px] font-medium ${limitColor}`}>
-                              %{Math.min(limitRatio, 999).toFixed(0)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {balance !== 0 && (
-                          <span className={`text-xs font-bold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>
-                            {formatCurrency(Math.abs(balance))}
-                          </span>
-                        )}
-                        {contact.phone && (
-                          <>
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                window.open(`tel:${contact.phone}`, "_self");
-                              }}
-                              className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
-                            >
-                              <Phone className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const wp = formatPhoneForWhatsApp(contact.phone);
-                                if (wp) window.open(`https://wa.me/${wp}`, "_blank");
-                              }}
-                              className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                            >
-                              <MessageCircle className="h-3.5 w-3.5" />
-                            </button>
-                          </>
-                        )}
-                        <Badge
-                          variant="secondary"
-                          className={TYPE_COLORS[contact.type]}
-                        >
+                <div className="rounded-xl bg-card p-4 shadow-sm transition-colors hover:bg-muted/50">
+                  <div className="flex items-start gap-3">
+                    {/* Avatar */}
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white text-sm font-bold ${AVATAR_COLORS[contact.type]}`}>
+                      {getInitials(contact.name)}
+                    </div>
+
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold truncate">{contact.name}</p>
+                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 shrink-0 ${TYPE_COLORS[contact.type]}`}>
                           {TYPE_LABELS[contact.type]}
                         </Badge>
+                        {hasLimit && balance > 0 && limitRatio >= 100 && (
+                          <Badge variant="secondary" className="bg-red-100 text-red-700 text-[9px] px-1 py-0 shrink-0">
+                            LİMİT AŞIMI
+                          </Badge>
+                        )}
                       </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        {contact.phone && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            {contact.phone}
+                          </span>
+                        )}
+                        {contact.city && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            {contact.city}
+                          </span>
+                        )}
+                      </div>
+                      {hasLimit && balance > 0 && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <div className="h-1.5 flex-1 rounded-full bg-muted max-w-[120px]">
+                            <div className={`h-full rounded-full transition-all ${limitBarColor}`} style={{ width: `${Math.min(limitRatio, 100)}%` }} />
+                          </div>
+                          <span className="text-[10px] font-medium text-muted-foreground">
+                            %{Math.min(limitRatio, 999).toFixed(0)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
+
+                    {/* Right: balance + actions */}
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      {balance !== 0 && (
+                        <span className={`text-sm font-extrabold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>
+                          {formatCurrency(Math.abs(balance))}
+                        </span>
+                      )}
+                      {contact.phone && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              window.open(`tel:${contact.phone}`, "_self");
+                            }}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+                          >
+                            <Phone className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const wp = formatPhoneForWhatsApp(contact.phone);
+                              if (wp) window.open(`https://wa.me/${wp}`, "_blank");
+                            }}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </Link>
             );
           })}

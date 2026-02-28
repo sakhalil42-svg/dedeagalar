@@ -5,12 +5,8 @@ import Link from "next/link";
 import { useCarriers, useCreateCarrier, useDeleteCarrier } from "@/lib/hooks/use-carriers";
 import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 import { useVehicles, useCreateVehicle, useDeleteVehicle } from "@/lib/hooks/use-vehicles";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -29,10 +25,16 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  Save,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils/format";
-import type { Carrier, Vehicle } from "@/lib/types/database.types";
+import type { Vehicle } from "@/lib/types/database.types";
+
+function getInitials(name: string): string {
+  return name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+}
 
 export default function CarriersPage() {
   const { data: carriers, isLoading: carriersLoading } = useCarriers();
@@ -47,6 +49,7 @@ export default function CarriersPage() {
   const [showNewVehicle, setShowNewVehicle] = useState(false);
   const [expandedCarrier, setExpandedCarrier] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "carrier" | "vehicle"; id: string; label: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // New carrier form
   const [cName, setCName] = useState("");
@@ -70,6 +73,14 @@ export default function CarriersPage() {
   }
 
   const unassignedVehicles = (vehicles || []).filter((v) => !v.carrier_id);
+
+  // Total debt across all carriers
+  const totalDebt = (balances || []).reduce((sum, b) => sum + Math.max(0, b.balance), 0);
+
+  // Filtered carriers
+  const filteredCarriers = (carriers || []).filter(c =>
+    !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   async function handleCreateCarrier() {
     if (!cName.trim()) {
@@ -124,34 +135,63 @@ export default function CarriersPage() {
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="p-4 page-enter">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/settings">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+      <div className="flex items-center gap-2 mb-4">
+        <Link
+          href="/settings"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold">Nakliyeciler</h1>
+          <p className="text-xs text-muted-foreground">
+            {(carriers || []).length} nakliyeci, {(vehicles || []).length} araç
+          </p>
+        </div>
+      </div>
+
+      {/* Banner Card */}
+      <div className="rounded-2xl bg-gradient-to-r from-orange-500 to-red-500 p-5 text-white mb-4 shadow-sm">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">Nakliyeciler & Araçlar</h1>
-            <p className="text-sm text-muted-foreground">
-              {(carriers || []).length} nakliyeci, {(vehicles || []).length} araç
-            </p>
+            <p className="text-xs opacity-80 uppercase tracking-wide">Toplam Nakliye Borcu</p>
+            <p className="text-3xl font-extrabold mt-1">{formatCurrency(totalDebt)}</p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20">
+            <Truck className="h-6 w-6" />
           </div>
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative mb-3">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          placeholder="Nakliyeci ara..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-xl bg-muted px-4 py-3 pl-10 text-sm outline-none ring-0 focus:ring-2 focus:ring-primary/30 transition-shadow placeholder:text-muted-foreground/60"
+        />
+      </div>
+
       {/* Actions */}
-      <div className="flex gap-2">
-        <Button size="sm" onClick={() => setShowNewCarrier(true)}>
-          <Plus className="mr-1 h-4 w-4" />
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setShowNewCarrier(true)}
+          className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+        >
+          <Plus className="h-4 w-4" />
           Nakliyeci
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setShowNewVehicle(true)}>
-          <Plus className="mr-1 h-4 w-4" />
+        </button>
+        <button
+          onClick={() => setShowNewVehicle(true)}
+          className="flex items-center gap-1.5 rounded-xl bg-muted px-4 py-2.5 text-sm font-semibold text-foreground"
+        >
+          <Plus className="h-4 w-4" />
           Araç
-        </Button>
+        </button>
       </div>
 
       {isLoading ? (
@@ -161,202 +201,197 @@ export default function CarriersPage() {
       ) : (
         <>
           {/* Carriers list */}
-          {(carriers || []).length > 0 ? (
+          {filteredCarriers.length > 0 ? (
             <div className="space-y-2">
-              {(carriers || []).map((carrier) => {
+              {filteredCarriers.map((carrier) => {
                 const cvehicles = getVehiclesForCarrier(carrier.id);
                 const isExpanded = expandedCarrier === carrier.id;
+                const bal = balances?.find((b) => b.id === carrier.id);
                 return (
-                  <Card key={carrier.id}>
-                    <CardContent className="p-0">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedCarrier(isExpanded ? null : carrier.id)
-                        }
-                        className="flex w-full items-center justify-between p-4 text-left"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Truck className="h-4 w-4 text-muted-foreground" />
-                            <p className="font-medium">{carrier.name}</p>
-                            <Badge variant="secondary" className="text-xs">
-                              {cvehicles.length} araç
-                            </Badge>
-                          </div>
-                          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                            {carrier.phone && (
-                              <span className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {carrier.phone}
-                              </span>
-                            )}
-                            {carrier.city && (
-                              <span className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {carrier.city}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                  <div key={carrier.id} className="rounded-xl bg-card shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedCarrier(isExpanded ? null : carrier.id)
+                      }
+                      className="flex w-full items-center gap-3 p-4 text-left"
+                    >
+                      {/* Avatar */}
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white text-sm font-bold">
+                        {getInitials(carrier.name)}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          {(() => {
-                            const bal = balances?.find((b) => b.id === carrier.id);
-                            if (bal && bal.balance > 0) {
-                              return (
-                                <span className="text-sm font-bold text-red-600">
-                                  {formatCurrency(bal.balance)}
-                                </span>
-                              );
-                            }
-                            return null;
-                          })()}
-                          {isExpanded ? (
-                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          <p className="font-semibold truncate">{carrier.name}</p>
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-muted">
+                            {cvehicles.length} araç
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-0.5">
+                          {carrier.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {carrier.phone}
+                            </span>
+                          )}
+                          {carrier.city && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {carrier.city}
+                            </span>
                           )}
                         </div>
-                      </button>
+                      </div>
 
-                      {isExpanded && (
-                        <div className="border-t px-4 pb-4 pt-2">
-                          {carrier.phone2 && (
-                            <p className="mb-2 text-xs text-muted-foreground">
-                              Tel 2: {carrier.phone2}
-                            </p>
-                          )}
-                          {carrier.notes && (
-                            <p className="mb-2 text-xs text-muted-foreground">
-                              Not: {carrier.notes}
-                            </p>
-                          )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {bal && bal.balance > 0 && (
+                          <span className="text-sm font-extrabold text-red-600">
+                            {formatCurrency(bal.balance)}
+                          </span>
+                        )}
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </button>
 
-                          {cvehicles.length > 0 ? (
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium text-muted-foreground">
-                                Araçlar:
-                              </p>
-                              {cvehicles.map((v) => (
-                                <div
-                                  key={v.id}
-                                  className="flex items-center justify-between rounded bg-muted/50 px-2 py-1.5"
+                    {isExpanded && (
+                      <div className="border-t px-4 pb-4 pt-3">
+                        {carrier.phone2 && (
+                          <p className="mb-2 text-xs text-muted-foreground">
+                            Tel 2: {carrier.phone2}
+                          </p>
+                        )}
+                        {carrier.notes && (
+                          <p className="mb-2 text-xs text-muted-foreground">
+                            Not: {carrier.notes}
+                          </p>
+                        )}
+
+                        {/* Vehicles */}
+                        {cvehicles.length > 0 ? (
+                          <div className="space-y-1.5 mb-3">
+                            <p className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground">
+                              Araçlar
+                            </p>
+                            {cvehicles.map((v) => (
+                              <div
+                                key={v.id}
+                                className="flex items-center justify-between rounded-lg bg-muted px-3 py-2"
+                              >
+                                <div className="flex items-center gap-2 text-sm">
+                                  <span className="font-mono font-semibold bg-card rounded px-1.5 py-0.5">
+                                    {v.plate}
+                                  </span>
+                                  {v.driver_name && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {v.driver_name}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] bg-card rounded px-1.5 py-0.5 text-muted-foreground">
+                                    {v.vehicle_type}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget({ type: "vehicle", id: v.id, label: v.plate })}
+                                  className="text-muted-foreground hover:text-destructive transition-colors"
                                 >
-                                  <div className="flex items-center gap-2 text-sm">
-                                    <span className="font-mono font-medium">
-                                      {v.plate}
-                                    </span>
-                                    {v.driver_name && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {v.driver_name}
-                                      </span>
-                                    )}
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      {v.vehicle_type}
-                                    </Badge>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setDeleteTarget({ type: "vehicle", id: v.id, label: v.plate })}
-                                    className="text-muted-foreground hover:text-destructive"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Henüz araç yok.
-                            </p>
-                          )}
-
-                          {/* Balance */}
-                          {(() => {
-                            const bal = balances?.find((b) => b.id === carrier.id);
-                            if (bal && bal.total_freight > 0) {
-                              return (
-                                <div className="mt-2 rounded-md bg-muted/50 p-2 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Toplam Nakliye:</span>
-                                    <span className="font-medium">{formatCurrency(bal.total_freight)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Ödenen:</span>
-                                    <span className="font-medium text-green-600">{formatCurrency(bal.total_paid)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Kalan Borç:</span>
-                                    <span className={`font-bold ${bal.balance > 0 ? "text-red-600" : "text-green-600"}`}>
-                                      {formatCurrency(Math.abs(bal.balance))}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
-
-                          <div className="mt-3 flex gap-2">
-                            <Button size="sm" variant="outline" className="text-xs" asChild>
-                              <Link href={`/settings/carriers/${carrier.id}`}>
-                                Cari Hesap
-                              </Link>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs"
-                              onClick={() => {
-                                setVCarrierId(carrier.id);
-                                setShowNewVehicle(true);
-                              }}
-                            >
-                              <Plus className="mr-1 h-3 w-3" />
-                              Araç Ekle
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs text-destructive"
-                              onClick={() => setDeleteTarget({ type: "carrier", id: carrier.id, label: carrier.name })}
-                            >
-                              <Trash2 className="mr-1 h-3 w-3" />
-                              Sil
-                            </Button>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
                           </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground mb-3">
+                            Henüz araç yok.
+                          </p>
+                        )}
+
+                        {/* Balance */}
+                        {bal && bal.total_freight > 0 && (
+                          <div className="rounded-xl bg-muted p-3 text-xs mb-3 space-y-1.5">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Toplam Nakliye:</span>
+                              <span className="font-semibold">{formatCurrency(bal.total_freight)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Ödenen:</span>
+                              <span className="font-semibold text-green-600">{formatCurrency(bal.total_paid)}</span>
+                            </div>
+                            <div className="border-t border-dashed pt-1.5 flex justify-between">
+                              <span className="text-muted-foreground font-medium">Kalan Borç:</span>
+                              <span className={`font-extrabold ${bal.balance > 0 ? "text-red-600" : "text-green-600"}`}>
+                                {formatCurrency(Math.abs(bal.balance))}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/settings/carriers/${carrier.id}`}
+                            className="flex-1 rounded-xl bg-muted px-3 py-2.5 text-center text-xs font-semibold"
+                          >
+                            Cari Hesap
+                          </Link>
+                          <button
+                            onClick={() => {
+                              setVCarrierId(carrier.id);
+                              setShowNewVehicle(true);
+                            }}
+                            className="flex items-center gap-1 rounded-xl bg-muted px-3 py-2.5 text-xs font-semibold"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Araç
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget({ type: "carrier", id: carrier.id, label: carrier.name })}
+                            className="flex items-center gap-1 rounded-xl px-3 py-2.5 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Sil
+                          </button>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
           ) : (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              Henüz nakliyeci yok. Yukarıdan ekleyin.
+            <div className="py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mx-auto mb-3">
+                <Truck className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">
+                {searchQuery ? "Sonuç bulunamadı" : "Henüz nakliyeci yok"}
+              </p>
+              {!searchQuery && (
+                <p className="text-xs text-muted-foreground mt-1">Yukarıdan ekleyin.</p>
+              )}
             </div>
           )}
 
           {/* Unassigned vehicles */}
           {unassignedVehicles.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-muted-foreground">
+            <div className="rounded-xl bg-card shadow-sm overflow-hidden mt-4">
+              <div className="p-4 pb-2">
+                <p className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground">
                   Nakliyecisiz Araçlar ({unassignedVehicles.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1 p-3 pt-0">
+                </p>
+              </div>
+              <div className="space-y-1.5 px-4 pb-4">
                 {unassignedVehicles.map((v) => (
                   <div
                     key={v.id}
-                    className="flex items-center justify-between rounded bg-muted/50 px-2 py-1.5"
+                    className="flex items-center justify-between rounded-lg bg-muted px-3 py-2"
                   >
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="font-mono font-medium">{v.plate}</span>
+                      <span className="font-mono font-semibold">{v.plate}</span>
                       {v.driver_name && (
                         <span className="text-xs text-muted-foreground">
                           {v.driver_name}
@@ -366,125 +401,141 @@ export default function CarriersPage() {
                     <button
                       type="button"
                       onClick={() => setDeleteTarget({ type: "vehicle", id: v.id, label: v.plate })}
-                      className="text-muted-foreground hover:text-destructive"
+                      className="text-muted-foreground hover:text-destructive transition-colors"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
         </>
       )}
 
       {/* New Carrier Dialog */}
       <Dialog open={showNewCarrier} onOpenChange={setShowNewCarrier}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Yeni Nakliyeci</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Ad *</Label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Ad *</label>
               <Input
                 value={cName}
                 onChange={(e) => setCName(e.target.value)}
                 placeholder="Nakliyeci adı"
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label>Telefon</Label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Telefon</label>
                 <Input
                   type="tel"
                   value={cPhone}
                   onChange={(e) => setCPhone(e.target.value)}
                   placeholder="05XX XXX XXXX"
+                  className="rounded-xl bg-muted border-0 h-12"
                 />
               </div>
               <div>
-                <Label>Telefon 2</Label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Telefon 2</label>
                 <Input
                   type="tel"
                   value={cPhone2}
                   onChange={(e) => setCPhone2(e.target.value)}
                   placeholder="05XX XXX XXXX"
+                  className="rounded-xl bg-muted border-0 h-12"
                 />
               </div>
             </div>
             <div>
-              <Label>Şehir</Label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Şehir</label>
               <Input
                 value={cCity}
                 onChange={(e) => setCCity(e.target.value)}
                 placeholder="Şehir"
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
             <div>
-              <Label>Notlar</Label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Notlar</label>
               <Input
                 value={cNotes}
                 onChange={(e) => setCNotes(e.target.value)}
                 placeholder="Ek notlar..."
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewCarrier(false)}>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setShowNewCarrier(false)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+            >
               İptal
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleCreateCarrier}
               disabled={createCarrier.isPending}
+              className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {createCarrier.isPending ? "Kaydediliyor..." : "Kaydet"}
-            </Button>
+              {createCarrier.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Kaydet
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* New Vehicle Dialog */}
       <Dialog open={showNewVehicle} onOpenChange={setShowNewVehicle}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Yeni Araç</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Plaka *</Label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Plaka *</label>
               <Input
                 value={vPlate}
                 onChange={(e) => setVPlate(e.target.value.toUpperCase())}
                 placeholder="34 XX 1234"
-                className="font-mono"
+                className="rounded-xl bg-muted border-0 h-12 font-mono"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label>Şoför Adı</Label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Şoför Adı</label>
                 <Input
                   value={vDriverName}
                   onChange={(e) => setVDriverName(e.target.value)}
                   placeholder="Şoför adı"
+                  className="rounded-xl bg-muted border-0 h-12"
                 />
               </div>
               <div>
-                <Label>Şoför Tel</Label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Şoför Tel</label>
                 <Input
                   type="tel"
                   value={vDriverPhone}
                   onChange={(e) => setVDriverPhone(e.target.value)}
                   placeholder="05XX XXX XXXX"
+                  className="rounded-xl bg-muted border-0 h-12"
                 />
               </div>
             </div>
             <div>
-              <Label>Nakliyeci</Label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Nakliyeci</label>
               <select
                 value={vCarrierId}
                 onChange={(e) => setVCarrierId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                className="flex h-12 w-full rounded-xl bg-muted border-0 px-3 py-2 text-sm outline-none"
               >
                 <option value="">Seçiniz (opsiyonel)</option>
                 {(carriers || []).map((c) => (
@@ -496,11 +547,11 @@ export default function CarriersPage() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label>Araç Tipi</Label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Araç Tipi</label>
                 <select
                   value={vType}
                   onChange={(e) => setVType(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  className="flex h-12 w-full rounded-xl bg-muted border-0 px-3 py-2 text-sm outline-none"
                 >
                   <option value="tir">Tır</option>
                   <option value="kamyon">Kamyon</option>
@@ -508,33 +559,43 @@ export default function CarriersPage() {
                 </select>
               </div>
               <div>
-                <Label>Kapasite (ton)</Label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Kapasite (ton)</label>
                 <Input
                   type="number"
                   value={vCapacity}
                   onChange={(e) => setVCapacity(e.target.value)}
                   placeholder="0"
+                  className="rounded-xl bg-muted border-0 h-12"
                 />
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewVehicle(false)}>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setShowNewVehicle(false)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+            >
               İptal
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleCreateVehicle}
               disabled={createVehicle.isPending}
+              className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {createVehicle.isPending ? "Kaydediliyor..." : "Kaydet"}
-            </Button>
+              {createVehicle.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Kaydet
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>
               {deleteTarget?.type === "carrier" ? "Nakliyeciyi Sil" : "Aracı Sil"}
@@ -543,12 +604,14 @@ export default function CarriersPage() {
               &quot;{deleteTarget?.label}&quot; silinecek. Bu işlem geri alınamaz.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+            >
               İptal
-            </Button>
-            <Button
-              variant="destructive"
+            </button>
+            <button
               onClick={() => {
                 if (!deleteTarget) return;
                 if (deleteTarget.type === "carrier") {
@@ -558,9 +621,10 @@ export default function CarriersPage() {
                 }
                 setDeleteTarget(null);
               }}
+              className="flex-1 rounded-xl bg-destructive py-3 text-sm font-semibold text-white"
             >
               Sil
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

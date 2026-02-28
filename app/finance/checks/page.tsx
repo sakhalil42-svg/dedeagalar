@@ -6,9 +6,7 @@ import { useChecks, useUpdateCheck, useEndorseCheck } from "@/lib/hooks/use-chec
 import { useContacts } from "@/lib/hooks/use-contacts";
 import type { Check, CheckStatus, CheckType, CheckDirection } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, MessageCircle, SlidersHorizontal, CreditCard } from "lucide-react";
+import { Plus, Search, MessageCircle, SlidersHorizontal, CreditCard, AlertTriangle, Clock, CalendarClock, CalendarCheck } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
@@ -108,6 +106,20 @@ function getDaysText(dueDateStr: string): string | null {
   return null;
 }
 
+function getDueBucket(dueDateStr: string, status: CheckStatus): "overdue" | "today" | "week" | "month" | "later" | "none" {
+  if (status !== "pending" && status !== "deposited") return "none";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDateStr);
+  due.setHours(0, 0, 0, 0);
+  const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diff < 0) return "overdue";
+  if (diff === 0) return "today";
+  if (diff <= 7) return "week";
+  if (diff <= 30) return "month";
+  return "later";
+}
+
 export default function ChecksPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -119,7 +131,6 @@ export default function ChecksPage() {
   const [maxAmount, setMaxAmount] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // Status change dialog state
   const [statusChangeTarget, setStatusChangeTarget] = useState<{
     id: string;
     name: string;
@@ -127,7 +138,6 @@ export default function ChecksPage() {
   } | null>(null);
   const [newStatus, setNewStatus] = useState<CheckStatus>("deposited");
 
-  // Endorse dialog state
   const [endorseTarget, setEndorseTarget] = useState<Check | null>(null);
   const [endorseContactId, setEndorseContactId] = useState("");
   const [endorseDate, setEndorseDate] = useState(
@@ -158,7 +168,6 @@ export default function ChecksPage() {
       const matchesMin = !minAmount || c.amount >= parseFloat(minAmount);
       const matchesMax = !maxAmount || c.amount <= parseFloat(maxAmount);
 
-      // Date range filter (on due_date)
       let matchesDate = true;
       if (startDate) {
         const s = new Date(startDate);
@@ -179,13 +188,22 @@ export default function ChecksPage() {
     });
   }, [checks, search, statusFilter, directionTab, contactFilter, minAmount, maxAmount, startDate, endDate]);
 
-  const summary = useMemo(() => {
-    const pending = filtered.filter(
-      (c) => c.status === "pending" || c.status === "deposited"
-    );
-    const total = pending.reduce((sum, c) => sum + (c.amount || 0), 0);
-    return { count: pending.length, total };
-  }, [filtered]);
+  // Due date summary
+  const dueSummary = useMemo(() => {
+    const active = (checks || []).filter(c => c.status === "pending" || c.status === "deposited");
+    let overdue = 0, overdueAmt = 0;
+    let today = 0, todayAmt = 0;
+    let week = 0, weekAmt = 0;
+    let month = 0, monthAmt = 0;
+    active.forEach(c => {
+      const bucket = getDueBucket(c.due_date, c.status);
+      if (bucket === "overdue") { overdue++; overdueAmt += c.amount; }
+      else if (bucket === "today") { today++; todayAmt += c.amount; }
+      else if (bucket === "week") { week++; weekAmt += c.amount; }
+      else if (bucket === "month") { month++; monthAmt += c.amount; }
+    });
+    return { overdue, overdueAmt, today, todayAmt, week, weekAmt, month, monthAmt };
+  }, [checks]);
 
   // Filter chips
   const chips: FilterChip[] = [];
@@ -292,25 +310,53 @@ export default function ChecksPage() {
     : [];
 
   return (
-    <div className="space-y-4 p-4 page-enter">
-      <div className="flex items-center justify-between">
+    <div className="p-4 page-enter">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold">Çek / Senet</h1>
-          <p className="text-sm text-muted-foreground">Çek ve senet takibi</p>
+          <h1 className="text-xl font-bold">Çek / Senet</h1>
+          <p className="text-xs text-muted-foreground">Çek ve senet takibi</p>
         </div>
         <div className="flex items-center gap-2">
           <BalanceToggle />
-          <Button asChild size="sm">
-            <Link href="/finance/checks/new">
-              <Plus className="mr-1 h-4 w-4" />
-              Yeni
-            </Link>
-          </Button>
+          <Link
+            href="/finance/checks/new"
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            <Plus className="h-4 w-4" />
+            Yeni
+          </Link>
         </div>
       </div>
 
+      {/* Due Date Summary - 4 column */}
+      {!isLoading && (dueSummary.overdue > 0 || dueSummary.today > 0 || dueSummary.week > 0 || dueSummary.month > 0) && (
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          <div className="rounded-2xl bg-red-50 p-3 text-center">
+            <AlertTriangle className="h-4 w-4 text-red-500 mx-auto mb-1" />
+            <p className="text-lg font-extrabold text-red-600">{dueSummary.overdue}</p>
+            <p className="text-[9px] uppercase tracking-wide text-red-500/80">Gecikmiş</p>
+          </div>
+          <div className="rounded-2xl bg-amber-50 p-3 text-center">
+            <Clock className="h-4 w-4 text-amber-500 mx-auto mb-1" />
+            <p className="text-lg font-extrabold text-amber-600">{dueSummary.today}</p>
+            <p className="text-[9px] uppercase tracking-wide text-amber-500/80">Bugün</p>
+          </div>
+          <div className="rounded-2xl bg-yellow-50 p-3 text-center">
+            <CalendarClock className="h-4 w-4 text-yellow-600 mx-auto mb-1" />
+            <p className="text-lg font-extrabold text-yellow-700">{dueSummary.week}</p>
+            <p className="text-[9px] uppercase tracking-wide text-yellow-600/80">Bu Hafta</p>
+          </div>
+          <div className="rounded-2xl bg-blue-50 p-3 text-center">
+            <CalendarCheck className="h-4 w-4 text-blue-500 mx-auto mb-1" />
+            <p className="text-lg font-extrabold text-blue-600">{dueSummary.month}</p>
+            <p className="text-[9px] uppercase tracking-wide text-blue-500/80">Bu Ay</p>
+          </div>
+        </div>
+      )}
+
       {/* Direction Tabs */}
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
+      <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3">
         {([
           { key: "all" as DirectionTab, label: "Tümü" },
           { key: "received" as DirectionTab, label: "Alınan" },
@@ -319,10 +365,10 @@ export default function ChecksPage() {
           <button
             key={t.key}
             onClick={() => setDirectionTab(t.key)}
-            className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
               directionTab === t.key
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground"
             }`}
           >
             {t.label}
@@ -330,40 +376,22 @@ export default function ChecksPage() {
         ))}
       </div>
 
-      {/* Summary */}
-      {!isLoading && summary.count > 0 && (
-        <Card>
-          <CardContent className="grid grid-cols-2 gap-2 p-3 text-center text-xs">
-            <div>
-              <p className="text-muted-foreground">Bekleyen Adet</p>
-              <p className="text-lg font-bold">{summary.count}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Bekleyen Toplam</p>
-              <p className="text-lg font-bold text-amber-600">
-                {masked(summary.total)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Search + filter toggle */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mb-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
             placeholder="Kişi, çek no veya banka ara..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="w-full rounded-xl bg-muted px-4 py-3 pl-10 text-sm outline-none ring-0 focus:ring-2 focus:ring-primary/30 transition-shadow placeholder:text-muted-foreground/60"
           />
         </div>
         <button
           type="button"
           onClick={() => setShowFilters(!showFilters)}
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors ${
-            showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${
+            showFilters ? "bg-primary text-white" : "bg-muted text-muted-foreground"
           }`}
         >
           <SlidersHorizontal className="h-4 w-4" />
@@ -371,14 +399,14 @@ export default function ChecksPage() {
       </div>
 
       {/* Status Filters */}
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3 scrollbar-none">
         {STATUS_FILTER_OPTIONS.map((opt) => (
           <button
             key={opt.value}
             onClick={() => setStatusFilter(opt.value)}
-            className={`whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
               statusFilter === opt.value
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary text-white"
                 : "bg-muted text-muted-foreground"
             }`}
           >
@@ -389,11 +417,11 @@ export default function ChecksPage() {
 
       {/* Extended filters panel */}
       {showFilters && (
-        <div className="space-y-3 rounded-lg border p-3">
+        <div className="rounded-xl bg-card p-3 shadow-sm mb-3 space-y-3">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">Kişi</p>
+            <p className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground mb-1.5">Kişi</p>
             <Select value={contactFilter || "all"} onValueChange={(v) => setContactFilter(v === "all" ? "" : v)}>
-              <SelectTrigger className="h-8 text-sm">
+              <SelectTrigger className="rounded-xl bg-muted border-0 h-10 text-sm">
                 <SelectValue placeholder="Tüm kişiler" />
               </SelectTrigger>
               <SelectContent>
@@ -405,14 +433,14 @@ export default function ChecksPage() {
             </Select>
           </div>
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">Vade Tarihi Aralığı</p>
+            <p className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground mb-1.5">Vade Tarihi Aralığı</p>
             <div className="grid grid-cols-2 gap-2">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-sm" />
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 text-sm" />
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-xl bg-muted border-0 h-10 text-sm" />
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-xl bg-muted border-0 h-10 text-sm" />
             </div>
           </div>
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">Tutar Aralığı</p>
+            <p className="text-[10px] uppercase tracking-wide font-medium text-muted-foreground mb-1.5">Tutar Aralığı</p>
             <div className="grid grid-cols-2 gap-2">
               <Input
                 type="number"
@@ -420,7 +448,7 @@ export default function ChecksPage() {
                 placeholder="Min"
                 value={minAmount}
                 onChange={(e) => setMinAmount(e.target.value)}
-                className="h-8 text-sm"
+                className="rounded-xl bg-muted border-0 h-10 text-sm"
               />
               <Input
                 type="number"
@@ -428,7 +456,7 @@ export default function ChecksPage() {
                 placeholder="Max"
                 value={maxAmount}
                 onChange={(e) => setMaxAmount(e.target.value)}
-                className="h-8 text-sm"
+                className="rounded-xl bg-muted border-0 h-10 text-sm"
               />
             </div>
           </div>
@@ -439,101 +467,96 @@ export default function ChecksPage() {
       <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="space-y-2 mt-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
       ) : filtered.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-2 mt-3">
           {filtered.map((c) => {
             const daysText = getDaysText(c.due_date);
             const canChange = STATUS_TRANSITIONS[c.status].length > 0;
             return (
-              <Card key={c.id} className={getDueClass(c.due_date, c.status)}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant="secondary" className="text-xs">
-                          {TYPE_LABELS[c.type]}
-                        </Badge>
-                        <Badge
-                          variant="secondary"
-                          className={`text-xs ${STATUS_COLORS[c.status]}`}
+              <div key={c.id} className={`rounded-xl bg-card p-4 shadow-sm ${getDueClass(c.due_date, c.status)}`}>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${STATUS_COLORS[c.status]}`}>
+                        {STATUS_LABELS[c.status]}
+                      </Badge>
+                      <span className="text-[10px] bg-muted rounded-md px-1.5 py-0.5 font-medium">
+                        {TYPE_LABELS[c.type]}
+                      </span>
+                      <span className="text-[10px] bg-muted rounded-md px-1.5 py-0.5 font-medium">
+                        {DIRECTION_LABELS[c.direction]}
+                      </span>
+                    </div>
+                    <p className="font-semibold text-sm">{c.contact?.name || "—"}</p>
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                      {c.serial_no && <span className="font-mono">No: {c.serial_no}</span>}
+                      {c.bank_name && <span>{c.bank_name}</span>}
+                      <span>Vade: {formatDateShort(c.due_date)}</span>
+                      {daysText && (
+                        <span
+                          className={`font-semibold ${
+                            daysText.includes("geçmiş")
+                              ? "text-red-600"
+                              : daysText === "Bugün"
+                                ? "text-orange-600"
+                                : "text-yellow-600"
+                          }`}
                         >
-                          {STATUS_LABELS[c.status]}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {DIRECTION_LABELS[c.direction]}
-                        </Badge>
-                      </div>
-                      <p className="font-medium">{c.contact?.name || "—"}</p>
-                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                        {c.serial_no && <span>No: {c.serial_no}</span>}
-                        {c.bank_name && <span>{c.bank_name}</span>}
-                        <span>Vade: {formatDateShort(c.due_date)}</span>
-                        {daysText && (
-                          <span
-                            className={
-                              daysText.includes("geçmiş")
-                                ? "font-medium text-red-600"
-                                : daysText === "Bugün"
-                                  ? "font-medium text-orange-600"
-                                  : "font-medium text-yellow-600"
-                            }
-                          >
-                            {daysText}
-                          </span>
-                        )}
-                      </div>
-                      {c.endorsed_to && (
-                        <p className="text-xs text-purple-600">
-                          Ciro: {c.endorsed_to}
-                        </p>
-                      )}
-                      {c.notes && (
-                        <p className="text-xs text-muted-foreground italic">
-                          {c.notes}
-                        </p>
+                          {daysText}
+                        </span>
                       )}
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">{masked(c.amount)}</p>
-                      <div className="mt-1 flex items-center justify-end gap-2">
-                        {c.contact?.phone && (c.status === "pending" || c.status === "deposited") && (
-                          <button
-                            className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                            onClick={() =>
-                              openWhatsAppMessage(
-                                c.contact?.phone,
-                                buildCekVadeMessage({
-                                  contactName: c.contact?.name || "",
-                                  amount: c.amount,
-                                  type: c.type,
-                                  serialNo: c.serial_no || undefined,
-                                  dueDate: c.due_date,
-                                })
-                              )
-                            }
-                            title="WhatsApp ile vade hatırlat"
-                          >
-                            <MessageCircle className="h-3 w-3" />
-                          </button>
-                        )}
-                        {canChange && (
-                          <button
-                            className="text-xs text-primary hover:underline"
-                            onClick={() => openStatusChange(c)}
-                          >
-                            Durum Değiştir
-                          </button>
-                        )}
-                      </div>
+                    {c.endorsed_to && (
+                      <p className="text-xs text-purple-600">
+                        Ciro: {c.endorsed_to}
+                      </p>
+                    )}
+                    {c.notes && (
+                      <p className="text-xs text-muted-foreground italic">
+                        {c.notes}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <p className="text-sm font-extrabold">{masked(c.amount)}</p>
+                    <div className="flex items-center gap-1.5">
+                      {c.contact?.phone && (c.status === "pending" || c.status === "deposited") && (
+                        <button
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                          onClick={() =>
+                            openWhatsAppMessage(
+                              c.contact?.phone,
+                              buildCekVadeMessage({
+                                contactName: c.contact?.name || "",
+                                amount: c.amount,
+                                type: c.type,
+                                serialNo: c.serial_no || undefined,
+                                dueDate: c.due_date,
+                              })
+                            )
+                          }
+                          title="WhatsApp ile vade hatırlat"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {canChange && (
+                        <button
+                          className="rounded-lg bg-muted px-2.5 py-1 text-[10px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+                          onClick={() => openStatusChange(c)}
+                        >
+                          Durum
+                        </button>
+                      )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -560,27 +583,27 @@ export default function ChecksPage() {
         open={!!statusChangeTarget}
         onOpenChange={(open) => !open && setStatusChangeTarget(null)}
       >
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Durum Değiştir</DialogTitle>
             <DialogDescription>{statusChangeTarget?.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium">Mevcut Durum</label>
-              <p className="text-sm text-muted-foreground">
+              <label className="text-sm font-medium text-muted-foreground">Mevcut Durum</label>
+              <p className="text-sm font-semibold mt-0.5">
                 {statusChangeTarget
                   ? STATUS_LABELS[statusChangeTarget.currentStatus]
                   : ""}
               </p>
             </div>
             <div>
-              <label className="text-sm font-medium">Yeni Durum</label>
+              <label className="text-sm font-medium text-muted-foreground">Yeni Durum</label>
               <Select
                 value={newStatus}
                 onValueChange={(val) => setNewStatus(val as CheckStatus)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="rounded-xl bg-muted border-0 h-12 mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -593,19 +616,20 @@ export default function ChecksPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
+          <DialogFooter className="gap-2">
+            <button
               onClick={() => setStatusChangeTarget(null)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
             >
               İptal
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleStatusChange}
               disabled={updateCheck.isPending}
+              className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
               {updateCheck.isPending ? "Güncelleniyor..." : "Güncelle"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -615,7 +639,7 @@ export default function ChecksPage() {
         open={!!endorseTarget}
         onOpenChange={(open) => !open && setEndorseTarget(null)}
       >
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Çek / Senet Ciro Et</DialogTitle>
             <DialogDescription>
@@ -631,14 +655,14 @@ export default function ChecksPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium">
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">
                 Bu çeki kime ciro ediyorsunuz? *
               </label>
               <Select
                 value={endorseContactId}
                 onValueChange={setEndorseContactId}
               >
-                <SelectTrigger className="mt-1">
+                <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
                   <SelectValue placeholder="Kişi seçiniz" />
                 </SelectTrigger>
                 <SelectContent>
@@ -663,17 +687,17 @@ export default function ChecksPage() {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium">Ciro Tarihi</label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Ciro Tarihi</label>
               <Input
                 type="date"
                 value={endorseDate}
                 onChange={(e) => setEndorseDate(e.target.value)}
-                className="mt-1"
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
             {endorseTarget && (
-              <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
-                <p>Ciro işlemi şunları yapacak:</p>
+              <div className="rounded-xl bg-muted p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Ciro işlemi:</p>
                 <p>
                   1. Bu {TYPE_LABELS[endorseTarget.type].toLowerCase()} &quot;Ciro
                   Edildi&quot; olarak işaretlenecek
@@ -690,17 +714,20 @@ export default function ChecksPage() {
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEndorseTarget(null)}>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setEndorseTarget(null)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+            >
               İptal
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleEndorse}
               disabled={endorseCheck.isPending || !endorseContactId}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="flex-1 rounded-xl bg-purple-600 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
               {endorseCheck.isPending ? "İşleniyor..." : "Ciro Et"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
