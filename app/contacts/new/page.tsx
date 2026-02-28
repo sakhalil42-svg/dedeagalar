@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { capitalizeWords } from "@/lib/utils/format";
 
 export default function NewContactPage() {
   const router = useRouter();
@@ -104,7 +105,7 @@ export default function NewContactPage() {
 
             <div className="space-y-2">
               <Label htmlFor="name">İsim *</Label>
-              <Input id="name" {...register("name")} placeholder="Ad Soyad / Firma" />
+              <Input id="name" {...register("name", { onBlur: (e) => setValue("name", capitalizeWords(e.target.value)) })} placeholder="Ad Soyad / Firma" />
               {errors.name && (
                 <p className="text-sm text-destructive">{errors.name.message}</p>
               )}

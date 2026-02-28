@@ -39,7 +39,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { formatPhoneForWhatsApp, openPhoneDialer, openWhatsAppMessage, buildGunlukOzetMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
-import { formatCurrency } from "@/lib/utils/format";
+import { formatCurrency, capitalizeWords } from "@/lib/utils/format";
 import { useDeliveriesByContact } from "@/lib/hooks/use-deliveries-by-contact";
 import { Copy, Send } from "lucide-react";
 
@@ -231,7 +231,7 @@ export default function ContactDetailPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="name">İsim *</Label>
-                <Input id="name" {...register("name")} />
+                <Input id="name" {...register("name", { onBlur: (e) => setValue("name", capitalizeWords(e.target.value)) })} />
                 {errors.name && (
                   <p className="text-sm text-destructive">
                     {errors.name.message}

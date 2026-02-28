@@ -30,7 +30,7 @@ import {
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/utils/format";
+import { formatCurrency, capitalizeWords } from "@/lib/utils/format";
 import type { Vehicle } from "@/lib/types/database.types";
 
 function getInitials(name: string): string {
@@ -468,6 +468,7 @@ export default function CarriersPage() {
               <Input
                 value={cName}
                 onChange={(e) => setCName(e.target.value)}
+                onBlur={() => setCName(capitalizeWords(cName))}
                 placeholder="Nakliyeci adı"
                 className="rounded-xl bg-muted border-0 h-12"
               />
@@ -648,6 +649,7 @@ export default function CarriersPage() {
               <Input
                 value={editTarget?.name || ""}
                 onChange={(e) => setEditTarget((p) => p ? { ...p, name: e.target.value } : p)}
+                onBlur={() => setEditTarget((p) => p ? { ...p, name: capitalizeWords(p.name) } : p)}
                 placeholder="Nakliyeci adı"
                 className="rounded-xl bg-muted border-0 h-12"
               />

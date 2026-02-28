@@ -27,6 +27,19 @@ export function formatPercent(value: number): string {
   return `%${Math.round(value)}`;
 }
 
+// ─── Turkish Name Capitalization ───
+
+/**
+ * Capitalize the first letter of each word using Turkish locale rules.
+ * "türkcan kardeşler" → "Türkcan Kardeşler"
+ * Handles i → İ and ı → I correctly.
+ */
+export function capitalizeWords(text: string): string {
+  return text
+    .toLocaleLowerCase("tr-TR")
+    .replace(/(?:^|\s)\S/g, (char) => char.toLocaleUpperCase("tr-TR"));
+}
+
 // ─── Number Input Helpers (binlik nokta + ondalık virgül) ───
 
 /**
