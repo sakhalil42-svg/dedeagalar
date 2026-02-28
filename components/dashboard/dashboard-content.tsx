@@ -67,6 +67,18 @@ function formatMobileAmount(amount: number): string {
   return `${sign}${abs.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}`;
 }
 
+// Color mappings for KPI decorative elements
+const KPI_ICON_COLORS: Record<string, { icon: string; circle: string }> = {
+  blue: { icon: "text-blue-600 dark:text-blue-400", circle: "bg-blue-100 dark:bg-blue-900/20" },
+  purple: { icon: "text-purple-600 dark:text-purple-400", circle: "bg-purple-100 dark:bg-purple-900/20" },
+  green: { icon: "text-primary", circle: "bg-primary/10" },
+  red: { icon: "text-red-600 dark:text-red-400", circle: "bg-red-100 dark:bg-red-900/20" },
+  amber: { icon: "text-amber-600 dark:text-amber-400", circle: "bg-amber-100 dark:bg-amber-900/20" },
+  orange: { icon: "text-orange-600 dark:text-orange-400", circle: "bg-orange-100 dark:bg-orange-900/20" },
+  teal: { icon: "text-teal-600 dark:text-teal-400", circle: "bg-teal-100 dark:bg-teal-900/20" },
+  yellow: { icon: "text-yellow-600 dark:text-yellow-400", circle: "bg-yellow-100 dark:bg-yellow-900/20" },
+};
+
 function KpiCard({
   title,
   value,
@@ -74,6 +86,7 @@ function KpiCard({
   icon: Icon,
   loading,
   color,
+  iconColor = "green",
   href,
 }: {
   title: string;
@@ -82,25 +95,30 @@ function KpiCard({
   icon: React.ElementType;
   loading?: boolean;
   color?: string;
+  iconColor?: string;
   href?: string;
 }) {
+  const kpiColors = KPI_ICON_COLORS[iconColor] || KPI_ICON_COLORS.green;
+
   const content = (
-    <Card className={href ? "transition-colors hover:bg-muted/50" : ""}>
-      <CardContent className="p-2 sm:p-3">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight">{title}</p>
-          <Icon className="hidden sm:block h-3.5 w-3.5 text-muted-foreground" />
+    <Card className={`relative overflow-hidden ${href ? "transition-colors hover:border-primary/30" : ""}`}>
+      <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-28 sm:h-32">
+        {/* Decorative corner circle */}
+        <div className={`absolute -right-3 -top-3 h-14 w-14 rounded-full ${kpiColors.circle} transition-transform`} />
+        <div className="relative z-10">
+          <Icon className={`h-5 w-5 mb-1 ${kpiColors.icon}`} />
+          <p className="text-[10px] sm:text-xs text-muted-foreground font-medium leading-tight">{title}</p>
         </div>
         {loading ? (
-          <div className="mt-1 space-y-1">
-            <Skeleton className="h-5 w-20" />
+          <div className="space-y-1 relative z-10">
+            <Skeleton className="h-6 w-20" />
             <Skeleton className="h-2.5 w-12" />
           </div>
         ) : (
-          <>
-            <p className={`mt-0.5 text-sm sm:text-base font-bold leading-tight truncate ${color || ""}`}>{value}</p>
+          <div className="relative z-10">
+            <p className={`text-lg sm:text-xl font-bold leading-tight truncate ${color || ""}`}>{value}</p>
             {subtitle && <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">{subtitle}</p>}
-          </>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -173,6 +191,7 @@ export function DashboardContent() {
           title="Bugün Tır"
           value={kpis ? String(kpis.todayTruckCount) : "--"}
           icon={Truck}
+          iconColor="blue"
           loading={kpisLoading}
           subtitle={kpis && kpis.todayTonnage > 0 ? formatWeight(kpis.todayTonnage) : undefined}
         />
@@ -180,12 +199,14 @@ export function DashboardContent() {
           title="Bugün Tonaj"
           value={kpis ? formatWeight(kpis.todayTonnage) : "--"}
           icon={Scale}
+          iconColor="purple"
           loading={kpisLoading}
         />
         <KpiCard
           title="Bugün Kâr"
           value={kpis ? maskedCompact(kpis.todayProfit) : "--"}
           icon={TrendingUp}
+          iconColor="green"
           loading={kpisLoading}
           color={kpis ? (kpis.todayProfit >= 0 ? "text-green-600" : "text-red-600") : ""}
           href="/finance/profit"
@@ -194,6 +215,7 @@ export function DashboardContent() {
           title="Bu Ay Kâr"
           value={kpis ? maskedCompact(kpis.monthProfit) : "--"}
           icon={TrendingUp}
+          iconColor="green"
           loading={kpisLoading}
           color={kpis ? (kpis.monthProfit >= 0 ? "text-green-600" : "text-red-600") : ""}
           href="/finance/profit"
@@ -206,6 +228,7 @@ export function DashboardContent() {
           title="Toplam Alacak"
           value={kpis ? maskedCompact(kpis.pendingReceivables) : "--"}
           icon={CircleDollarSign}
+          iconColor="teal"
           loading={kpisLoading}
           color="text-red-600"
           href="/finance"
@@ -214,6 +237,7 @@ export function DashboardContent() {
           title="Toplam Borç"
           value={kpis ? maskedCompact(kpis.pendingPayables) : "--"}
           icon={CircleDollarSign}
+          iconColor="orange"
           loading={kpisLoading}
           color="text-amber-600"
           href="/finance"
@@ -223,6 +247,7 @@ export function DashboardContent() {
           value={kpis ? `${kpis.dueCheckCount} adet` : "--"}
           subtitle={kpis && kpis.dueCheckTotal > 0 ? maskedCompact(kpis.dueCheckTotal) : undefined}
           icon={FileText}
+          iconColor="yellow"
           loading={kpisLoading}
           color={kpis && kpis.overdueCheckCount > 0 ? "text-red-600" : "text-amber-600"}
           href="/finance/calendar"
@@ -231,6 +256,7 @@ export function DashboardContent() {
           title="Nakliye (Ay)"
           value={kpis ? maskedCompact(kpis.monthlyFreight) : "--"}
           icon={Truck}
+          iconColor="red"
           loading={kpisLoading}
           color="text-orange-600"
         />
