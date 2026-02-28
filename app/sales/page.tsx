@@ -36,12 +36,7 @@ import { PlateCombobox } from "@/components/forms/plate-combobox";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
 import { useSeasonFilter } from "@/lib/contexts/season-context";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -403,7 +398,7 @@ function ActiveOrderView({
   const recentIds = new Set(getRecentTemplateIds());
 
   return (
-    <div className="flex flex-col pb-4">
+    <div className="flex flex-col pb-4 page-enter">
       {/* ─── HEADER ─── */}
       <div className="sticky top-0 z-20 bg-background border-b">
         <div className="flex items-center justify-between p-4 pb-2">
@@ -415,19 +410,20 @@ function ActiveOrderView({
           </div>
           <div className="flex items-center gap-2">
             <BalanceToggle />
-            <Button variant="outline" size="sm" onClick={onShowHistory}>
+            <button
+              onClick={onShowHistory}
+              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold hover:bg-muted transition-colors inline-flex items-center"
+            >
               <History className="mr-1 h-4 w-4" />
               Geçmiş
-            </Button>
+            </button>
           </div>
         </div>
 
         {/* ─── TEMPLATE BUTTONS ─── */}
         <div className="flex gap-2 px-4 pb-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs h-7"
+          <button
+            className="rounded-xl border border-border px-3 py-1.5 text-xs font-semibold hover:bg-muted transition-colors inline-flex items-center h-7"
             onClick={() => {
               setShowTemplateList(!showTemplateList);
               setShowSaveTemplate(false);
@@ -435,12 +431,10 @@ function ActiveOrderView({
           >
             <BookTemplate className="mr-1 h-3 w-3" />
             Şablonlar {templates.length > 0 && `(${templates.length})`}
-          </Button>
+          </button>
           {isOrderReady && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-7"
+            <button
+              className="rounded-xl border border-border px-3 py-1.5 text-xs font-semibold hover:bg-muted transition-colors inline-flex items-center h-7"
               onClick={() => {
                 setShowSaveTemplate(!showSaveTemplate);
                 setShowTemplateList(false);
@@ -448,37 +442,37 @@ function ActiveOrderView({
             >
               <Save className="mr-1 h-3 w-3" />
               Şablon Kaydet
-            </Button>
+            </button>
           )}
         </div>
 
         {/* Template Save Dialog */}
         {showSaveTemplate && (
-          <div className="mx-4 mb-2 rounded-lg border p-3 space-y-2 bg-blue-50/50">
+          <div className="mx-4 mb-2 rounded-xl border p-3 space-y-2 bg-blue-50/50">
             <p className="text-xs font-medium">Şablon Olarak Kaydet</p>
             <Input
               placeholder="Şablon adı (ör: Ofis-Samed Arpa)"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
-              className="h-8 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && handleSaveTemplate()}
             />
             <div className="flex gap-2">
-              <Button size="sm" className="h-7 text-xs" onClick={handleSaveTemplate}>
+              <button className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors inline-flex items-center h-7" onClick={handleSaveTemplate}>
                 <Save className="mr-1 h-3 w-3" />
                 Kaydet
-              </Button>
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowSaveTemplate(false)}>
+              </button>
+              <button className="rounded-xl px-3 py-2 text-xs font-semibold hover:bg-muted transition-colors h-7" onClick={() => setShowSaveTemplate(false)}>
                 İptal
-              </Button>
+              </button>
             </div>
           </div>
         )}
 
         {/* Template List */}
         {showTemplateList && (
-          <div className="mx-4 mb-2 rounded-lg border bg-background max-h-64 overflow-y-auto">
+          <div className="mx-4 mb-2 rounded-xl border bg-background max-h-64 overflow-y-auto">
             {templates.length === 0 ? (
               <p className="p-3 text-xs text-muted-foreground text-center">
                 Henüz şablon yok. Sipariş bilgilerini girdikten sonra &ldquo;Şablon Kaydet&rdquo; ile kaydedin.
@@ -527,12 +521,12 @@ function ActiveOrderView({
         <div className="px-4 pb-3 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-xs text-muted-foreground">Müşteri</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Müşteri</label>
               <Select
                 value={order.customerId}
                 onValueChange={(v) => setOrder((p) => ({ ...p, customerId: v, saleId: null }))}
               >
-                <SelectTrigger className="w-full h-9 text-sm">
+                <SelectTrigger className="w-full rounded-xl bg-muted border-0 h-12 text-sm">
                   <SelectValue placeholder="Müşteri seç" />
                 </SelectTrigger>
                 <SelectContent>
@@ -545,12 +539,12 @@ function ActiveOrderView({
               </Select>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Üretici</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Üretici</label>
               <Select
                 value={order.supplierId}
                 onValueChange={(v) => setOrder((p) => ({ ...p, supplierId: v }))}
               >
-                <SelectTrigger className="w-full h-9 text-sm">
+                <SelectTrigger className="w-full rounded-xl bg-muted border-0 h-12 text-sm">
                   <SelectValue placeholder="Üretici seç" />
                 </SelectTrigger>
                 <SelectContent>
@@ -566,12 +560,12 @@ function ActiveOrderView({
 
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <Label className="text-xs text-muted-foreground">Yem Türü</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Yem Türü</label>
               <Select
                 value={order.feedTypeId}
                 onValueChange={(v) => setOrder((p) => ({ ...p, feedTypeId: v, saleId: null }))}
               >
-                <SelectTrigger className="w-full h-9 text-sm">
+                <SelectTrigger className="w-full rounded-xl bg-muted border-0 h-12 text-sm">
                   <SelectValue placeholder="Seç" />
                 </SelectTrigger>
                 <SelectContent>
@@ -584,7 +578,7 @@ function ActiveOrderView({
               </Select>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Müşteri ₺/kg</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Müşteri ₺/kg</label>
               <Input
                 type="text"
                 inputMode="decimal"
@@ -593,11 +587,11 @@ function ActiveOrderView({
                 onChange={(e) => {
                   setOrder((p) => ({ ...p, customerPrice: handleNumberChange(e.target.value, true) }));
                 }}
-                className="h-9 text-sm"
+                className="rounded-xl bg-muted border-0 h-12 text-sm"
               />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">Üretici ₺/kg</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Üretici ₺/kg</label>
               <Input
                 type="text"
                 inputMode="decimal"
@@ -606,7 +600,7 @@ function ActiveOrderView({
                 onChange={(e) => {
                   setOrder((p) => ({ ...p, supplierPrice: handleNumberChange(e.target.value, true) }));
                 }}
-                className="h-9 text-sm"
+                className="rounded-xl bg-muted border-0 h-12 text-sm"
               />
             </div>
           </div>
@@ -617,7 +611,7 @@ function ActiveOrderView({
               <button
                 type="button"
                 onClick={() => setOrder((p) => ({ ...p, pricingModel: "nakliye_dahil" }))}
-                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex-1 rounded-xl px-2 py-1.5 text-xs font-medium transition-colors ${
                   order.pricingModel === "nakliye_dahil"
                     ? "bg-green-600 text-white"
                     : "bg-muted text-muted-foreground"
@@ -628,7 +622,7 @@ function ActiveOrderView({
               <button
                 type="button"
                 onClick={() => setOrder((p) => ({ ...p, pricingModel: "tir_ustu" }))}
-                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex-1 rounded-xl px-2 py-1.5 text-xs font-medium transition-colors ${
                   order.pricingModel === "tir_ustu"
                     ? "bg-green-600 text-white"
                     : "bg-muted text-muted-foreground"
@@ -638,27 +632,27 @@ function ActiveOrderView({
               </button>
             </div>
             {isOrderReady && (
-              <Button variant="ghost" size="sm" onClick={handleResetAll} className="text-xs text-muted-foreground h-8 px-2">
+              <button onClick={handleResetAll} className="rounded-xl px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors inline-flex items-center h-8">
                 <RotateCcw className="mr-1 h-3 w-3" />
                 Sıfırla
-              </Button>
+              </button>
             )}
           </div>
 
           {isOrderReady && (
             <div className="flex items-center gap-2 text-xs">
-              <Badge variant="secondary" className="bg-green-100 text-green-800">
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800 inline-flex items-center">
                 <Users className="mr-1 h-3 w-3" />
                 {customerContact?.name}
-              </Badge>
+              </span>
               <span className="text-muted-foreground">←</span>
-              <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
                 {feedTypeName}
-              </Badge>
+              </span>
               <span className="text-muted-foreground">←</span>
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
                 {supplierName}
-              </Badge>
+              </span>
             </div>
           )}
         </div>
@@ -667,8 +661,8 @@ function ActiveOrderView({
       {/* ─── MAIN CONTENT ─── */}
       <div className="flex-1 p-4 space-y-4">
         {!isOrderReady ? (
-          <Card>
-            <CardContent className="py-12 text-center">
+          <div className="rounded-xl bg-card p-4 shadow-sm">
+            <div className="py-12 text-center">
               <Scale className="mx-auto h-10 w-10 text-muted-foreground/40" />
               <p className="mt-3 text-sm text-muted-foreground">
                 Yukarıdan müşteri, üretici, yem türü ve fiyatları seçin.
@@ -676,8 +670,8 @@ function ActiveOrderView({
               <p className="mt-1 text-xs text-muted-foreground">
                 Ardından kantar fişlerini hızlıca girmeye başlayın.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ) : (
           <>
             <QuickEntryForm
@@ -780,17 +774,17 @@ function TodayDeliveriesList({ masked }: { masked: (amount: number) => string })
   const totalKg = deliveries.reduce((s, d) => s + d.net_weight, 0);
 
   return (
-    <Card>
-      <CardHeader className="pb-2 pt-3 px-3">
-        <CardTitle className="text-sm flex items-center justify-between">
+    <div className="rounded-xl bg-card shadow-sm">
+      <div className="pb-2 pt-3 px-3">
+        <div className="text-sm font-semibold flex items-center justify-between">
           <span className="flex items-center gap-1.5">
             <Scale className="h-4 w-4" />
             Bugünkü Sevkiyatlar ({deliveries.length})
           </span>
-          <Badge variant="secondary">{(totalKg / 1000).toFixed(1)} ton</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0 divide-y">
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold">{(totalKg / 1000).toFixed(1)} ton</span>
+        </div>
+      </div>
+      <div className="p-0 divide-y">
         {deliveries.map((d) => {
           const customerName = d.sale?.contact?.name || "—";
           const customerPhone = d.sale?.contact?.phone || null;
@@ -826,8 +820,8 @@ function TodayDeliveriesList({ masked }: { masked: (amount: number) => string })
             />
           );
         })}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -895,32 +889,32 @@ function TodayDeliveryRow({
       <div className="px-3 py-2.5 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs">Ağırlık (kg)</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Ağırlık (kg)</label>
             <Input
               type="number"
               inputMode="numeric"
               value={editWeight}
               onChange={(e) => onEditWeight(e.target.value)}
-              className="h-8 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
             />
           </div>
           <div>
-            <Label className="text-xs">Plaka</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Plaka</label>
             <Input
               value={editPlate}
               onChange={(e) => onEditPlate(e.target.value.toUpperCase())}
-              className="h-8 text-sm font-mono"
+              className="rounded-xl bg-muted border-0 h-12 text-sm font-mono"
             />
           </div>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" onClick={onSaveEdit} disabled={isSaving} className="h-7 text-xs">
+          <button onClick={onSaveEdit} disabled={isSaving} className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors inline-flex items-center h-7 disabled:opacity-50">
             {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="mr-1 h-3 w-3" />}
             Kaydet
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onCancelEdit} className="h-7 text-xs">
+          </button>
+          <button onClick={onCancelEdit} className="rounded-xl px-3 py-2 text-xs font-semibold hover:bg-muted transition-colors h-7">
             İptal
-          </Button>
+          </button>
         </div>
       </div>
     );
@@ -932,9 +926,9 @@ function TodayDeliveryRow({
         <div className="flex items-center gap-1.5">
           <p className="text-sm font-semibold truncate">{customerName}</p>
           {feedName && (
-            <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold shrink-0">
               {feedName}
-            </Badge>
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -960,7 +954,7 @@ function TodayDeliveryRow({
             href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+            className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
               waSent
                 ? "text-muted-foreground/50 hover:bg-muted/50"
                 : "text-green-600 hover:bg-green-50"
@@ -979,7 +973,7 @@ function TodayDeliveryRow({
         )}
         <button
           onClick={() => fileInputRef.current?.click()}
-          className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+          className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
             hasPhotos
               ? "text-green-600 hover:bg-green-50"
               : "text-blue-600 hover:bg-blue-50"
@@ -1003,7 +997,7 @@ function TodayDeliveryRow({
         />
         <button
           onClick={onStartEdit}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"
+          className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-muted transition-colors text-muted-foreground"
           title="Düzenle"
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -1011,7 +1005,7 @@ function TodayDeliveryRow({
         <button
           onClick={onDelete}
           disabled={isDeleting}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-red-500 hover:bg-red-50 transition-colors"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-red-500 hover:bg-red-50 transition-colors"
           title="Sil"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -1277,45 +1271,45 @@ function QuickEntryForm({
   };
 
   return (
-    <Card className="border-2 border-green-200 bg-green-50/30">
-      <CardHeader className="pb-2 pt-3 px-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
+    <div className="rounded-2xl border-2 border-green-200 bg-green-50/30 shadow-sm">
+      <div className="pb-2 pt-3 px-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
           <Scale className="h-4 w-4" />
           Kantar Fişi Gir
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-3 pb-3 space-y-3">
+        </div>
+      </div>
+      <div className="px-3 pb-3 space-y-3">
         {/* Row 1: Date + Ticket No */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs text-muted-foreground">Tarih</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Tarih</label>
             <Input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="h-9 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">
               Fiş No
               {lastTicketNo && (
                 <span className="ml-1 text-muted-foreground/60">(son: {lastTicketNo})</span>
               )}
-            </Label>
+            </label>
             <Input
               placeholder="Opsiyonel"
               value={ticketNo}
               onChange={(e) => setTicketNo(e.target.value)}
-              className="h-9 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
             />
           </div>
         </div>
 
         {/* Row 2: NET WEIGHT — 3.6 formatted input */}
         <div>
-          <Label className="text-xs text-muted-foreground">Net Ağırlık (kg)</Label>
-          <div className="relative">
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Net Ağırlık (kg)</label>
+          <div className="bg-primary/10 border-2 border-primary/20 rounded-2xl p-4 text-center">
             <input
               id="net-weight-input"
               type="text"
@@ -1323,7 +1317,7 @@ function QuickEntryForm({
               placeholder="0"
               value={displayWeight}
               onChange={handleNetWeightChange}
-              className="flex h-14 w-full rounded-md border border-input bg-background px-3 py-2 text-2xl font-bold text-center ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="w-full bg-transparent text-4xl font-extrabold text-primary text-center outline-none"
             />
             {netWeight && parseInt(netWeight) >= 1000 && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -1336,7 +1330,7 @@ function QuickEntryForm({
         {/* Row 3: Plate + Freight */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs text-muted-foreground">Araç Plakası</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Araç Plakası</label>
             <PlateCombobox
               value={vehiclePlate}
               onChange={setVehiclePlate}
@@ -1344,14 +1338,14 @@ function QuickEntryForm({
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Nakliye (₺)</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliye (₺)</label>
             <Input
               type="text"
               inputMode="decimal"
               placeholder="0"
               value={freightCost ? formatNumberInput(freightCost) : ""}
               onChange={(e) => setFreightCost(handleNumberChange(e.target.value, true))}
-              className="h-9 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
             />
           </div>
         </div>
@@ -1359,52 +1353,52 @@ function QuickEntryForm({
         {/* Row 4: Şoför Adı + Şoför Tel */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs text-muted-foreground">Şoför Adı</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Şoför Adı</label>
             <Input
               placeholder="Şoför adı"
               value={driverName}
               onChange={(e) => setDriverName(e.target.value)}
-              className="h-9 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">
               <Phone className="inline h-3 w-3 mr-0.5" />
               Şoför Tel
-            </Label>
+            </label>
             <Input
               type="tel"
               inputMode="tel"
               placeholder="05XX XXX XXXX"
               value={driverPhone}
               onChange={(e) => setDriverPhone(e.target.value)}
-              className="h-9 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
             />
           </div>
         </div>
 
         {/* Row 5: Nakliyeci */}
         <div>
-          <Label className="text-xs text-muted-foreground">Nakliyeci (firma/patron)</Label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliyeci (firma/patron)</label>
           <Input
             placeholder="Nakliyeci adı"
             value={carrierName}
             onChange={(e) => setCarrierName(e.target.value)}
-            className="h-9 text-sm"
+            className="rounded-xl bg-muted border-0 h-12 text-sm"
           />
         </div>
 
         {/* Row 5: Freight Payer toggle */}
         {freightCost && parseFloat(freightCost) > 0 && (
           <div>
-            <Label className="text-xs text-muted-foreground">Nakliye Ödeyen</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliye Ödeyen</label>
             <div className="mt-1 flex gap-1">
               {FREIGHT_PAYER_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setFreightPayer(opt.value)}
-                  className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                  className={`flex-1 rounded-xl px-2 py-1.5 text-sm font-medium transition-colors ${
                     freightPayer === opt.value
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground"
@@ -1431,7 +1425,7 @@ function QuickEntryForm({
           const profit = custAmount - suppAmount - myFreight;
 
           return (
-            <div className="rounded-lg bg-muted/50 p-2 text-xs space-y-1">
+            <div className="rounded-xl bg-muted/50 p-3 text-xs space-y-1">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Müşteri alacak:</span>
                 <span className="font-medium">{formatCurrency(custAmount)}</span>
@@ -1463,7 +1457,7 @@ function QuickEntryForm({
           </p>
         )}
 
-        <Button
+        <button
           onClick={handleSave}
           disabled={
             saving ||
@@ -1472,8 +1466,7 @@ function QuickEntryForm({
             parseInt(netWeight, 10) <= 0 ||
             (!!vehiclePlate.trim() && !carrierName.trim())
           }
-          className="w-full h-12 text-base font-bold"
-          size="lg"
+          className="w-full rounded-xl bg-primary px-4 py-3 text-base font-bold text-white hover:bg-primary/90 transition-colors disabled:opacity-50 inline-flex items-center justify-center h-12"
         >
           {saving ? (
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -1481,11 +1474,11 @@ function QuickEntryForm({
             <Check className="mr-2 h-5 w-5" />
           )}
           Kaydet
-        </Button>
+        </button>
 
         {/* Credit Limit Warning Dialog */}
         <Dialog open={!!creditWarning} onOpenChange={(open) => !open && setCreditWarning(null)}>
-          <DialogContent>
+          <DialogContent className="rounded-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-red-600">
                 <AlertTriangle className="h-5 w-5" />
@@ -1496,7 +1489,7 @@ function QuickEntryForm({
                   {creditWarning && (
                     <>
                       <p className="text-sm font-medium">{creditWarning.contactName}</p>
-                      <div className="rounded-lg border p-3 space-y-1.5 text-sm">
+                      <div className="rounded-xl border p-3 space-y-1.5 text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Kredi Limiti:</span>
                           <span className="font-medium">{formatCurrency(creditWarning.limit)}</span>
@@ -1509,7 +1502,7 @@ function QuickEntryForm({
                           <span className="text-muted-foreground">Bu Sevkiyat:</span>
                           <span className="font-medium">+{formatCurrency(creditWarning.shipmentAmount)}</span>
                         </div>
-                        <Separator />
+                        <div className="border-t border-border/50" />
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Yeni Bakiye:</span>
                           <span className="font-bold text-red-600">{formatCurrency(creditWarning.newBalance)}</span>
@@ -1527,22 +1520,25 @@ function QuickEntryForm({
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setCreditWarning(null)}>
+              <button
+                onClick={() => setCreditWarning(null)}
+                className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold hover:bg-muted transition-colors"
+              >
                 İptal
-              </Button>
-              <Button
-                variant="destructive"
+              </button>
+              <button
                 onClick={() => doSave()}
                 disabled={saving}
+                className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center justify-center"
               >
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Yine de Kaydet
-              </Button>
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -1621,26 +1617,26 @@ function TicketListAndSummary({
 
   if (!deliveries || deliveries.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+      <div className="rounded-xl bg-card p-4 shadow-sm">
+        <div className="py-8 text-center text-sm text-muted-foreground">
           <Truck className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
           Henüz kantar fişi girilmedi.
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
     <>
       {/* Ticket Cards */}
-      <Card>
-        <CardHeader className="pb-2 pt-3 px-3">
-          <CardTitle className="text-sm flex items-center justify-between">
+      <div className="rounded-xl bg-card shadow-sm">
+        <div className="pb-2 pt-3 px-3">
+          <div className="text-sm font-semibold flex items-center justify-between">
             <span>Kantar Fişleri ({deliveries.length})</span>
-            <Badge variant="secondary">{(summary.totalKg / 1000).toFixed(1)} ton</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 divide-y">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold">{(summary.totalKg / 1000).toFixed(1)} ton</span>
+          </div>
+        </div>
+        <div className="p-0 divide-y">
           {deliveries.map((d) => (
             <TicketRow
               key={d.id}
@@ -1653,37 +1649,36 @@ function TicketListAndSummary({
               isDeleting={deleteDelivery.isPending}
             />
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Summary Card */}
-      <Card className="border-2 border-primary/20">
-        <CardContent className="p-3">
+      <div className="rounded-xl bg-card p-3 shadow-sm border-2 border-primary/20">
           <div className="grid grid-cols-2 gap-3 text-center">
             <div>
-              <p className="text-xs text-muted-foreground">Toplam</p>
-              <p className="text-lg font-bold">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Toplam</p>
+              <p className="text-xl font-extrabold">
                 {(summary.totalKg / 1000).toFixed(1)}{" "}
                 <span className="text-sm font-normal">ton</span>
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Nakliye</p>
-              <p className="text-lg font-bold">{masked(summary.freightTotal)}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Nakliye</p>
+              <p className="text-xl font-extrabold">{masked(summary.freightTotal)}</p>
             </div>
           </div>
-          <Separator className="my-2" />
+          <div className="border-t border-border/50 my-2" />
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
-              <p className="text-xs text-muted-foreground">Müşteri Alacak</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Müşteri Alacak</p>
               <p className="font-bold text-sm text-red-600">{masked(summary.customerTotal)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Üretici Borç</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Üretici Borç</p>
               <p className="font-bold text-sm text-green-600">{masked(summary.supplierTotal)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Kar</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Kar</p>
               <p
                 className={`font-bold text-sm ${
                   summary.profit >= 0 ? "text-green-700" : "text-red-700"
@@ -1693,8 +1688,7 @@ function TicketListAndSummary({
               </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </>
   );
 }
@@ -1808,39 +1802,39 @@ function TicketRow({
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs text-muted-foreground">Net Ağırlık (kg)</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Net Ağırlık (kg)</label>
             <Input
               type="text"
               inputMode="numeric"
               value={editWeight ? formatNumberInput(editWeight) : ""}
               onChange={(e) => setEditWeight(handleNumberChange(e.target.value, false))}
-              className="h-8 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Plaka</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Plaka</label>
             <Input
               value={editPlate}
               onChange={(e) => setEditPlate(e.target.value.toUpperCase())}
-              className="h-8 text-sm font-mono"
+              className="rounded-xl bg-muted border-0 h-12 text-sm font-mono"
             />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs text-muted-foreground">Nakliye (₺)</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliye (₺)</label>
             <Input
               type="text"
               inputMode="decimal"
               value={editFreight ? formatNumberInput(editFreight) : ""}
               onChange={(e) => setEditFreight(handleNumberChange(e.target.value, true))}
-              className="h-8 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Ödeyen</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Ödeyen</label>
             <Select value={editFreightPayer} onValueChange={(v) => setEditFreightPayer(v as FreightPayer)}>
-              <SelectTrigger className="h-8 text-sm">
+              <SelectTrigger className="rounded-xl bg-muted border-0 h-12 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1853,32 +1847,32 @@ function TicketRow({
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-xs text-muted-foreground">Şoför</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Şoför</label>
             <Input
               value={editDriverName}
               onChange={(e) => setEditDriverName(e.target.value)}
-              className="h-8 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
               placeholder="Şoför adı"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Nakliyeci</Label>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliyeci</label>
             <Input
               value={editCarrier}
               onChange={(e) => setEditCarrier(e.target.value)}
-              className="h-8 text-sm"
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
               placeholder="Firma/patron"
             />
           </div>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" onClick={handleSaveEdit} disabled={updateDelivery.isPending} className="flex-1">
+          <button onClick={handleSaveEdit} disabled={updateDelivery.isPending} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-50 inline-flex items-center justify-center">
             {updateDelivery.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Check className="mr-1 h-3 w-3" />}
             Kaydet
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
+          </button>
+          <button onClick={() => setEditing(false)} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold hover:bg-muted transition-colors">
             İptal
-          </Button>
+          </button>
         </div>
       </div>
     );
@@ -1930,7 +1924,7 @@ function TicketRow({
                 href={waUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
                   waSent
                     ? "text-muted-foreground/50 hover:bg-muted/50"
                     : "text-green-600 hover:bg-green-50"
@@ -1958,7 +1952,7 @@ function TicketRow({
                   fileInputRef.current?.click();
                 }
               }}
-              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+              className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
                 hasPhotos
                   ? "text-green-600 hover:bg-green-50"
                   : "text-blue-600 hover:bg-blue-50"
@@ -1985,7 +1979,7 @@ function TicketRow({
             {/* Edit — 3.3 */}
             <button
               onClick={startEdit}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-50 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-amber-600 hover:bg-amber-50 transition-colors"
               title="Düzenle"
             >
               <Pencil className="h-4 w-4" />
@@ -1994,7 +1988,7 @@ function TicketRow({
             {/* Delete */}
             <button
               onClick={onDelete}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-red-50 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-red-500 hover:bg-red-50 transition-colors"
               disabled={isDeleting}
               title="Sil"
             >
@@ -2010,7 +2004,7 @@ function TicketRow({
               <button
                 key={p.name}
                 onClick={() => { setLightboxUrl(p.url); setLightboxPhoto(p); }}
-                className="shrink-0 h-12 w-12 rounded-md overflow-hidden border hover:ring-2 ring-primary transition-all"
+                className="shrink-0 h-12 w-12 rounded-xl overflow-hidden border hover:ring-2 ring-primary transition-all"
               >
                 <img
                   src={p.url}
@@ -2021,7 +2015,7 @@ function TicketRow({
             ))}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="shrink-0 h-12 w-12 rounded-md border border-dashed flex items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
+              className="shrink-0 h-12 w-12 rounded-xl border border-dashed flex items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
             >
               <ImageIcon className="h-4 w-4" />
             </button>
@@ -2270,11 +2264,11 @@ function HistoryView({
   const selectedSale = sales?.find((s) => s.id === selectedSaleId);
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 page-enter">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}>
+        <button onClick={onBack} className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-muted transition-colors text-muted-foreground">
           <ChevronLeft className="h-4 w-4" />
-        </Button>
+        </button>
         <div>
           <h1 className="text-xl font-bold">Geçmiş Siparişler</h1>
           <p className="text-sm text-muted-foreground">Tamamlanan satışlar</p>
@@ -2283,12 +2277,11 @@ function HistoryView({
 
       {selectedSaleId && selectedSale ? (
         <>
-          <Button variant="outline" size="sm" onClick={() => onSelectSale(null)}>
+          <button onClick={() => onSelectSale(null)} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold hover:bg-muted transition-colors inline-flex items-center">
             <ChevronLeft className="mr-1 h-4 w-4" />
             Listeye Dön
-          </Button>
-          <Card>
-            <CardContent className="p-4 space-y-2">
+          </button>
+          <div className="rounded-xl bg-card p-4 shadow-sm space-y-2">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-bold">{selectedSale.contact?.name}</p>
@@ -2296,22 +2289,21 @@ function HistoryView({
                     {selectedSale.feed_type?.name} · {selectedSale.sale_no}
                   </p>
                 </div>
-                <Badge
-                  variant="secondary"
-                  className={
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                     selectedSale.status === "delivered"
                       ? "bg-green-100 text-green-800"
                       : selectedSale.status === "confirmed"
                       ? "bg-blue-100 text-blue-800"
                       : "bg-amber-100 text-amber-800"
-                  }
+                  }`}
                 >
                   {selectedSale.status === "delivered"
                     ? "Tamamlandı"
                     : selectedSale.status === "confirmed"
                     ? "Aktif"
                     : "Taslak"}
-                </Badge>
+                </span>
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <span>{masked(selectedSale.total_amount)}</span>
@@ -2322,10 +2314,8 @@ function HistoryView({
               {/* Action buttons */}
               {selectedSale.status !== "cancelled" && (
                 <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs"
+                  <button
+                    className="rounded-xl border border-border px-3 py-2 text-xs font-semibold hover:bg-muted transition-colors inline-flex items-center"
                     onClick={() => {
                       setReassignTarget(selectedSale);
                       setReassignPrice(String(selectedSale.unit_price));
@@ -2333,20 +2323,17 @@ function HistoryView({
                   >
                     <UserPlus className="mr-1 h-3 w-3" />
                     Müşteri Değiştir
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs text-destructive"
+                  </button>
+                  <button
+                    className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-destructive hover:bg-muted transition-colors inline-flex items-center"
                     onClick={() => setCancelTarget(selectedSale)}
                   >
                     <Ban className="mr-1 h-3 w-3" />
                     İptal Et
-                  </Button>
+                  </button>
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
           <HistoryTicketList
             saleId={selectedSaleId}
             masked={masked}
@@ -2374,7 +2361,7 @@ function HistoryView({
                   <button
                     key={f.key}
                     onClick={() => setDateFilter(f.key)}
-                    className={`flex-1 rounded-md px-1.5 py-1.5 text-xs font-medium transition-colors ${
+                    className={`flex-1 rounded-full px-1.5 py-1.5 text-xs font-medium transition-colors ${
                       dateFilter === f.key
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground"
@@ -2387,7 +2374,7 @@ function HistoryView({
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
                   showAdvancedFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
                 }`}
               >
@@ -2400,11 +2387,11 @@ function HistoryView({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] text-muted-foreground">Başlangıç</label>
-                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-sm" />
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-xl bg-muted border-0 h-12 text-sm" />
                 </div>
                 <div>
                   <label className="text-[10px] text-muted-foreground">Bitiş</label>
-                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 text-sm" />
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-xl bg-muted border-0 h-12 text-sm" />
                 </div>
               </div>
             )}
@@ -2412,7 +2399,7 @@ function HistoryView({
             {/* Customer filter */}
             {allContacts && allContacts.length > 0 && (
               <Select value={contactFilter || "all_contacts"} onValueChange={(v) => setContactFilter(v === "all_contacts" ? "" : v)}>
-                <SelectTrigger className="h-8 text-sm">
+                <SelectTrigger className="rounded-xl bg-muted border-0 h-12 text-sm">
                   <SelectValue placeholder="Tüm müşteriler" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2428,12 +2415,12 @@ function HistoryView({
 
             {/* Advanced filters panel */}
             {showAdvancedFilters && (
-              <div className="space-y-2 rounded-lg border p-3">
+              <div className="space-y-2 rounded-xl border p-3">
                 {/* Feed type filter */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">Yem Türü</p>
                   <Select value={feedTypeFilter || "all"} onValueChange={(v) => setFeedTypeFilter(v === "all" ? "" : v)}>
-                    <SelectTrigger className="h-8 text-sm">
+                    <SelectTrigger className="rounded-xl bg-muted border-0 h-12 text-sm">
                       <SelectValue placeholder="Tüm yem türleri" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2486,12 +2473,10 @@ function HistoryView({
 
             {/* Summary */}
             {filteredSales.length > 0 && (
-              <Card>
-                <CardContent className="p-2 flex items-center justify-between text-xs">
+              <div className="rounded-xl bg-card p-3 shadow-sm flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">{filteredSales.length} sipariş</span>
                   <span className="font-bold">{masked(totalAmount)}</span>
-                </CardContent>
-              </Card>
+              </div>
             )}
           </div>
 
@@ -2504,19 +2489,17 @@ function HistoryView({
           ) : filteredSales.length > 0 ? (
             <div className="space-y-2">
               {filteredSales.map((s) => (
-                <Card
+                <div
                   key={s.id}
-                  className="cursor-pointer transition-colors hover:bg-muted/50"
+                  className="rounded-xl bg-card p-4 shadow-sm cursor-pointer transition-colors hover:bg-muted/50"
                   onClick={() => onSelectSale(s.id)}
                 >
-                  <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold">{s.contact?.name || "—"}</p>
-                          <Badge
-                            variant="secondary"
-                            className={
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                               s.status === "delivered"
                                 ? "bg-green-100 text-green-800"
                                 : s.status === "confirmed"
@@ -2524,7 +2507,7 @@ function HistoryView({
                                 : s.status === "cancelled"
                                 ? "bg-red-100 text-red-800"
                                 : "bg-amber-100 text-amber-800"
-                            }
+                            }`}
                           >
                             {s.status === "delivered"
                               ? "Tamamlandı"
@@ -2533,7 +2516,7 @@ function HistoryView({
                               : s.status === "cancelled"
                               ? "İptal"
                               : "Taslak"}
-                          </Badge>
+                          </span>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           {s.feed_type?.name} · {s.sale_no}
@@ -2546,8 +2529,7 @@ function HistoryView({
                         </p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
               ))}
             </div>
           ) : (
@@ -2570,7 +2552,7 @@ function HistoryView({
 
       {/* ── Cancel Dialog ── */}
       <Dialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Sipariş İptal</DialogTitle>
             <DialogDescription>
@@ -2582,7 +2564,7 @@ function HistoryView({
               Bu siparişin tüm cari hesap işlemleri geri alınacaktır.
             </p>
             <div>
-              <Label>İptal Nedeni (opsiyonel)</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">İptal Nedeni (opsiyonel)</label>
               <Textarea
                 value={cancelNote}
                 onChange={(e) => setCancelNote(e.target.value)}
@@ -2591,22 +2573,22 @@ function HistoryView({
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelTarget(null)}>Vazgeç</Button>
-            <Button
-              variant="destructive"
+          <DialogFooter className="gap-2">
+            <button onClick={() => setCancelTarget(null)} className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold hover:bg-muted transition-colors">Vazgeç</button>
+            <button
               onClick={handleCancel}
               disabled={cancelSale.isPending}
+              className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
             >
               {cancelSale.isPending ? "İptal ediliyor..." : "İptal Et"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Reassign Dialog ── */}
       <Dialog open={!!reassignTarget} onOpenChange={(o) => !o && setReassignTarget(null)}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Müşteri Değiştir</DialogTitle>
             <DialogDescription>
@@ -2615,9 +2597,9 @@ function HistoryView({
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Yeni Müşteri *</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Yeni Müşteri *</label>
               <Select value={reassignCustomerId || "pick"} onValueChange={(v) => setReassignCustomerId(v === "pick" ? "" : v)}>
-                <SelectTrigger>
+                <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
                   <SelectValue placeholder="Müşteri seçiniz" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2632,31 +2614,33 @@ function HistoryView({
               </Select>
             </div>
             <div>
-              <Label>Yeni Birim Fiyat (₺/kg)</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Yeni Birim Fiyat (₺/kg)</label>
               <Input
                 type="number"
                 inputMode="decimal"
                 value={reassignPrice}
                 onChange={(e) => setReassignPrice(e.target.value)}
                 placeholder="Değişmezse boş bırakın"
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReassignTarget(null)}>Vazgeç</Button>
-            <Button
+          <DialogFooter className="gap-2">
+            <button onClick={() => setReassignTarget(null)} className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold hover:bg-muted transition-colors">Vazgeç</button>
+            <button
               onClick={handleReassign}
               disabled={reassignSale.isPending || !reassignCustomerId}
+              className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {reassignSale.isPending ? "Kaydediliyor..." : "Müşteriyi Değiştir"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Return Dialog ── */}
       <Dialog open={!!returnTarget} onOpenChange={(o) => !o && setReturnTarget(null)}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>İade Kaydı</DialogTitle>
             <DialogDescription>
@@ -2666,25 +2650,27 @@ function HistoryView({
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>İade Miktarı (kg) *</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">İade Miktarı (kg) *</label>
               <Input
                 type="number"
                 inputMode="numeric"
                 value={returnKg}
                 onChange={(e) => setReturnKg(e.target.value)}
                 placeholder={`Maks: ${returnTarget?.net_weight.toLocaleString("tr-TR")} kg`}
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
             <div>
-              <Label>İade Tarihi</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">İade Tarihi</label>
               <Input
                 type="date"
                 value={returnDate}
                 onChange={(e) => setReturnDate(e.target.value)}
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
             <div>
-              <Label>Not (opsiyonel)</Label>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Not (opsiyonel)</label>
               <Textarea
                 value={returnNote}
                 onChange={(e) => setReturnNote(e.target.value)}
@@ -2693,14 +2679,15 @@ function HistoryView({
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReturnTarget(null)}>Vazgeç</Button>
-            <Button
+          <DialogFooter className="gap-2">
+            <button onClick={() => setReturnTarget(null)} className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold hover:bg-muted transition-colors">Vazgeç</button>
+            <button
               onClick={handleReturn}
               disabled={returnDelivery.isPending}
+              className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {returnDelivery.isPending ? "Kaydediliyor..." : "İade Kaydet"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2753,13 +2740,13 @@ function HistoryTicketList({
 
   return (
     <>
-      <Card>
-        <CardHeader className="pb-2 pt-3 px-3">
-          <CardTitle className="text-sm">
+      <div className="rounded-xl bg-card shadow-sm">
+        <div className="pb-2 pt-3 px-3">
+          <div className="text-sm font-semibold">
             Kantar Fişleri ({deliveries.length}) · {(totalKg / 1000).toFixed(1)} ton
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 divide-y">
+          </div>
+        </div>
+        <div className="p-0 divide-y">
           {deliveries.map((d) => (
             <HistoryTicketRow
               key={d.id}
@@ -2772,21 +2759,19 @@ function HistoryTicketList({
               onReturn={onReturn}
             />
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card>
-        <CardContent className="p-3 grid grid-cols-2 gap-3 text-center">
+      <div className="rounded-xl bg-card p-3 shadow-sm grid grid-cols-2 gap-3 text-center">
           <div>
-            <p className="text-xs text-muted-foreground">Toplam</p>
-            <p className="font-bold">{(totalKg / 1000).toFixed(1)} ton</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Toplam</p>
+            <p className="text-xl font-extrabold">{(totalKg / 1000).toFixed(1)} ton</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Nakliye</p>
-            <p className="font-bold">{masked(totalFreight)}</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Nakliye</p>
+            <p className="text-xl font-extrabold">{masked(totalFreight)}</p>
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </>
   );
 }
@@ -2885,7 +2870,7 @@ function HistoryTicketRow({
                   fileInputRef.current?.click();
                 }
               }}
-              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+              className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
                 hasPhotos
                   ? "text-green-600 hover:bg-green-50"
                   : "text-blue-600 hover:bg-blue-50"
@@ -2912,7 +2897,7 @@ function HistoryTicketRow({
                 href={waUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`relative flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                className={`relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
                   waSent
                     ? "text-muted-foreground/50 hover:bg-muted/50"
                     : "text-green-600 hover:bg-green-50"
@@ -2932,7 +2917,7 @@ function HistoryTicketRow({
             {delivery.net_weight > 0 && (
               <button
                 onClick={() => onReturn(delivery)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-50 transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-amber-600 hover:bg-amber-50 transition-colors"
                 title="İade"
               >
                 <Undo2 className="h-4 w-4" />
@@ -2948,7 +2933,7 @@ function HistoryTicketRow({
               <button
                 key={p.name}
                 onClick={() => { setLightboxUrl(p.url); setLightboxPhoto(p); }}
-                className="shrink-0 h-12 w-12 rounded-md overflow-hidden border hover:ring-2 ring-primary transition-all"
+                className="shrink-0 h-12 w-12 rounded-xl overflow-hidden border hover:ring-2 ring-primary transition-all"
               >
                 <img
                   src={p.url}
@@ -2959,7 +2944,7 @@ function HistoryTicketRow({
             ))}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="shrink-0 h-12 w-12 rounded-md border border-dashed flex items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
+              className="shrink-0 h-12 w-12 rounded-xl border border-dashed flex items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
             >
               <ImageIcon className="h-4 w-4" />
             </button>

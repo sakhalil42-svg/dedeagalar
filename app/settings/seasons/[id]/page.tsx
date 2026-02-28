@@ -17,6 +17,15 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatWeight, formatDateShort } from "@/lib/utils/format";
 import * as XLSX from "xlsx";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+
+const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+
+const MEDAL_STYLES = [
+  "bg-amber-100 text-amber-600",
+  "bg-gray-200 text-gray-600",
+  "bg-orange-100 text-orange-600",
+];
 
 export default function SeasonReportPage({
   params,
@@ -179,11 +188,64 @@ export default function SeasonReportPage({
             <p className="text-[10px] opacity-60 mt-0.5">Marj: %{report.margin.toFixed(1)}</p>
           </div>
 
-          {/* Top Customers */}
+          {/* Monthly Profit Trend Bar Chart */}
+          {(report as Record<string, unknown>).monthlyBreakdown && ((report as Record<string, unknown>).monthlyBreakdown as Array<{month: string; profit: number}>).length > 0 && (
+            <div className="rounded-xl bg-card p-4 shadow-sm mb-4">
+              <p className="text-sm font-semibold mb-3">Aylık Kâr Trendi</p>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={(report as Record<string, unknown>).monthlyBreakdown as Array<{month: string; profit: number}>}>
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    { /* eslint-disable-next-line @typescript-eslint/no-explicit-any */ }
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
+                    <Bar dataKey="profit" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Feed Distribution Pie Chart */}
+          {report.feedDistribution.length > 0 && (
+            <div className="rounded-xl bg-card p-4 shadow-sm mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Wheat className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Ürün Dağılımı</span>
+              </div>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={report.feedDistribution.map(f => ({ name: f.name, value: f.tonnage }))}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {report.feedDistribution.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Legend
+                      formatter={(value: string) => <span className="text-xs">{value}</span>}
+                    />
+                    { /* eslint-disable-next-line @typescript-eslint/no-explicit-any */ }
+                    <Tooltip formatter={(value: any) => formatWeight(Number(value))} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Top Customers with medals */}
           {report.topCustomers.length > 0 && (
             <ListSection
               icon={Users}
               title="En Çok Satış Yapılan Müşteriler"
+              ranked
               items={report.topCustomers.map((c, i) => ({
                 rank: i + 1,
                 name: c.name,
@@ -192,17 +254,25 @@ export default function SeasonReportPage({
             />
           )}
 
-          {/* Top Suppliers */}
+          {/* Top Suppliers as horizontal scroll cards */}
           {report.topSuppliers.length > 0 && (
-            <ListSection
-              icon={Users}
-              title="En Çok Alım Yapılan Tedarikçiler"
-              items={report.topSuppliers.map((s, i) => ({
-                rank: i + 1,
-                name: s.name,
-                value: formatWeight(s.tonnage),
-              }))}
-            />
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <Users className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">En Çok Alım Yapılan Tedarikçiler</span>
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+                {report.topSuppliers.map((s, i) => (
+                  <div key={i} className="flex-shrink-0 w-36 rounded-xl bg-card p-3 shadow-sm">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold mb-2">
+                      {(s.name || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <p className="text-xs font-semibold truncate">{s.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatWeight(s.tonnage)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Top Carriers */}
@@ -214,18 +284,6 @@ export default function SeasonReportPage({
                 rank: i + 1,
                 name: c.name,
                 value: formatCurrency(c.amount),
-              }))}
-            />
-          )}
-
-          {/* Feed Distribution */}
-          {report.feedDistribution.length > 0 && (
-            <ListSection
-              icon={Wheat}
-              title="Yem Türü Dağılımı"
-              items={report.feedDistribution.map((f) => ({
-                name: f.name,
-                value: formatWeight(f.tonnage),
               }))}
             />
           )}
@@ -243,10 +301,12 @@ function ListSection({
   icon: Icon,
   title,
   items,
+  ranked = false,
 }: {
   icon: React.ElementType;
   title: string;
   items: { rank?: number; name: string; value: string }[];
+  ranked?: boolean;
 }) {
   return (
     <div className="rounded-xl bg-card shadow-sm overflow-hidden mb-3">
@@ -261,13 +321,21 @@ function ListSection({
             i > 0 ? "border-t border-border/50" : ""
           }`}
         >
-          <p className="text-sm truncate">
-            {item.rank != null && (
-              <span className="text-muted-foreground mr-1">{item.rank}.</span>
-            )}
-            {item.name}
-          </p>
-          <p className="text-sm font-bold shrink-0">{item.value}</p>
+          <div className="flex items-center gap-2 min-w-0">
+            {item.rank != null && ranked && item.rank <= 3 ? (
+              <div
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold shrink-0 ${
+                  MEDAL_STYLES[item.rank - 1]
+                }`}
+              >
+                {item.rank}
+              </div>
+            ) : item.rank != null ? (
+              <span className="text-sm text-muted-foreground shrink-0 w-6 text-center">{item.rank}.</span>
+            ) : null}
+            <p className="text-sm truncate">{item.name}</p>
+          </div>
+          <p className="text-sm font-bold shrink-0 ml-2">{item.value}</p>
         </div>
       ))}
     </div>

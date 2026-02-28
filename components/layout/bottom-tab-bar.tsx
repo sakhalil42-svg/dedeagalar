@@ -26,7 +26,7 @@ export function BottomTabBar() {
   ] as const;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-card/95 backdrop-blur-lg shadow-[0_-2px_12px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom)]">
       <div className="flex h-[68px] items-end justify-around px-2 py-2">
         {tabs.map((tab) => {
           const isActive =
@@ -48,15 +48,15 @@ export function BottomTabBar() {
             >
               <div
                 className={cn(
-                  "relative flex items-center justify-center rounded-full px-4 py-1 transition-colors",
+                  "relative flex items-center justify-center rounded-full px-4 py-1 transition-all",
                   isActive && "bg-primary/10"
                 )}
               >
-                <Icon className="h-[22px] w-[22px]" />
+                <Icon className={cn("h-[22px] w-[22px]", isActive && "scale-105")} />
                 {tab.badge > 0 && (
                   <span
                     className={cn(
-                      "absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white",
+                      "absolute -top-1.5 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold text-white shadow-sm",
                       tab.badgeColor
                     )}
                   >
@@ -64,7 +64,7 @@ export function BottomTabBar() {
                   </span>
                 )}
               </div>
-              <span>{tab.label}</span>
+              <span className="font-semibold">{tab.label}</span>
             </Link>
           );
         })}

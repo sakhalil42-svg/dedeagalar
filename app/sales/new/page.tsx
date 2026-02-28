@@ -8,9 +8,7 @@ import { saleSchema, type SaleFormValues } from "@/lib/schemas/sale";
 import { useCreateSale } from "@/lib/hooks/use-sales";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -19,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -72,151 +69,172 @@ export default function NewSalePage() {
         due_date: values.due_date || null,
         notes: values.notes || null,
       });
-      toast.success("Satış kaydı oluşturuldu");
+      toast.success("Satis kaydi olusturuldu");
       router.push("/sales");
     } catch {
-      toast.error("Satış kaydı oluşturulurken hata oluştu");
+      toast.error("Satis kaydi olusturulurken hata olustu");
     }
   }
 
   return (
-    <div className="p-4">
-      <div className="mb-4 flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/sales">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <h1 className="text-xl font-bold">Yeni Satış</h1>
+    <div className="p-4 page-enter">
+      {/* Header */}
+      <div className="mb-6 flex items-center gap-3">
+        <Link
+          href="/sales"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+        <h1 className="text-xl font-bold">Yeni Satis</h1>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Satış Bilgileri</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Müşteri *</Label>
-              <Select onValueChange={(val) => setValue("contact_id", val)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Müşteri seçiniz" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contacts?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.contact_id && (
-                <p className="text-sm text-destructive">{errors.contact_id.message}</p>
-              )}
-            </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* Musteri */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">
+            Musteri *
+          </label>
+          <Select onValueChange={(val) => setValue("contact_id", val)}>
+            <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
+              <SelectValue placeholder="Musteri seciniz" />
+            </SelectTrigger>
+            <SelectContent>
+              {contacts?.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.contact_id && (
+            <p className="text-sm text-destructive mt-1">{errors.contact_id.message}</p>
+          )}
+        </div>
 
-            <div className="space-y-2">
-              <Label>Yem Türü *</Label>
-              <Select onValueChange={(val) => setValue("feed_type_id", val)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Yem türü seçiniz" />
-                </SelectTrigger>
-                <SelectContent>
-                  {feedTypes?.map((ft) => (
-                    <SelectItem key={ft.id} value={ft.id}>
-                      {ft.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.feed_type_id && (
-                <p className="text-sm text-destructive">{errors.feed_type_id.message}</p>
-              )}
-            </div>
+        {/* Yem Turu */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">
+            Yem Turu *
+          </label>
+          <Select onValueChange={(val) => setValue("feed_type_id", val)}>
+            <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
+              <SelectValue placeholder="Yem turu seciniz" />
+            </SelectTrigger>
+            <SelectContent>
+              {feedTypes?.map((ft) => (
+                <SelectItem key={ft.id} value={ft.id}>
+                  {ft.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.feed_type_id && (
+            <p className="text-sm text-destructive mt-1">{errors.feed_type_id.message}</p>
+          )}
+        </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Miktar (kg) *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  step="0.01"
-                  {...register("quantity")}
-                  placeholder="0"
-                />
-                {errors.quantity && (
-                  <p className="text-sm text-destructive">{errors.quantity.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="unit_price">Birim Fiyat (₺/kg) *</Label>
-                <Input
-                  id="unit_price"
-                  type="number"
-                  step="0.01"
-                  {...register("unit_price")}
-                  placeholder="0.00"
-                />
-                {errors.unit_price && (
-                  <p className="text-sm text-destructive">{errors.unit_price.message}</p>
-                )}
-              </div>
-            </div>
+        {/* Miktar & Birim Fiyat */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="quantity" className="text-xs font-medium text-muted-foreground mb-1 block">
+              Miktar (kg) *
+            </label>
+            <Input
+              id="quantity"
+              type="number"
+              step="0.01"
+              {...register("quantity")}
+              placeholder="0"
+              className="rounded-xl bg-muted border-0 h-12"
+            />
+            {errors.quantity && (
+              <p className="text-sm text-destructive mt-1">{errors.quantity.message}</p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="unit_price" className="text-xs font-medium text-muted-foreground mb-1 block">
+              Birim Fiyat (TL/kg) *
+            </label>
+            <Input
+              id="unit_price"
+              type="number"
+              step="0.01"
+              {...register("unit_price")}
+              placeholder="0.00"
+              className="rounded-xl bg-muted border-0 h-12"
+            />
+            {errors.unit_price && (
+              <p className="text-sm text-destructive mt-1">{errors.unit_price.message}</p>
+            )}
+          </div>
+        </div>
 
-            <div className="rounded-lg bg-muted p-3 text-center">
-              <p className="text-sm text-muted-foreground">Toplam Tutar</p>
-              <p className="text-xl font-bold">{formatCurrency(totalAmount)}</p>
-            </div>
+        {/* Toplam Tutar */}
+        <div className="rounded-xl bg-primary/10 p-4 text-center">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Toplam Tutar</p>
+          <p className="text-2xl font-extrabold text-primary">{formatCurrency(totalAmount)}</p>
+        </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="sale_date">Satış Tarihi *</Label>
-                <Input
-                  id="sale_date"
-                  type="date"
-                  {...register("sale_date")}
-                />
-                {errors.sale_date && (
-                  <p className="text-sm text-destructive">{errors.sale_date.message}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="due_date">Tahsilat Vadesi</Label>
-                <Input
-                  id="due_date"
-                  type="date"
-                  {...register("due_date")}
-                />
-              </div>
-            </div>
+        {/* Tarihler */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="sale_date" className="text-xs font-medium text-muted-foreground mb-1 block">
+              Satis Tarihi *
+            </label>
+            <Input
+              id="sale_date"
+              type="date"
+              {...register("sale_date")}
+              className="rounded-xl bg-muted border-0 h-12"
+            />
+            {errors.sale_date && (
+              <p className="text-sm text-destructive mt-1">{errors.sale_date.message}</p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="due_date" className="text-xs font-medium text-muted-foreground mb-1 block">
+              Tahsilat Vadesi
+            </label>
+            <Input
+              id="due_date"
+              type="date"
+              {...register("due_date")}
+              className="rounded-xl bg-muted border-0 h-12"
+            />
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notlar</Label>
-              <Textarea
-                id="notes"
-                {...register("notes")}
-                placeholder="Ek notlar..."
-                rows={2}
-              />
-            </div>
+        {/* Notlar */}
+        <div>
+          <label htmlFor="notes" className="text-xs font-medium text-muted-foreground mb-1 block">
+            Notlar
+          </label>
+          <Textarea
+            id="notes"
+            {...register("notes")}
+            placeholder="Ek notlar..."
+            rows={2}
+            className="rounded-xl bg-muted border-0"
+          />
+        </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={createSale.isPending}
-            >
-              {createSale.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Kaydediliyor...
-                </>
-              ) : (
-                "Kaydet"
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+        {/* Submit */}
+        <button
+          type="submit"
+          disabled={createSale.isPending}
+          className="bg-primary rounded-xl py-4 w-full text-sm font-semibold text-white disabled:opacity-50 transition-colors"
+        >
+          {createSale.isPending ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Kaydediliyor...
+            </span>
+          ) : (
+            "Kaydet"
+          )}
+        </button>
+      </form>
     </div>
   );
 }

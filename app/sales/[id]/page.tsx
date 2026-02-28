@@ -14,11 +14,8 @@ import { useDeliveriesBySale } from "@/lib/hooks/use-deliveries";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
 import type { SaleStatus } from "@/lib/types/database.types";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -26,17 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -46,9 +40,9 @@ import { DeliverySection } from "@/components/forms/delivery-section";
 const STATUS_LABELS: Record<SaleStatus, string> = {
   pending: "Beklemede",
   draft: "Taslak",
-  confirmed: "Onaylı",
+  confirmed: "Onayli",
   delivered: "Teslim Edildi",
-  cancelled: "İptal",
+  cancelled: "Iptal",
 };
 
 const STATUS_COLORS: Record<SaleStatus, string> = {
@@ -128,29 +122,29 @@ export default function SaleDetailPage() {
         due_date: values.due_date || null,
         notes: values.notes || null,
       });
-      toast.success("Satış güncellendi");
+      toast.success("Satis guncellendi");
       setEditing(false);
     } catch {
-      toast.error("Güncelleme sırasında hata oluştu");
+      toast.error("Guncelleme sirasinda hata olustu");
     }
   }
 
   async function handleStatusChange(newStatus: SaleStatus) {
     try {
       await updateSale.mutateAsync({ id, status: newStatus });
-      toast.success(`Durum güncellendi: ${STATUS_LABELS[newStatus]}`);
+      toast.success(`Durum guncellendi: ${STATUS_LABELS[newStatus]}`);
     } catch {
-      toast.error("Durum güncellenirken hata oluştu");
+      toast.error("Durum guncellenirken hata olustu");
     }
   }
 
   async function handleDelete() {
     try {
       await deleteSale.mutateAsync(id);
-      toast.success("Satış silindi");
+      toast.success("Satis silindi");
       router.push("/sales");
     } catch {
-      toast.error("Silme sırasında hata oluştu");
+      toast.error("Silme sirasinda hata olustu");
     }
   }
 
@@ -164,7 +158,7 @@ export default function SaleDetailPage() {
 
   if (!sale) {
     return (
-      <div className="p-4 text-center text-muted-foreground">Satış bulunamadı.</div>
+      <div className="p-4 text-center text-muted-foreground">Satis bulunamadi.</div>
     );
   }
 
@@ -177,53 +171,60 @@ export default function SaleDetailPage() {
   const progress = sale.quantity > 0 ? Math.min((deliveredQty / sale.quantity) * 100, 100) : 0;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 page-enter">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/sales">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/sales"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
           <div>
             <h1 className="text-xl font-bold">{sale.sale_no}</h1>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className={STATUS_COLORS[sale.status]}>
-                {STATUS_LABELS[sale.status]}
-              </Badge>
-            </div>
+            <span className={`inline-block rounded-lg px-2 py-1 text-[10px] font-semibold ${STATUS_COLORS[sale.status]}`}>
+              {STATUS_LABELS[sale.status]}
+            </span>
           </div>
         </div>
         {!editing && sale.status !== "cancelled" && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={startEditing}>
-              <Pencil className="mr-1 h-3 w-3" />
-              Düzenle
-            </Button>
+            <button
+              onClick={startEditing}
+              className="flex items-center gap-1 rounded-xl bg-muted px-3 py-2 text-sm font-medium hover:bg-muted/80 transition-colors"
+            >
+              <Pencil className="h-3 w-3" />
+              Duzenle
+            </button>
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
               <DialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                <button className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive text-white hover:bg-destructive/90 transition-colors">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="rounded-2xl">
                 <DialogHeader>
-                  <DialogTitle>Satışı Sil</DialogTitle>
+                  <DialogTitle>Satisi Sil</DialogTitle>
                   <DialogDescription>
-                    &quot;{sale.sale_no}&quot; silinecek. Bu işlem geri alınamaz.
+                    &quot;{sale.sale_no}&quot; silinecek. Bu islem geri alinamaz.
                   </DialogDescription>
                 </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setDeleteOpen(false)}>İptal</Button>
-                  <Button
-                    variant="destructive"
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setDeleteOpen(false)}
+                    className="flex-1 rounded-xl py-3 text-sm font-semibold bg-muted hover:bg-muted/80 transition-colors"
+                  >
+                    Iptal
+                  </button>
+                  <button
                     onClick={handleDelete}
                     disabled={deleteSale.isPending}
+                    className="flex-1 rounded-xl py-3 text-sm font-semibold bg-destructive text-white hover:bg-destructive/90 disabled:opacity-50 transition-colors"
                   >
                     {deleteSale.isPending ? "Siliniyor..." : "Sil"}
-                  </Button>
-                </DialogFooter>
+                  </button>
+                </div>
               </DialogContent>
             </Dialog>
           </div>
@@ -234,222 +235,237 @@ export default function SaleDetailPage() {
       {!editing && sale.status !== "cancelled" && (
         <div className="flex gap-2">
           {nextStatus && (
-            <Button
-              size="sm"
+            <button
               onClick={() => handleStatusChange(nextStatus)}
               disabled={updateSale.isPending}
+              className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
-              {STATUS_LABELS[nextStatus]} Olarak İşaretle
-            </Button>
+              {STATUS_LABELS[nextStatus]} Olarak Isaretle
+            </button>
           )}
-          <Button
-            size="sm"
-            variant="outline"
+          <button
             onClick={() => handleStatusChange("cancelled")}
             disabled={updateSale.isPending}
+            className="rounded-xl bg-muted px-4 py-2 text-sm font-semibold hover:bg-muted/80 disabled:opacity-50 transition-colors"
           >
-            İptal Et
-          </Button>
+            Iptal Et
+          </button>
         </div>
       )}
 
       {editing ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Satış Düzenle</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Müşteri *</Label>
-                <Select
-                  defaultValue={sale.contact_id}
-                  onValueChange={(val) => setValue("contact_id", val)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {contacts?.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.contact_id && (
-                  <p className="text-sm text-destructive">{errors.contact_id.message}</p>
+        /* Edit Form */
+        <div className="rounded-xl bg-card p-4 shadow-sm">
+          <h2 className="text-sm font-semibold mb-4">Satis Duzenle</h2>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                Musteri *
+              </label>
+              <Select
+                defaultValue={sale.contact_id}
+                onValueChange={(val) => setValue("contact_id", val)}
+              >
+                <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {contacts?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.contact_id && (
+                <p className="text-sm text-destructive mt-1">{errors.contact_id.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                Yem Turu *
+              </label>
+              <Select
+                defaultValue={sale.feed_type_id}
+                onValueChange={(val) => setValue("feed_type_id", val)}
+              >
+                <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {feedTypes?.map((ft) => (
+                    <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.feed_type_id && (
+                <p className="text-sm text-destructive mt-1">{errors.feed_type_id.message}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="quantity" className="text-xs font-medium text-muted-foreground mb-1 block">
+                  Miktar (kg) *
+                </label>
+                <Input id="quantity" type="number" step="0.01" {...register("quantity")} className="rounded-xl bg-muted border-0 h-12" />
+                {errors.quantity && (
+                  <p className="text-sm text-destructive mt-1">{errors.quantity.message}</p>
                 )}
               </div>
-
-              <div className="space-y-2">
-                <Label>Yem Türü *</Label>
-                <Select
-                  defaultValue={sale.feed_type_id}
-                  onValueChange={(val) => setValue("feed_type_id", val)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {feedTypes?.map((ft) => (
-                      <SelectItem key={ft.id} value={ft.id}>{ft.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.feed_type_id && (
-                  <p className="text-sm text-destructive">{errors.feed_type_id.message}</p>
+              <div>
+                <label htmlFor="unit_price" className="text-xs font-medium text-muted-foreground mb-1 block">
+                  Birim Fiyat (TL/kg) *
+                </label>
+                <Input id="unit_price" type="number" step="0.01" {...register("unit_price")} className="rounded-xl bg-muted border-0 h-12" />
+                {errors.unit_price && (
+                  <p className="text-sm text-destructive mt-1">{errors.unit_price.message}</p>
                 )}
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Miktar (kg) *</Label>
-                  <Input id="quantity" type="number" step="0.01" {...register("quantity")} />
-                  {errors.quantity && (
-                    <p className="text-sm text-destructive">{errors.quantity.message}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unit_price">Birim Fiyat (₺/kg) *</Label>
-                  <Input id="unit_price" type="number" step="0.01" {...register("unit_price")} />
-                  {errors.unit_price && (
-                    <p className="text-sm text-destructive">{errors.unit_price.message}</p>
-                  )}
-                </div>
-              </div>
+            <div className="rounded-xl bg-primary/10 p-4 text-center">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Toplam Tutar</p>
+              <p className="text-2xl font-extrabold text-primary">{formatCurrency(editTotal)}</p>
+            </div>
 
-              <div className="rounded-lg bg-muted p-3 text-center">
-                <p className="text-sm text-muted-foreground">Toplam Tutar</p>
-                <p className="text-xl font-bold">{formatCurrency(editTotal)}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="sale_date" className="text-xs font-medium text-muted-foreground mb-1 block">
+                  Satis Tarihi *
+                </label>
+                <Input id="sale_date" type="date" {...register("sale_date")} className="rounded-xl bg-muted border-0 h-12" />
               </div>
+              <div>
+                <label htmlFor="due_date" className="text-xs font-medium text-muted-foreground mb-1 block">
+                  Tahsilat Vadesi
+                </label>
+                <Input id="due_date" type="date" {...register("due_date")} className="rounded-xl bg-muted border-0 h-12" />
+              </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="sale_date">Satış Tarihi *</Label>
-                  <Input id="sale_date" type="date" {...register("sale_date")} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="due_date">Tahsilat Vadesi</Label>
-                  <Input id="due_date" type="date" {...register("due_date")} />
-                </div>
-              </div>
+            <div>
+              <label htmlFor="notes" className="text-xs font-medium text-muted-foreground mb-1 block">
+                Notlar
+              </label>
+              <Textarea id="notes" {...register("notes")} rows={2} className="rounded-xl bg-muted border-0" />
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notlar</Label>
-                <Textarea id="notes" {...register("notes")} rows={2} />
-              </div>
-
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setEditing(false)}>
-                  İptal
-                </Button>
-                <Button type="submit" className="flex-1" disabled={updateSale.isPending}>
-                  {updateSale.isPending ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Kaydediliyor...</>
-                  ) : "Kaydet"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="flex-1 rounded-xl py-3 text-sm font-semibold bg-muted hover:bg-muted/80 transition-colors"
+              >
+                Iptal
+              </button>
+              <button
+                type="submit"
+                disabled={updateSale.isPending}
+                className="flex-1 rounded-xl py-3 text-sm font-semibold bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {updateSale.isPending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Kaydediliyor...
+                  </span>
+                ) : "Kaydet"}
+              </button>
+            </div>
+          </form>
+        </div>
       ) : (
         <>
           {/* Sale Info */}
-          <Card>
-            <CardContent className="space-y-3 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Müşteri</span>
-                <Link href={`/contacts/${sale.contact_id}`} className="text-sm font-medium text-primary">
-                  {sale.contact?.name || "—"}
-                </Link>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Yem Türü</span>
-                <span className="text-sm font-medium">{sale.feed_type?.name || "—"}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Miktar</span>
-                <span className="text-sm font-medium">{formatWeight(sale.quantity)}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Birim Fiyat</span>
-                <span className="text-sm font-medium">{formatCurrency(sale.unit_price)}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Toplam Tutar</span>
-                <span className="text-sm font-bold">{formatCurrency(sale.total_amount)}</span>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Satış Tarihi</span>
-                <span className="text-sm font-medium">{formatDate(sale.sale_date)}</span>
-              </div>
-              {sale.due_date && (
-                <>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Tahsilat Vadesi</span>
-                    <span className="text-sm font-medium">{formatDate(sale.due_date)}</span>
-                  </div>
-                </>
-              )}
-              {sale.notes && (
-                <>
-                  <Separator />
-                  <div className="flex flex-col gap-1">
-                    <span className="text-sm text-muted-foreground">Notlar</span>
-                    <span className="text-sm">{sale.notes}</span>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <div className="rounded-xl bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-muted-foreground">Musteri</span>
+              <Link href={`/contacts/${sale.contact_id}`} className="text-sm font-medium text-primary">
+                {sale.contact?.name || "\u2014"}
+              </Link>
+            </div>
+            <div className="border-t border-border/50" />
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-muted-foreground">Yem Turu</span>
+              <span className="text-sm font-medium">{sale.feed_type?.name || "\u2014"}</span>
+            </div>
+            <div className="border-t border-border/50" />
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-muted-foreground">Miktar</span>
+              <span className="text-sm font-medium">{formatWeight(sale.quantity)}</span>
+            </div>
+            <div className="border-t border-border/50" />
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-muted-foreground">Birim Fiyat</span>
+              <span className="text-sm font-medium">{formatCurrency(sale.unit_price)}</span>
+            </div>
+            <div className="border-t border-border/50" />
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-muted-foreground">Toplam Tutar</span>
+              <span className="text-sm font-bold">{formatCurrency(sale.total_amount)}</span>
+            </div>
+            <div className="border-t border-border/50" />
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-muted-foreground">Satis Tarihi</span>
+              <span className="text-sm font-medium">{formatDate(sale.sale_date)}</span>
+            </div>
+            {sale.due_date && (
+              <>
+                <div className="border-t border-border/50" />
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm text-muted-foreground">Tahsilat Vadesi</span>
+                  <span className="text-sm font-medium">{formatDate(sale.due_date)}</span>
+                </div>
+              </>
+            )}
+            {sale.notes && (
+              <>
+                <div className="border-t border-border/50" />
+                <div className="flex flex-col gap-1 py-2">
+                  <span className="text-sm text-muted-foreground">Notlar</span>
+                  <span className="text-sm">{sale.notes}</span>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Progress Card */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Teslimat İlerlemesi</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-center">
-                <p className="text-2xl font-bold">{formatWeight(deliveredQty)}</p>
-                <p className="text-sm text-muted-foreground">
-                  / {formatWeight(sale.quantity)} sipariş
-                </p>
+          <div className="rounded-2xl bg-card p-4 shadow-sm">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">Teslimat Ilerlemesi</p>
+            <div className="text-center">
+              <p className="text-2xl font-extrabold">{formatWeight(deliveredQty)}</p>
+              <p className="text-sm text-muted-foreground">
+                / {formatWeight(sale.quantity)} siparis
+              </p>
+            </div>
+            <div className="mt-3 space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{formatPercent(progress)} tamamlandi</span>
+                <span>{formatWeight(sale.quantity - deliveredQty)} kalan</span>
               </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{formatPercent(progress)} tamamlandı</span>
-                  <span>{formatWeight(sale.quantity - deliveredQty)} kalan</span>
-                </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Nakliye Özeti */}
+          {/* Nakliye Ozeti */}
           {deliveries && deliveries.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Nakliye Özeti</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Toplam Nakliye</span>
-                  <span className="font-medium">{formatCurrency(deliveryStats.totalFreight)}</span>
+            <div className="rounded-xl bg-card p-4 shadow-sm">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">Nakliye Ozeti</p>
+              <div className="flex items-center justify-between text-sm py-1">
+                <span className="text-muted-foreground">Toplam Nakliye</span>
+                <span className="font-medium">{formatCurrency(deliveryStats.totalFreight)}</span>
+              </div>
+              {deliveryStats.customerFreight > 0 && (
+                <div className="flex items-center justify-between text-sm py-1">
+                  <span className="text-muted-foreground">Musteri Odedigi</span>
+                  <span className="font-medium">{formatCurrency(deliveryStats.customerFreight)}</span>
                 </div>
-                {deliveryStats.customerFreight > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Müşteri Ödediği</span>
-                    <span className="font-medium">{formatCurrency(deliveryStats.customerFreight)}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              )}
+            </div>
           )}
         </>
       )}

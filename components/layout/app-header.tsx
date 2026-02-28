@@ -30,11 +30,11 @@ export function AppHeader() {
   )?.[1] || "Dedeağalar";
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 border-b border-border/50 bg-background/95 backdrop-blur-lg">
       <div className="flex h-14 items-center justify-between px-4">
         {isHome ? (
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Sprout className="h-5 w-5" />
             </div>
             <div>
