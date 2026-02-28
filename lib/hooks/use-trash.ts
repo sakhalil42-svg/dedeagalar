@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { writeAuditLog } from "./use-audit-log";
+import { recalcAccountBalance } from "./use-delivery-with-transactions";
 
 const TRASH_KEY = ["trash"];
 
@@ -101,11 +102,55 @@ export function useRestoreRecord() {
 
   return useMutation({
     mutationFn: async ({ id, table_name }: { id: string; table_name: string }) => {
+      // Collect affected account IDs
+      const affectedAccountIds: string[] = [];
+
+      if (table_name === "payments") {
+        // Restore payment AND its account_transactions
+        const { data: payment } = await supabase
+          .from("payments")
+          .select("account_id")
+          .eq("id", id)
+          .maybeSingle();
+        if (payment?.account_id) affectedAccountIds.push(payment.account_id);
+        await supabase
+          .from("account_transactions")
+          .update({ deleted_at: null })
+          .eq("reference_id", id)
+          .eq("reference_type", "payment");
+      } else if (table_name === "checks") {
+        // Restore check AND its account_transactions
+        const { data: check } = await supabase
+          .from("checks")
+          .select("contact_id")
+          .eq("id", id)
+          .maybeSingle();
+        if (check?.contact_id) {
+          const { data: account } = await supabase
+            .from("accounts")
+            .select("id")
+            .eq("contact_id", check.contact_id)
+            .maybeSingle();
+          if (account) affectedAccountIds.push(account.id);
+        }
+        await supabase
+          .from("account_transactions")
+          .update({ deleted_at: null })
+          .eq("reference_id", id)
+          .eq("reference_type", "payment");
+      }
+
+      // Restore the record
       const { error } = await supabase
         .from(table_name)
         .update({ deleted_at: null })
         .eq("id", id);
       if (error) throw error;
+
+      // Recalculate affected account balances
+      for (const accountId of affectedAccountIds) {
+        await recalcAccountBalance(supabase, accountId);
+      }
 
       await writeAuditLog({
         table_name,
@@ -119,6 +164,10 @@ export function useRestoreRecord() {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["checks"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["account_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
@@ -129,14 +178,72 @@ export function usePermanentDelete() {
 
   return useMutation({
     mutationFn: async ({ id, table_name }: { id: string; table_name: string }) => {
+      // Collect affected account IDs before deleting
+      const affectedAccountIds: string[] = [];
+
+      if (table_name === "payments") {
+        // Find account_id from payment
+        const { data: payment } = await supabase
+          .from("payments")
+          .select("account_id")
+          .eq("id", id)
+          .maybeSingle();
+        if (payment?.account_id) affectedAccountIds.push(payment.account_id);
+        // Hard delete related account_transactions
+        await supabase
+          .from("account_transactions")
+          .delete()
+          .eq("reference_id", id)
+          .eq("reference_type", "payment");
+      } else if (table_name === "checks") {
+        // Find contact → account
+        const { data: check } = await supabase
+          .from("checks")
+          .select("contact_id")
+          .eq("id", id)
+          .maybeSingle();
+        if (check?.contact_id) {
+          const { data: account } = await supabase
+            .from("accounts")
+            .select("id")
+            .eq("contact_id", check.contact_id)
+            .maybeSingle();
+          if (account) affectedAccountIds.push(account.id);
+        }
+        // Hard delete related account_transactions
+        await supabase
+          .from("account_transactions")
+          .delete()
+          .eq("reference_id", id)
+          .eq("reference_type", "payment");
+      } else if (table_name === "deliveries") {
+        // Carrier transactions already hard deleted in soft delete step
+        // Hard delete any reversal account_transactions for this delivery
+        await supabase
+          .from("account_transactions")
+          .delete()
+          .eq("reference_id", id)
+          .eq("reference_type", "purchase");
+      }
+
+      // Hard delete the record
       const { error } = await supabase
         .from(table_name)
         .delete()
         .eq("id", id);
       if (error) throw error;
+
+      // Recalculate affected account balances
+      for (const accountId of affectedAccountIds) {
+        await recalcAccountBalance(supabase, accountId);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRASH_KEY });
+      queryClient.invalidateQueries({ queryKey: ["account_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }

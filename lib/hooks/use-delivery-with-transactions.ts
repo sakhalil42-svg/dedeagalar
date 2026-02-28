@@ -5,6 +5,36 @@ import { createClient } from "@/lib/supabase/client";
 import type { DeliveryInsert, DeliveryUpdate, FreightPayer, PricingModel } from "@/lib/types/database.types";
 import { writeAuditLog } from "./use-audit-log";
 
+// ─── Helper: recalculate account balance from transactions ───
+export async function recalcAccountBalance(
+  supabase: ReturnType<typeof createClient>,
+  accountId: string
+) {
+  const { data: txs } = await supabase
+    .from("account_transactions")
+    .select("type, amount")
+    .eq("account_id", accountId)
+    .is("deleted_at", null);
+
+  let totalDebit = 0;
+  let totalCredit = 0;
+  (txs || []).forEach((t) => {
+    if (t.type === "debit") totalDebit += Number(t.amount);
+    else totalCredit += Number(t.amount);
+  });
+
+  const balance = totalDebit - totalCredit;
+
+  await supabase
+    .from("accounts")
+    .update({
+      balance: Math.round(balance * 100) / 100,
+      total_debit: Math.round(totalDebit * 100) / 100,
+      total_credit: Math.round(totalCredit * 100) / 100,
+    })
+    .eq("id", accountId);
+}
+
 // ─── Helper: find carrier ID by name or plate ───
 async function findCarrierId(
   supabase: ReturnType<typeof createClient>,
@@ -692,6 +722,8 @@ export function useDeleteDeliveryWithTransactions() {
                 });
               }
             }
+            // Recalculate customer account balance
+            await recalcAccountBalance(supabase, customerAccount.id);
           }
         }
       }
@@ -718,6 +750,8 @@ export function useDeleteDeliveryWithTransactions() {
             reference_id: deliveryId,
             transaction_date: today,
           });
+          // Recalculate supplier account balance
+          await recalcAccountBalance(supabase, supplierTxs[0].account_id);
         }
       }
 

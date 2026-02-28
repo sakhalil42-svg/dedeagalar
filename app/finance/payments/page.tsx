@@ -2,13 +2,21 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { usePayments } from "@/lib/hooks/use-payments";
+import { usePayments, useDeletePaymentWithTransaction } from "@/lib/hooks/use-payments";
 import { useContacts } from "@/lib/hooks/use-contacts";
-import type { PaymentDirection, PaymentMethod } from "@/lib/types/database.types";
+import type { Payment, PaymentDirection, PaymentMethod } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -23,12 +31,14 @@ import {
   ArrowDownLeft,
   SlidersHorizontal,
   Banknote,
+  Trash2,
 } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
+import { toast } from "sonner";
 
 const DIRECTION_LABELS: Record<PaymentDirection, string> = {
   inbound: "Tahsilat",
@@ -120,10 +130,24 @@ export default function PaymentsPage() {
   const [maxAmount, setMaxAmount] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
+  const [deleteTarget, setDeleteTarget] = useState<Payment | null>(null);
+
   const { data: payments, isLoading } = usePayments();
   const { data: contacts } = useContacts();
+  const deleteMutation = useDeletePaymentWithTransaction();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      toast.success("Ödeme silindi");
+      setDeleteTarget(null);
+    } catch {
+      toast.error("Silme hatası oluştu");
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!payments) return [];
@@ -399,13 +423,23 @@ export default function PaymentsPage() {
                       </p>
                     )}
                   </div>
-                  <p
-                    className={`text-sm font-bold ${
-                      p.direction === "inbound" ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {masked(p.amount)}
-                  </p>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <p
+                      className={`text-sm font-bold ${
+                        p.direction === "inbound" ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {masked(p.amount)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-100 hover:text-red-600 transition-colors"
+                      title="Sil"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -428,6 +462,47 @@ export default function PaymentsPage() {
           />
         )
       )}
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Ödeme Sil</DialogTitle>
+            <DialogDescription>
+              Bu ödemeyi silmek istediğinize emin misiniz? Bakiye otomatik güncellenecektir.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-xl bg-muted p-3 space-y-1">
+              <p className="text-sm font-semibold">{deleteTarget.contact?.name || "—"}</p>
+              <p className="text-sm">
+                <span className={deleteTarget.direction === "inbound" ? "text-green-600 font-bold" : "text-red-600 font-bold"}>
+                  {DIRECTION_LABELS[deleteTarget.direction]}
+                </span>
+                {" · "}
+                {formatCurrency(deleteTarget.amount)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {METHOD_LABELS[deleteTarget.method]} · {formatDateShort(deleteTarget.payment_date)}
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {deleteMutation.isPending ? "Siliniyor..." : "Sil"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

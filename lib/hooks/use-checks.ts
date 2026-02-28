@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Check, CheckInsert, CheckUpdate } from "@/lib/types/database.types";
+import { recalcAccountBalance } from "./use-delivery-with-transactions";
 
 const CHECKS_KEY = ["checks"];
 
@@ -271,20 +272,51 @@ export function useUpdateCheck() {
   });
 }
 
-export function useDeleteCheck() {
+export function useDeleteCheckWithTransaction() {
   const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      const now = new Date().toISOString();
+
+      // 1. Get check to find contact_id
+      const { data: check } = await supabase
+        .from("checks")
+        .select("contact_id")
+        .eq("id", id)
+        .single();
+
+      // 2. Soft-delete related account_transactions (reference_id = check.id)
+      await supabase
+        .from("account_transactions")
+        .update({ deleted_at: now })
+        .eq("reference_id", id)
+        .eq("reference_type", "payment");
+
+      // 3. Soft-delete the check
       const { error } = await supabase
         .from("checks")
-        .update({ deleted_at: new Date().toISOString() })
+        .update({ deleted_at: now })
         .eq("id", id);
       if (error) throw error;
+
+      // 4. Recalculate account balance
+      if (check?.contact_id) {
+        const { data: account } = await supabase
+          .from("accounts")
+          .select("id")
+          .eq("contact_id", check.contact_id)
+          .maybeSingle();
+        if (account) {
+          await recalcAccountBalance(supabase, account.id);
+        }
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CHECKS_KEY });
+      INVALIDATE_KEYS.forEach((key) =>
+        queryClient.invalidateQueries({ queryKey: key })
+      );
     },
   });
 }

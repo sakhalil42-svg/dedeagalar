@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useChecks, useUpdateCheck, useEndorseCheck } from "@/lib/hooks/use-checks";
+import { useChecks, useUpdateCheck, useEndorseCheck, useDeleteCheckWithTransaction } from "@/lib/hooks/use-checks";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import type { Check, CheckStatus, CheckType, CheckDirection } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, MessageCircle, SlidersHorizontal, CreditCard, AlertTriangle, Clock, CalendarClock, CalendarCheck } from "lucide-react";
+import { Plus, Search, MessageCircle, SlidersHorizontal, CreditCard, AlertTriangle, Clock, CalendarClock, CalendarCheck, Trash2 } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
@@ -144,10 +144,24 @@ export default function ChecksPage() {
     new Date().toISOString().split("T")[0]
   );
 
+  const [deleteTarget, setDeleteTarget] = useState<Check | null>(null);
+
   const { data: checks, isLoading } = useChecks();
   const { data: contacts } = useContacts();
   const updateCheck = useUpdateCheck();
   const endorseCheck = useEndorseCheck();
+  const deleteCheck = useDeleteCheckWithTransaction();
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteCheck.mutateAsync(deleteTarget.id);
+      toast.success(`${TYPE_LABELS[deleteTarget.type]} silindi`);
+      setDeleteTarget(null);
+    } catch {
+      toast.error("Silme hatası oluştu");
+    }
+  };
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) =>
     isVisible ? formatCurrency(amount) : "••••••";
@@ -553,6 +567,14 @@ export default function ChecksPage() {
                           Durum
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-red-100 hover:text-red-600 transition-colors"
+                        title="Sil"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -727,6 +749,44 @@ export default function ChecksPage() {
               className="flex-1 rounded-xl bg-purple-600 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
               {endorseCheck.isPending ? "İşleniyor..." : "Ciro Et"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>{deleteTarget ? TYPE_LABELS[deleteTarget.type] : "Çek"} Sil</DialogTitle>
+            <DialogDescription>
+              Bu kaydı silmek istediğinize emin misiniz? Bakiye otomatik güncellenecektir.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-xl bg-muted p-3 space-y-1">
+              <p className="text-sm font-semibold">{deleteTarget.contact?.name || "—"}</p>
+              <p className="text-sm font-bold">{formatCurrency(deleteTarget.amount)}</p>
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span>{TYPE_LABELS[deleteTarget.type]} · {DIRECTION_LABELS[deleteTarget.direction]}</span>
+                {deleteTarget.serial_no && <span>No: {deleteTarget.serial_no}</span>}
+                <span>Vade: {formatDateShort(deleteTarget.due_date)}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleteCheck.isPending}
+              className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {deleteCheck.isPending ? "Siliniyor..." : "Sil"}
             </button>
           </DialogFooter>
         </DialogContent>

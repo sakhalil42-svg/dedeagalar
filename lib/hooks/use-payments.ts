@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Payment, PaymentInsert } from "@/lib/types/database.types";
+import { recalcAccountBalance } from "./use-delivery-with-transactions";
 
 const PAYMENTS_KEY = ["payments"];
 
@@ -118,23 +119,46 @@ export function useCreatePaymentWithTransaction() {
   });
 }
 
-export function useDeletePayment() {
+export function useDeletePaymentWithTransaction() {
   const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
+      const now = new Date().toISOString();
+
+      // 1. Get payment to find account_id
+      const { data: payment } = await supabase
+        .from("payments")
+        .select("account_id")
+        .eq("id", id)
+        .single();
+
+      // 2. Soft-delete related account_transactions
+      await supabase
+        .from("account_transactions")
+        .update({ deleted_at: now })
+        .eq("reference_id", id)
+        .eq("reference_type", "payment");
+
+      // 3. Soft-delete the payment
       const { error } = await supabase
         .from("payments")
-        .update({ deleted_at: new Date().toISOString() })
+        .update({ deleted_at: now })
         .eq("id", id);
       if (error) throw error;
+
+      // 4. Recalculate account balance
+      if (payment?.account_id) {
+        await recalcAccountBalance(supabase, payment.account_id);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PAYMENTS_KEY });
       queryClient.invalidateQueries({ queryKey: ["account_summary"] });
       queryClient.invalidateQueries({ queryKey: ["account_transactions"] });
       queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
