@@ -662,104 +662,101 @@ export function useDeleteDeliveryWithTransactions() {
     mutationFn: async ({
       deliveryId,
       saleId,
-      purchaseId,
+      purchaseId: _purchaseId,
     }: {
       deliveryId: string;
       saleId: string | null;
       purchaseId: string | null;
     }) => {
+      void _purchaseId; // kept for API compatibility
       const now = new Date().toISOString();
-      const today = new Date().toISOString().split("T")[0];
+      const affectedAccountIds: string[] = [];
 
-      // 1. Reverse customer account transaction (sale debit → credit reversal)
+      // 1. Soft-delete supplier transactions (reference_type='purchase', reference_id=deliveryId)
+      const { data: supplierTxs } = await supabase
+        .from("account_transactions")
+        .select("id, account_id")
+        .eq("reference_type", "purchase")
+        .eq("reference_id", deliveryId)
+        .is("deleted_at", null);
+
+      if (supplierTxs?.length) {
+        await supabase
+          .from("account_transactions")
+          .update({ deleted_at: now })
+          .in("id", supplierTxs.map(t => t.id));
+        supplierTxs.forEach(t => affectedAccountIds.push(t.account_id));
+      }
+
+      // 2. Customer transactions (reference_type='sale', reference_id=saleId)
+      // Customer txs use sale_id as reference — we can't match by deliveryId.
+      // Strategy: count active deliveries vs active debit txs, soft-delete excess.
       if (saleId) {
-        // Find customer account via sale
         const { data: sale } = await supabase
           .from("sales")
-          .select("contact_id, sale_no")
+          .select("contact_id")
           .eq("id", saleId)
           .maybeSingle();
 
         if (sale) {
-          const { data: customerAccount } = await supabase
+          const { data: custAccount } = await supabase
             .from("accounts")
             .select("id")
             .eq("contact_id", sale.contact_id)
             .maybeSingle();
 
-          if (customerAccount) {
-            // Find total debited for this delivery via sale reference
-            const { data: custTxs } = await supabase
-              .from("account_transactions")
-              .select("amount")
-              .eq("reference_type", "sale")
-              .eq("reference_id", saleId)
-              .eq("type", "debit")
-              .is("deleted_at", null);
-
-            // Calculate per-delivery share: total debited ÷ number of active deliveries
+          if (custAccount) {
+            // Count active deliveries for this sale (BEFORE we delete this one)
             const { data: activeDeliveries } = await supabase
               .from("deliveries")
-              .select("id, net_weight")
+              .select("id")
               .eq("sale_id", saleId)
               .is("deleted_at", null);
 
-            const thisDelivery = activeDeliveries?.find(d => d.id === deliveryId);
-            const totalWeight = (activeDeliveries || []).reduce((s, d) => s + d.net_weight, 0);
-            const totalDebited = (custTxs || []).reduce((s, t) => s + Number(t.amount), 0);
+            const activeCountAfterDelete = (activeDeliveries?.length || 0) - 1;
 
-            if (thisDelivery && totalWeight > 0 && totalDebited > 0) {
-              const deliveryShare = (thisDelivery.net_weight / totalWeight) * totalDebited;
-              if (deliveryShare > 0) {
-                await supabase.from("account_transactions").insert({
-                  account_id: customerAccount.id,
-                  type: "credit",
-                  amount: Math.round(deliveryShare * 100) / 100,
-                  description: `Sevkiyat silindi - ${sale.sale_no || saleId}`,
-                  reference_type: "sale",
-                  reference_id: saleId,
-                  transaction_date: today,
-                });
-              }
+            // Count active debit transactions for this sale
+            const { data: custDebitTxs } = await supabase
+              .from("account_transactions")
+              .select("id")
+              .eq("reference_type", "sale")
+              .eq("reference_id", saleId)
+              .eq("type", "debit")
+              .is("deleted_at", null)
+              .order("created_at", { ascending: false });
+
+            const excess = (custDebitTxs?.length || 0) - Math.max(0, activeCountAfterDelete);
+
+            if (excess > 0 && custDebitTxs) {
+              // Soft-delete the excess debit txs (most recent first)
+              const toDelete = custDebitTxs.slice(0, excess).map(t => t.id);
+              await supabase
+                .from("account_transactions")
+                .update({ deleted_at: now })
+                .in("id", toDelete);
             }
-            // Recalculate customer account balance
-            await recalcAccountBalance(supabase, customerAccount.id);
+
+            // Also soft-delete any old reversal credits from previous delete logic
+            await supabase
+              .from("account_transactions")
+              .update({ deleted_at: now })
+              .eq("reference_type", "sale")
+              .eq("reference_id", saleId)
+              .eq("type", "credit")
+              .is("deleted_at", null)
+              .like("description", "Sevkiyat silindi%");
+
+            affectedAccountIds.push(custAccount.id);
           }
         }
       }
 
-      // 2. Reverse supplier account transaction (purchase credit → debit reversal)
-      {
-        // Supplier transactions use reference_type="purchase", reference_id=deliveryId
-        const { data: supplierTxs } = await supabase
-          .from("account_transactions")
-          .select("account_id, amount")
-          .eq("reference_type", "purchase")
-          .eq("reference_id", deliveryId)
-          .eq("type", "credit")
-          .is("deleted_at", null);
-
-        const totalCredited = (supplierTxs || []).reduce((s, t) => s + Number(t.amount), 0);
-        if (totalCredited > 0 && supplierTxs && supplierTxs.length > 0) {
-          await supabase.from("account_transactions").insert({
-            account_id: supplierTxs[0].account_id,
-            type: "debit",
-            amount: totalCredited,
-            description: `Sevkiyat silindi`,
-            reference_type: "purchase",
-            reference_id: deliveryId,
-            transaction_date: today,
-          });
-          // Recalculate supplier account balance
-          await recalcAccountBalance(supabase, supplierTxs[0].account_id);
-        }
-      }
-
-      // 3. Hard delete carrier transaction (not soft delete — removes from balance)
+      // 3. Soft-delete carrier transactions
       await supabase
         .from("carrier_transactions")
-        .delete()
-        .eq("reference_id", deliveryId);
+        .update({ deleted_at: now })
+        .eq("reference_id", deliveryId)
+        .is("deleted_at", null);
 
       // 4. Soft delete the delivery itself
       const { error } = await supabase
@@ -767,6 +764,12 @@ export function useDeleteDeliveryWithTransactions() {
         .update({ deleted_at: now })
         .eq("id", deliveryId);
       if (error) throw error;
+
+      // 5. Recalculate all affected account balances
+      const uniqueAccountIds = [...new Set(affectedAccountIds)];
+      for (const accId of uniqueAccountIds) {
+        await recalcAccountBalance(supabase, accId);
+      }
 
       // Audit log
       writeAuditLog({
@@ -784,6 +787,7 @@ export function useDeleteDeliveryWithTransactions() {
       queryClient.invalidateQueries({ queryKey: ["account_by_contact"] });
       queryClient.invalidateQueries({ queryKey: ["carrier_transactions"] });
       queryClient.invalidateQueries({ queryKey: ["carrier_balances"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
