@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTrashedRecords, useRestoreRecord, usePermanentDelete } from "@/lib/hooks/use-trash";
-import { useAuditLog, type AuditEntry } from "@/lib/hooks/use-audit-log";
+import { useAuditLog } from "@/lib/hooks/use-audit-log";
 import {
   exportAllToExcel,
   exportContactsCSV,
@@ -58,10 +54,10 @@ const TABLE_LABELS: Record<string, string> = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  create: "bg-green-100 text-green-800",
-  update: "bg-blue-100 text-blue-800",
-  delete: "bg-red-100 text-red-800",
-  restore: "bg-purple-100 text-purple-800",
+  create: "bg-green-100 text-green-700",
+  update: "bg-blue-100 text-blue-700",
+  delete: "bg-red-100 text-red-700",
+  restore: "bg-purple-100 text-purple-700",
 };
 
 type Tab = "backup" | "trash" | "audit";
@@ -129,22 +125,23 @@ export default function DataSettingsPage() {
   });
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="p-4 page-enter">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/settings">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+      <div className="flex items-center gap-2 mb-5">
+        <Link
+          href="/settings"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
         <div>
           <h1 className="text-xl font-bold">Veri Yönetimi</h1>
-          <p className="text-sm text-muted-foreground">Yedekleme, çöp kutusu ve işlem geçmişi</p>
+          <p className="text-xs text-muted-foreground">Yedekleme, çöp kutusu ve işlem geçmişi</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
+      <div className="flex gap-1 rounded-xl bg-card p-1 shadow-sm mb-4">
         {([
           { key: "backup" as Tab, label: "Yedekleme", icon: Download },
           { key: "trash" as Tab, label: "Çöp Kutusu", icon: Trash2 },
@@ -153,10 +150,10 @@ export default function DataSettingsPage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors ${
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-xs font-semibold transition-colors ${
               tab === t.key
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-primary text-white"
+                : "text-muted-foreground"
             }`}
           >
             <t.icon className="h-3.5 w-3.5" />
@@ -167,68 +164,66 @@ export default function DataSettingsPage() {
 
       {/* === BACKUP TAB === */}
       {tab === "backup" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Full Excel Export */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <FileSpreadsheet className="h-4 w-4" />
-                Excel Export
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Tüm verileri tek Excel dosyasında dışa aktarın. 7 sayfa: Kişiler, Sevkiyatlar, Hesap İşlemleri, Çek/Senet, Nakliyeciler, Nakliyeci İşlemleri, Araçlar.
-              </p>
-              <Button onClick={handleExportExcel} disabled={exporting} className="w-full">
-                {exporting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
-                {exporting ? "Hazırlanıyor..." : "Excel'e Aktar (.xlsx)"}
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="rounded-xl bg-card p-4 shadow-sm space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-green-100">
+                <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              </div>
+              <span className="text-sm font-semibold">Excel Export</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tüm verileri tek Excel dosyasında dışa aktarın. 7 sayfa: Kişiler, Sevkiyatlar, Hesap İşlemleri, Çek/Senet, Nakliyeciler, Nakliyeci İşlemleri, Araçlar.
+            </p>
+            <button
+              onClick={handleExportExcel}
+              disabled={exporting}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-60"
+            >
+              {exporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {exporting ? "Hazırlanıyor..." : "Excel'e Aktar (.xlsx)"}
+            </button>
+          </div>
 
           {/* Individual CSV Exports */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <FileText className="h-4 w-4" />
-                CSV Export (Tablo Bazlı)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "Kişiler", fn: exportContactsCSV },
-                  { label: "Sevkiyatlar", fn: exportDeliveriesCSV },
-                  { label: "Çek/Senet", fn: exportChecksCSV },
-                  { label: "Nakliyeciler", fn: exportCarriersCSV },
-                  { label: "Araçlar", fn: exportVehiclesCSV },
-                ].map((item) => (
-                  <Button
-                    key={item.label}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => handleCSVExport(item.fn, item.label)}
-                  >
-                    <Download className="mr-1 h-3 w-3" />
-                    {item.label}
-                  </Button>
-                ))}
+          <div className="rounded-xl bg-card p-4 shadow-sm space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100">
+                <FileText className="h-4 w-4 text-blue-600" />
               </div>
-            </CardContent>
-          </Card>
+              <span className="text-sm font-semibold">CSV Export (Tablo Bazlı)</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "Kişiler", fn: exportContactsCSV },
+                { label: "Sevkiyatlar", fn: exportDeliveriesCSV },
+                { label: "Çek/Senet", fn: exportChecksCSV },
+                { label: "Nakliyeciler", fn: exportCarriersCSV },
+                { label: "Araçlar", fn: exportVehiclesCSV },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => handleCSVExport(item.fn, item.label)}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-xs font-semibold hover:bg-muted transition-colors"
+                >
+                  <Download className="h-3 w-3" />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {/* === TRASH TAB === */}
       {tab === "trash" && (
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground mb-2">
             Son 30 gün içinde silinen kayıtlar. Geri yükleyebilir veya kalıcı olarak silebilirsiniz.
           </p>
 
@@ -238,39 +233,33 @@ export default function DataSettingsPage() {
             </div>
           ) : trashedRecords && trashedRecords.length > 0 ? (
             trashedRecords.map((r) => (
-              <Card key={`${r.table_name}-${r.id}`}>
-                <CardContent className="flex items-center gap-3 p-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
-                    <Trash2 className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{r.summary}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Silindi: {formatDateShort(r.deleted_at)}
-                    </p>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      onClick={() => handleRestore(r.id, r.table_name)}
-                      disabled={restoreRecord.isPending}
-                    >
-                      <RotateCcw className="mr-1 h-3 w-3" />
-                      Geri Yükle
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="h-7 text-xs"
-                      onClick={() => setPermanentDeleteTarget({ id: r.id, table_name: r.table_name, summary: r.summary })}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div key={`${r.table_name}-${r.id}`} className="flex items-center gap-3 rounded-xl bg-card p-3 shadow-sm">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-100">
+                  <Trash2 className="h-4 w-4 text-red-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{r.summary}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Silindi: {formatDateShort(r.deleted_at)}
+                  </p>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    onClick={() => handleRestore(r.id, r.table_name)}
+                    disabled={restoreRecord.isPending}
+                    className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[10px] font-semibold hover:bg-muted transition-colors"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Geri
+                  </button>
+                  <button
+                    onClick={() => setPermanentDeleteTarget({ id: r.id, table_name: r.table_name, summary: r.summary })}
+                    className="flex items-center justify-center rounded-lg bg-red-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
             ))
           ) : (
             <div className="py-8 text-center text-sm text-muted-foreground">
@@ -289,7 +278,7 @@ export default function DataSettingsPage() {
               placeholder="Filtrele..."
               value={auditFilter}
               onChange={(e) => setAuditFilter(e.target.value)}
-              className="pl-9 h-9 text-sm"
+              className="pl-9 rounded-xl bg-muted border-0 h-11 text-sm"
             />
           </div>
 
@@ -300,10 +289,10 @@ export default function DataSettingsPage() {
           ) : filteredAudit && filteredAudit.length > 0 ? (
             <div className="space-y-1">
               {filteredAudit.map((e) => (
-                <div key={e.id} className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted/50">
-                  <Badge variant="secondary" className={`text-[10px] shrink-0 ${ACTION_COLORS[e.action] || ""}`}>
+                <div key={e.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-muted/50 transition-colors">
+                  <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[10px] font-semibold ${ACTION_COLORS[e.action] || ""}`}>
                     {ACTION_LABELS[e.action] || e.action}
-                  </Badge>
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium">
                       {TABLE_LABELS[e.table_name] || e.table_name}
@@ -326,7 +315,7 @@ export default function DataSettingsPage() {
 
       {/* Permanent Delete Confirmation */}
       <Dialog open={!!permanentDeleteTarget} onOpenChange={(open) => !open && setPermanentDeleteTarget(null)}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
               <AlertTriangle className="h-5 w-5" />
@@ -336,20 +325,23 @@ export default function DataSettingsPage() {
               Bu işlem geri alınamaz. Kayıt veritabanından tamamen silinecektir.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md bg-red-50 p-3 text-sm">
+          <div className="rounded-xl bg-red-50 p-3 text-sm">
             {permanentDeleteTarget?.summary}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPermanentDeleteTarget(null)}>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setPermanentDeleteTarget(null)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold hover:bg-muted transition-colors"
+            >
               İptal
-            </Button>
-            <Button
-              variant="destructive"
+            </button>
+            <button
               onClick={handlePermanentDelete}
               disabled={permanentDelete.isPending}
+              className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-60"
             >
               {permanentDelete.isPending ? "Siliniyor..." : "Kalıcı Sil"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

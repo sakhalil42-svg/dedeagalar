@@ -3,11 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useProfiles, useCreateUser, useUpdateProfile } from "@/lib/hooks/use-profiles";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Plus, Loader2, UserCog, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, Pencil, Shield, UserCog, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -32,9 +28,15 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-red-100 text-red-800",
-  staff: "bg-blue-100 text-blue-800",
-  viewer: "bg-gray-100 text-gray-800",
+  admin: "bg-red-100 text-red-700",
+  staff: "bg-blue-100 text-blue-700",
+  viewer: "bg-gray-100 text-gray-700",
+};
+
+const ROLE_ICONS: Record<string, React.ElementType> = {
+  admin: Shield,
+  staff: UserCog,
+  viewer: Eye,
 };
 
 export default function UsersPage() {
@@ -89,23 +91,28 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 page-enter">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/settings">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+          <Link
+            href="/settings"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
           <div>
             <h1 className="text-xl font-bold">Kullanıcı Yönetimi</h1>
-            <p className="text-sm text-muted-foreground">Kullanıcıları yönetin</p>
+            <p className="text-xs text-muted-foreground">Kullanıcıları yönetin</p>
           </div>
         </div>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
-          <Plus className="mr-1 h-4 w-4" />
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
           Yeni
-        </Button>
+        </button>
       </div>
 
       {isLoading ? (
@@ -114,32 +121,45 @@ export default function UsersPage() {
         </div>
       ) : profiles && profiles.length > 0 ? (
         <div className="space-y-2">
-          {profiles.map((p) => (
-            <Card key={p.id}>
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
-                  <UserCog className="h-5 w-5 text-muted-foreground" />
+          {profiles.map((p) => {
+            const initials = p.full_name
+              ? p.full_name
+                  .split(" ")
+                  .map((w) => w[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2)
+              : "?";
+            const RoleIcon = ROLE_ICONS[p.role] || UserCog;
+            return (
+              <div
+                key={p.id}
+                className="flex items-center gap-3 rounded-xl bg-card p-4 shadow-sm"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-bold">
+                  {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{p.full_name || "İsimsiz"}</p>
+                  <p className="text-sm font-semibold">{p.full_name || "İsimsiz"}</p>
                   <p className="truncate text-xs text-muted-foreground">{p.email || p.id}</p>
                 </div>
-                <Badge variant="secondary" className={`text-xs ${ROLE_COLORS[p.role] || ""}`}>
+                <span className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold ${ROLE_COLORS[p.role] || ""}`}>
+                  <RoleIcon className="h-3 w-3" />
                   {ROLE_LABELS[p.role] || p.role}
-                </Badge>
+                </span>
                 <button
                   onClick={() => {
                     setEditTarget({ id: p.id, full_name: p.full_name || "", role: p.role });
                     setEditName(p.full_name || "");
                     setEditRole(p.role);
                   }}
-                  className="text-muted-foreground hover:text-foreground"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="h-3.5 w-3.5" />
                 </button>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="py-12 text-center text-sm text-muted-foreground">
@@ -149,32 +169,34 @@ export default function UsersPage() {
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Yeni Kullanıcı</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Ad Soyad</Label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Ad Soyad *</label>
               <Input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
                 placeholder="Ahmet Yılmaz"
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
-            <div className="space-y-2">
-              <Label>E-posta</Label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">E-posta *</label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="ornek@email.com"
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Şifre</Label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Şifre *</label>
               <Input
                 type="password"
                 value={password}
@@ -182,12 +204,13 @@ export default function UsersPage() {
                 required
                 minLength={6}
                 placeholder="En az 6 karakter"
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Rol</Label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Rol</label>
               <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
-                <SelectTrigger>
+                <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -197,13 +220,21 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>
+            <DialogFooter className="gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold hover:bg-muted transition-colors"
+              >
                 İptal
-              </Button>
-              <Button type="submit" disabled={createUser.isPending}>
+              </button>
+              <button
+                type="submit"
+                disabled={createUser.isPending}
+                className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
                 {createUser.isPending ? "Oluşturuluyor..." : "Oluştur"}
-              </Button>
+              </button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -211,23 +242,24 @@ export default function UsersPage() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Kullanıcı Düzenle</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEdit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Ad Soyad</Label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Ad Soyad</label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 required
+                className="rounded-xl bg-muted border-0 h-12"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Rol</Label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Rol</label>
               <Select value={editRole} onValueChange={(v) => setEditRole(v as typeof editRole)}>
-                <SelectTrigger>
+                <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,13 +269,21 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
+            <DialogFooter className="gap-2">
+              <button
+                type="button"
+                onClick={() => setEditTarget(null)}
+                className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold hover:bg-muted transition-colors"
+              >
                 İptal
-              </Button>
-              <Button type="submit" disabled={updateProfile.isPending}>
+              </button>
+              <button
+                type="submit"
+                disabled={updateProfile.isPending}
+                className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
                 {updateProfile.isPending ? "Güncelleniyor..." : "Güncelle"}
-              </Button>
+              </button>
             </DialogFooter>
           </form>
         </DialogContent>

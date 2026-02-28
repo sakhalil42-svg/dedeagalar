@@ -15,10 +15,7 @@ import {
   useDeleteWarehouse,
 } from "@/lib/hooks/use-warehouses";
 import type { Warehouse } from "@/lib/types/database.types";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   Loader2,
@@ -37,6 +33,7 @@ import {
   Check,
   X,
   MapPin,
+  Warehouse as WarehouseIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -114,91 +111,87 @@ export default function WarehousesPage() {
   }
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 page-enter">
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/settings">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+          <Link
+            href="/settings"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
           <h1 className="text-xl font-bold">Depolar</h1>
         </div>
-        <Button size="sm" onClick={() => setShowAdd(true)}>
-          <Plus className="mr-1 h-4 w-4" />
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
           Ekle
-        </Button>
+        </button>
       </div>
 
       {showAdd && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Yeni Depo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={addForm.handleSubmit(onAdd)}
-              className="space-y-3"
-            >
-              <div className="space-y-2">
-                <Label htmlFor="add-name">İsim *</Label>
+        <div className="rounded-xl bg-card p-4 shadow-sm mb-4">
+          <p className="text-sm font-semibold mb-3">Yeni Depo</p>
+          <form onSubmit={addForm.handleSubmit(onAdd)} className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">İsim *</label>
+              <Input
+                {...addForm.register("name")}
+                placeholder="örn. Ana Depo"
+                className="rounded-xl bg-muted border-0 h-11"
+              />
+              {addForm.formState.errors.name && (
+                <p className="text-xs text-destructive mt-1">
+                  {addForm.formState.errors.name.message}
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Lokasyon</label>
                 <Input
-                  id="add-name"
-                  {...addForm.register("name")}
-                  placeholder="örn. Ana Depo"
+                  {...addForm.register("location")}
+                  placeholder="Şehir / Adres"
+                  className="rounded-xl bg-muted border-0 h-11"
                 />
-                {addForm.formState.errors.name && (
-                  <p className="text-sm text-destructive">
-                    {addForm.formState.errors.name.message}
-                  </p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Kapasite (ton)</label>
+                <Input
+                  type="number"
+                  {...addForm.register("capacity")}
+                  placeholder="0"
+                  className="rounded-xl bg-muted border-0 h-11"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAdd(false);
+                  addForm.reset();
+                }}
+                className="rounded-xl border border-border px-4 py-2.5 text-xs font-semibold hover:bg-muted transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                type="submit"
+                disabled={createWarehouse.isPending}
+                className="rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
+              >
+                {createWarehouse.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Kaydet"
                 )}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="add-loc">Lokasyon</Label>
-                  <Input
-                    id="add-loc"
-                    {...addForm.register("location")}
-                    placeholder="Şehir / Adres"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="add-cap">Kapasite (ton)</Label>
-                  <Input
-                    id="add-cap"
-                    type="number"
-                    {...addForm.register("capacity")}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setShowAdd(false);
-                    addForm.reset();
-                  }}
-                >
-                  İptal
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={createWarehouse.isPending}
-                >
-                  {createWarehouse.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Kaydet"
-                  )}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {isLoading ? (
@@ -209,63 +202,63 @@ export default function WarehousesPage() {
         <div className="space-y-2">
           {warehouses.map((wh) =>
             editingId === wh.id ? (
-              <Card key={wh.id}>
-                <CardContent className="p-4">
-                  <form
-                    onSubmit={editForm.handleSubmit(onEdit)}
-                    className="space-y-3"
-                  >
+              <div key={wh.id} className="rounded-xl bg-card p-4 shadow-sm">
+                <form onSubmit={editForm.handleSubmit(onEdit)} className="space-y-3">
+                  <Input
+                    {...editForm.register("name")}
+                    placeholder="İsim"
+                    className="rounded-xl bg-muted border-0 h-11"
+                  />
+                  {editForm.formState.errors.name && (
+                    <p className="text-xs text-destructive">
+                      {editForm.formState.errors.name.message}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
                     <Input
-                      {...editForm.register("name")}
-                      placeholder="İsim"
+                      {...editForm.register("location")}
+                      placeholder="Lokasyon"
+                      className="rounded-xl bg-muted border-0 h-11"
                     />
-                    {editForm.formState.errors.name && (
-                      <p className="text-sm text-destructive">
-                        {editForm.formState.errors.name.message}
-                      </p>
-                    )}
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input
-                        {...editForm.register("location")}
-                        placeholder="Lokasyon"
-                      />
-                      <Input
-                        type="number"
-                        {...editForm.register("capacity")}
-                        placeholder="Kapasite"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingId(null)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        type="submit"
-                        size="sm"
-                        disabled={updateWarehouse.isPending}
-                      >
-                        <Check className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
+                    <Input
+                      type="number"
+                      {...editForm.register("capacity")}
+                      placeholder="Kapasite"
+                      className="rounded-xl bg-muted border-0 h-11"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-border hover:bg-muted transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={updateWarehouse.isPending}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-60"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                  </div>
+                </form>
+              </div>
             ) : (
-              <Card key={wh.id}>
-                <CardContent className="flex items-center justify-between p-4">
+              <div key={wh.id} className="flex items-center justify-between rounded-xl bg-card p-4 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100">
+                    <WarehouseIcon className="h-4 w-4 text-blue-600" />
+                  </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{wh.name}</p>
+                      <p className="text-sm font-semibold">{wh.name}</p>
                       {!wh.is_active && (
-                        <Badge variant="secondary">Pasif</Badge>
+                        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Pasif</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       {wh.location && (
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
@@ -275,24 +268,22 @@ export default function WarehousesPage() {
                       {wh.capacity && <span>{wh.capacity} ton</span>}
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => startEdit(wh)}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteTarget(wh)}
-                    >
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => startEdit(wh)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(wh)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-destructive hover:bg-muted transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             )
           )}
         </div>
@@ -306,25 +297,27 @@ export default function WarehousesPage() {
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Depoyu Sil</DialogTitle>
             <DialogDescription>
-              &quot;{deleteTarget?.name}&quot; silinecek. Bu işlem geri
-              alınamaz.
+              &quot;{deleteTarget?.name}&quot; silinecek. Bu işlem geri alınamaz.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold hover:bg-muted transition-colors"
+            >
               İptal
-            </Button>
-            <Button
-              variant="destructive"
+            </button>
+            <button
               onClick={onDelete}
               disabled={deleteWarehouse.isPending}
+              className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-60"
             >
               {deleteWarehouse.isPending ? "Siliniyor..." : "Sil"}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

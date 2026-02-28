@@ -3,14 +3,12 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Sun, Moon, Monitor } from "lucide-react";
 
 const THEMES = [
-  { value: "light", label: "Açık", icon: Sun },
-  { value: "dark", label: "Koyu", icon: Moon },
-  { value: "system", label: "Sistem", icon: Monitor },
+  { value: "light", label: "Açık", icon: Sun, color: "bg-amber-100 text-amber-600" },
+  { value: "dark", label: "Koyu", icon: Moon, color: "bg-indigo-100 text-indigo-600" },
+  { value: "system", label: "Sistem", icon: Monitor, color: "bg-gray-100 text-gray-600" },
 ] as const;
 
 export default function AppearancePage() {
@@ -24,16 +22,17 @@ export default function AppearancePage() {
   if (!mounted) return null;
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/settings">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
+    <div className="p-4 page-enter">
+      <div className="flex items-center gap-2 mb-5">
+        <Link
+          href="/settings"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
         <div>
-          <h1 className="text-2xl font-bold">Görünüm</h1>
-          <p className="text-sm text-muted-foreground">Tema tercihini seç</p>
+          <h1 className="text-xl font-bold">Görünüm</h1>
+          <p className="text-xs text-muted-foreground">Tema tercihini seç</p>
         </div>
       </div>
 
@@ -45,28 +44,22 @@ export default function AppearancePage() {
             <button
               key={t.value}
               onClick={() => setTheme(t.value)}
-              className="focus:outline-none"
+              className={`flex flex-col items-center gap-2 rounded-2xl p-5 shadow-sm transition-all ${
+                isActive
+                  ? "bg-card border-2 border-primary ring-2 ring-primary/20"
+                  : "bg-card border-2 border-transparent hover:bg-muted/50"
+              }`}
             >
-              <Card
-                className={`transition-all ${
-                  isActive
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "hover:bg-muted/50"
+              <div
+                className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+                  isActive ? "bg-primary/10 text-primary" : t.color
                 }`}
               >
-                <CardContent className="flex flex-col items-center gap-2 p-4">
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-full ${
-                      isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <span className={`text-sm font-medium ${isActive ? "text-primary" : ""}`}>
-                    {t.label}
-                  </span>
-                </CardContent>
-              </Card>
+                <Icon className="h-6 w-6" />
+              </div>
+              <span className={`text-sm font-semibold ${isActive ? "text-primary" : ""}`}>
+                {t.label}
+              </span>
             </button>
           );
         })}
