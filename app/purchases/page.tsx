@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useAllDeliveries } from "@/lib/hooks/use-all-deliveries";
 import { useContacts } from "@/lib/hooks/use-contacts";
@@ -14,11 +14,9 @@ import {
 } from "@/lib/hooks/use-delivery-with-transactions";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { useSeasonFilter } from "@/lib/contexts/season-context";
-import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
 import { PlateCombobox } from "@/components/forms/plate-combobox";
 import { SkeletonCard } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
   formatCurrency,
   formatDateShort,
@@ -51,17 +49,16 @@ import {
   Search,
   Pencil,
   Trash2,
-  Check,
-  X,
   Loader2,
   SlidersHorizontal,
   Banknote,
-  Package,
-  Users,
   Scale,
-  DollarSign,
+  TrendingUp,
   ChevronRight,
   MessageCircle,
+  Camera,
+  AlertTriangle,
+  Plus,
 } from "lucide-react";
 import {
   Dialog,
@@ -144,18 +141,8 @@ export default function DeliveriesPage() {
 
   return (
     <div className="space-y-4 p-4 page-enter">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Sevkiyatlar</h1>
-          <p className="text-sm text-muted-foreground">
-            Tüm sevkiyat kayıtları ve nakliyeci cari
-          </p>
-        </div>
-        <BalanceToggle />
-      </div>
-
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
+      <div className="flex gap-1 rounded-xl bg-muted p-1">
         {([
           { key: "deliveries" as TabType, label: "Sevkiyatlar" },
           { key: "carrier" as TabType, label: "Nakliyeci Cari" },
@@ -163,7 +150,7 @@ export default function DeliveriesPage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               tab === t.key
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -192,7 +179,6 @@ function DeliveriesTab() {
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
 
-  // Build plate→driver_phone lookup from vehicles (fallback for old deliveries without driver_phone)
   const vehiclePhoneMap = useMemo(() => {
     const map = new Map<string, string>();
     vehicles?.forEach((v) => {
@@ -208,6 +194,7 @@ function DeliveriesTab() {
   const [plateSearch, setPlateSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("date_desc");
   const [showFilters, setShowFilters] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Edit dialog state
   const [editTarget, setEditTarget] = useState<TodayDelivery | null>(null);
@@ -231,7 +218,6 @@ function DeliveriesTab() {
     if (!deliveries) return [];
     let result = [...deliveries];
 
-    // Date filter
     const range = getDateRange(dateFilter);
     if (range) {
       result = result.filter(
@@ -239,17 +225,14 @@ function DeliveriesTab() {
       );
     }
 
-    // Customer filter
     if (customerFilter !== "all") {
       result = result.filter((d) => d.sale?.contact_id === customerFilter);
     }
 
-    // Feed type filter
     if (feedTypeFilter !== "all") {
       result = result.filter((d) => d.sale?.feed_type_id === feedTypeFilter);
     }
 
-    // Plate search
     if (plateSearch.trim()) {
       const q = plateSearch.trim().toLowerCase();
       result = result.filter((d) =>
@@ -257,7 +240,6 @@ function DeliveriesTab() {
       );
     }
 
-    // Sort
     result.sort((a, b) => {
       if (sortBy === "date_asc") return a.delivery_date.localeCompare(b.delivery_date);
       if (sortBy === "amount_desc") {
@@ -266,7 +248,6 @@ function DeliveriesTab() {
         return amtB - amtA;
       }
       if (sortBy === "tonnage_desc") return b.net_weight - a.net_weight;
-      // date_desc (default)
       return b.delivery_date.localeCompare(a.delivery_date) ||
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
@@ -274,16 +255,20 @@ function DeliveriesTab() {
     return result;
   }, [deliveries, dateFilter, customerFilter, feedTypeFilter, plateSearch, sortBy]);
 
-  // Summary totals from filtered
+  // Summary totals
   const totals = useMemo(() => {
     let totalTonnage = 0;
     let totalCustomerAmount = 0;
     let totalFreight = 0;
+    let totalProfit = 0;
 
     filtered.forEach((d) => {
       totalTonnage += d.net_weight;
-      totalCustomerAmount += d.net_weight * (d.sale?.unit_price || 0);
+      const customerAmt = d.net_weight * (d.sale?.unit_price || 0);
+      totalCustomerAmount += customerAmt;
       totalFreight += d.freight_cost || 0;
+      // Simple profit calc: customer amount - freight (approximate)
+      totalProfit += customerAmt;
     });
 
     return {
@@ -291,6 +276,7 @@ function DeliveriesTab() {
       tonnage: totalTonnage,
       customerAmount: totalCustomerAmount,
       totalFreight,
+      totalProfit,
     };
   }, [filtered]);
 
@@ -392,47 +378,47 @@ function DeliveriesTab() {
 
   return (
     <>
-      {/* Summary cards */}
-      {!isLoading && filtered.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Sevkiyat</p>
-              <p className="text-lg font-bold">{totals.count}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Toplam Tonaj</p>
-              <p className="text-lg font-bold">{formatWeight(totals.tonnage)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Müşteri Tutarı</p>
-              <p className="text-lg font-bold text-green-600">
-                {masked(totals.customerAmount)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Toplam Nakliye</p>
-              <p className="text-lg font-bold text-orange-600">
-                {masked(totals.totalFreight)}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Header row with search + filter icons */}
+      <div className="flex items-center gap-2">
+        {searchOpen ? (
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Plaka ara..."
+              value={plateSearch}
+              onChange={(e) => setPlateSearch(e.target.value)}
+              className="pl-9 rounded-xl bg-muted border-0 font-mono"
+              autoFocus
+            />
+          </div>
+        ) : (
+          <div className="flex-1" />
+        )}
+        <button
+          onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setPlateSearch(""); }}
+          className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+            searchOpen ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <Search className="h-4.5 w-4.5" />
+        </button>
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+            showFilters || hasActiveFilters ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <SlidersHorizontal className="h-4.5 w-4.5" />
+        </button>
+      </div>
 
       {/* Date filter pills */}
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {DATE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
             onClick={() => setDateFilter(opt.value)}
-            className={`whitespace-nowrap rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               dateFilter === opt.value
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground"
@@ -441,39 +427,25 @@ function DeliveriesTab() {
             {opt.label}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() => setShowFilters(!showFilters)}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-            showFilters ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-          }`}
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-        </button>
       </div>
 
       {/* Extended filters */}
       {showFilters && (
-        <div className="space-y-3 rounded-lg border p-3">
-          {/* Customer */}
+        <div className="space-y-3 rounded-xl border p-3">
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1.5">Müşteri</p>
             <Select value={customerFilter} onValueChange={setCustomerFilter}>
-              <SelectTrigger className="h-9">
+              <SelectTrigger className="h-9 rounded-xl">
                 <SelectValue placeholder="Tümü" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tümü</SelectItem>
                 {contacts?.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-
-          {/* Feed type */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1.5">Yem Türü</p>
             <div className="flex gap-1.5 flex-wrap">
@@ -481,8 +453,8 @@ function DeliveriesTab() {
                 onClick={() => setFeedTypeFilter("all")}
                 className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   feedTypeFilter === "all"
-                    ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
-                    : "bg-muted/60 text-muted-foreground"
+                    ? "bg-primary/10 text-primary border border-primary/20"
+                    : "bg-muted text-muted-foreground"
                 }`}
               >
                 Tümü
@@ -493,8 +465,8 @@ function DeliveriesTab() {
                   onClick={() => setFeedTypeFilter(ft.id)}
                   className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     feedTypeFilter === ft.id
-                      ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
-                      : "bg-muted/60 text-muted-foreground"
+                      ? "bg-primary/10 text-primary border border-primary/20"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {ft.name}
@@ -502,19 +474,6 @@ function DeliveriesTab() {
               ))}
             </div>
           </div>
-
-          {/* Plate search */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">Plaka</p>
-            <Input
-              placeholder="Plaka ara..."
-              value={plateSearch}
-              onChange={(e) => setPlateSearch(e.target.value)}
-              className="h-9 font-mono"
-            />
-          </div>
-
-          {/* Sort */}
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1.5">Sıralama</p>
             <div className="flex gap-1.5 flex-wrap">
@@ -524,8 +483,8 @@ function DeliveriesTab() {
                   onClick={() => setSortBy(opt.value)}
                   className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     sortBy === opt.value
-                      ? "bg-secondary text-secondary-foreground ring-1 ring-primary/30"
-                      : "bg-muted/60 text-muted-foreground"
+                      ? "bg-primary/10 text-primary border border-primary/20"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {opt.label}
@@ -539,15 +498,42 @@ function DeliveriesTab() {
       {/* Filter chips */}
       <FilterChips chips={chips} onRemove={handleRemoveChip} onClearAll={handleClearAll} />
 
+      {/* Summary cards */}
+      {!isLoading && filtered.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-card p-3 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30 mb-1.5">
+              <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Toplam Adet</p>
+            <p className="text-lg font-extrabold">{totals.count}</p>
+          </div>
+          <div className="rounded-xl bg-card p-3 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30 mb-1.5">
+              <Scale className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            </div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Top. Tonaj</p>
+            <p className="text-lg font-extrabold">{formatWeight(totals.tonnage)}</p>
+          </div>
+          <div className="rounded-xl bg-card p-3 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30 mb-1.5">
+              <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Toplam Tutar</p>
+            <p className="text-lg font-extrabold text-green-600">{masked(totals.customerAmount)}</p>
+          </div>
+        </div>
+      )}
+
       {/* Delivery list */}
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
       ) : filtered.length > 0 ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filtered.map((d) => (
             <DeliveryCard
               key={d.id}
@@ -560,17 +546,41 @@ function DeliveriesTab() {
           ))}
         </div>
       ) : hasActiveFilters ? (
-        <EmptyState
-          icon={Search}
-          title="Sonuç bulunamadı"
-          description="Filtre kriterlerini değiştirmeyi deneyin."
-        />
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="rounded-2xl bg-muted/30 p-6 mb-6">
+            <Search className="h-16 w-16 text-muted-foreground" />
+          </div>
+          <h3 className="text-xl font-bold">Sonuç Bulunamadı</h3>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+            Filtre kriterlerini değiştirmeyi deneyin.
+          </p>
+          <button
+            onClick={handleClearAll}
+            className="mt-4 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white"
+          >
+            Filtreleri Temizle
+          </button>
+        </div>
       ) : (
-        <EmptyState
-          icon={Truck}
-          title="Henüz sevkiyat kaydı yok"
-          description="Satış sayfasından hızlı sevkiyat ekleyebilirsiniz."
-        />
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="relative rounded-2xl bg-muted/30 p-6 mb-6">
+            <Truck className="h-16 w-16 text-primary" />
+            <div className="absolute -bottom-1 -left-1 flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+          </div>
+          <h3 className="text-xl font-bold mt-2">Henüz Sevkiyat Bulunmuyor</h3>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+            Bugün için kaydedilmiş bir sevkiyatınız yok. Yeni bir sevkiyat ekleyerek işlerinizi takip etmeye başlayabilirsiniz.
+          </p>
+          <Link
+            href="/sales"
+            className="mt-6 flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 font-semibold text-white"
+          >
+            <Plus className="h-4 w-4" />
+            Hızlı Sevkiyat Ekle
+          </Link>
+        </div>
       )}
 
       {/* Edit dialog */}
@@ -591,7 +601,7 @@ function DeliveriesTab() {
                   onChange={(e) =>
                     setEditWeight(formatNumberInput(handleNumberChange(e.target.value, false)))
                   }
-                  className="mt-1 h-9"
+                  className="mt-1 h-9 rounded-xl"
                   inputMode="numeric"
                 />
               </div>
@@ -610,7 +620,7 @@ function DeliveriesTab() {
                   onChange={(e) =>
                     setEditFreightCost(formatNumberInput(handleNumberChange(e.target.value, false)))
                   }
-                  className="mt-1 h-9"
+                  className="mt-1 h-9 rounded-xl"
                   inputMode="numeric"
                   placeholder="0"
                 />
@@ -618,7 +628,7 @@ function DeliveriesTab() {
               <div>
                 <Label className="text-xs">Nakliye Ödeyen</Label>
                 <Select value={editFreightPayer} onValueChange={(v) => setEditFreightPayer(v as FreightPayer)}>
-                  <SelectTrigger className="mt-1 h-9">
+                  <SelectTrigger className="mt-1 h-9 rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -635,7 +645,7 @@ function DeliveriesTab() {
                 <Input
                   value={editDriverName}
                   onChange={(e) => setEditDriverName(e.target.value)}
-                  className="mt-1 h-9"
+                  className="mt-1 h-9 rounded-xl"
                   placeholder="Şoför adı"
                 />
               </div>
@@ -644,7 +654,7 @@ function DeliveriesTab() {
                 <Input
                   value={editDriverPhone}
                   onChange={(e) => setEditDriverPhone(e.target.value)}
-                  className="mt-1 h-9"
+                  className="mt-1 h-9 rounded-xl"
                   placeholder="05xx xxx xx xx"
                   inputMode="tel"
                 />
@@ -655,7 +665,7 @@ function DeliveriesTab() {
               <Input
                 value={editTicketNo}
                 onChange={(e) => setEditTicketNo(e.target.value)}
-                className="mt-1 h-9"
+                className="mt-1 h-9 rounded-xl"
                 placeholder="Fiş numarası"
               />
             </div>
@@ -664,15 +674,15 @@ function DeliveriesTab() {
               <Textarea
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
-                className="mt-1"
+                className="mt-1 rounded-xl"
                 rows={2}
                 placeholder="Not ekleyin..."
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeEdit}>İptal</Button>
-            <Button onClick={saveEdit} disabled={updateMutation.isPending}>
+            <Button variant="outline" onClick={closeEdit} className="rounded-xl">İptal</Button>
+            <Button onClick={saveEdit} disabled={updateMutation.isPending} className="rounded-xl">
               {updateMutation.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
               Kaydet
             </Button>
@@ -696,13 +706,14 @@ function DeliveriesTab() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} className="rounded-xl">
               İptal
             </Button>
             <Button
               variant="destructive"
               onClick={confirmDelete}
               disabled={deleteMutation.isPending}
+              className="rounded-xl"
             >
               {deleteMutation.isPending ? (
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -719,7 +730,7 @@ function DeliveriesTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Delivery Card (detailed display with WhatsApp)
+// Delivery Card — Stitch Style
 // ═══════════════════════════════════════════════════════════════
 
 function DeliveryCard({
@@ -740,7 +751,6 @@ function DeliveryCard({
   const hasPhone = !!formatPhoneForWhatsApp(phone);
   const [waSent, setWaSent] = useState(() => isWhatsAppSent(d.id));
 
-  // driver_phone: delivery first, then vehicle fallback
   const driverPhone = d.driver_phone || (d.vehicle_plate ? vehiclePhoneMap.get(d.vehicle_plate) : undefined) || null;
 
   const handleWhatsApp = () => {
@@ -764,101 +774,78 @@ function DeliveryCard({
   };
 
   return (
-    <Card>
-      <CardContent className="p-3 space-y-1.5">
-        {/* Row 1: Date + Feed type badge */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {formatDateShort(d.delivery_date)}
-            </span>
-            {d.sale?.feed_type?.name && (
-              <Badge variant="secondary" className="text-xs">
-                {d.sale.feed_type.name}
-              </Badge>
-            )}
-          </div>
-        </div>
+    <div className="rounded-xl bg-card p-4 shadow-sm">
+      {/* Top row: date + profit badge */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {formatDateShort(d.delivery_date)}
+          {d.sale?.feed_type?.name && (
+            <span className="ml-2 text-foreground font-medium">{d.sale.feed_type.name}</span>
+          )}
+        </span>
+        <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+          {masked(customerAmount)}
+        </span>
+      </div>
 
-        {/* Row 2: Customer name + Amount */}
-        <div className="flex items-center justify-between">
-          <p className="font-medium text-sm truncate">
-            {d.sale?.contact?.name || "—"}
-          </p>
-          <p className="font-semibold text-sm shrink-0 ml-2">
-            {masked(customerAmount)}
-          </p>
-        </div>
+      {/* Customer name */}
+      <p className="text-base font-semibold mt-1.5">{d.sale?.contact?.name || "—"}</p>
 
-        {/* Row 3: Weight · Plate · Ticket no */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-          <span className="font-semibold text-foreground">
-            {formatWeight(d.net_weight)}
-          </span>
-          {d.vehicle_plate && (
-            <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">
+      {/* Supplier (if available from purchase) */}
+      {d.driver_name && (
+        <p className="text-sm text-muted-foreground">Şoför: {d.driver_name}</p>
+      )}
+
+      {/* Middle row: plate + weight */}
+      <div className="flex items-end justify-between mt-3">
+        <div>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Plaka No</p>
+          {d.vehicle_plate ? (
+            <span className="inline-block mt-0.5 rounded-md bg-muted px-2.5 py-1 font-mono text-sm font-medium">
               {d.vehicle_plate}
             </span>
-          )}
-          {d.ticket_no && (
-            <span>Fiş: {d.ticket_no}</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
           )}
         </div>
-
-        {/* Row 4: Driver · Freight cost · Freight payer */}
-        {(d.driver_name || d.freight_cost) && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-            {d.driver_name && (
-              <span>Şoför: {d.driver_name}</span>
-            )}
-            {d.freight_cost != null && d.freight_cost > 0 && (
-              <span>Nakliye: {formatCurrency(d.freight_cost)}</span>
-            )}
-            {d.freight_payer && d.freight_payer !== "customer" && (
-              <Badge variant="outline" className="text-[10px] px-1 py-0">
-                {FREIGHT_PAYER_LABELS[d.freight_payer] || d.freight_payer}
-              </Badge>
-            )}
+        <div className="text-right">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Net Miktar</p>
+          <div className="flex items-baseline gap-1 justify-end mt-0.5">
+            <span className="text-2xl font-extrabold">{Math.round(d.net_weight).toLocaleString("tr-TR")}</span>
+            <span className="text-sm text-muted-foreground">kg</span>
           </div>
-        )}
-
-        {/* Actions: WhatsApp + Edit + Delete */}
-        <div className="flex items-center justify-end gap-1 pt-0.5">
-          {hasPhone && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              onClick={handleWhatsApp}
-            >
-              <MessageCircle
-                className={`h-4 w-4 ${
-                  waSent
-                    ? "text-green-300"
-                    : "text-green-600"
-                }`}
-              />
-            </Button>
-          )}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={onEdit}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 text-destructive"
-            onClick={onDelete}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Bottom row: action icons */}
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+        {d.freight_cost != null && d.freight_cost > 0 && (
+          <span className="text-xs text-muted-foreground mr-auto">
+            Nakliye: {formatCurrency(d.freight_cost)}
+            {d.freight_payer && d.freight_payer !== "customer" && (
+              <span className="ml-1 text-[10px]">({FREIGHT_PAYER_LABELS[d.freight_payer]})</span>
+            )}
+          </span>
+        )}
+        {!d.freight_cost && <span className="mr-auto" />}
+        {hasPhone && (
+          <button
+            onClick={handleWhatsApp}
+            className={`p-2 rounded-lg transition-colors ${
+              waSent ? "text-green-300 hover:bg-green-50" : "text-green-600 hover:bg-green-50"
+            }`}
+          >
+            <MessageCircle className="h-4.5 w-4.5" />
+          </button>
+        )}
+        <button onClick={onEdit} className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+          <Pencil className="h-4.5 w-4.5" />
+        </button>
+        <button onClick={onDelete} className="p-2 rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+          <Trash2 className="h-4.5 w-4.5" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -872,7 +859,6 @@ function CarrierTab() {
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
 
-  // Summary from balances
   const summary = useMemo(() => {
     if (!balances) return { totalFreight: 0, totalPaid: 0, balance: 0 };
     let totalFreight = 0;
@@ -891,36 +877,24 @@ function CarrierTab() {
       {/* Summary cards */}
       {!balancesLoading && balances && balances.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Toplam Nakliye</p>
-              <p className="text-sm font-bold">{masked(summary.totalFreight)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Ödenen</p>
-              <p className="text-sm font-bold text-green-600">
-                {masked(summary.totalPaid)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Kalan Borç</p>
-              <p className="text-sm font-bold text-red-600">
-                {masked(summary.balance)}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-xl bg-card p-3 shadow-sm text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Toplam Nakliye</p>
+            <p className="text-sm font-bold mt-1">{masked(summary.totalFreight)}</p>
+          </div>
+          <div className="rounded-xl bg-card p-3 shadow-sm text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Ödenen</p>
+            <p className="text-sm font-bold text-green-600 mt-1">{masked(summary.totalPaid)}</p>
+          </div>
+          <div className="rounded-xl bg-card p-3 shadow-sm text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Kalan Borç</p>
+            <p className="text-sm font-bold text-red-600 mt-1">{masked(summary.balance)}</p>
+          </div>
         </div>
       )}
 
       {/* Carrier list */}
       <div>
-        <h2 className="text-sm font-semibold text-muted-foreground mb-2">
-          Nakliyeciler
-        </h2>
+        <h2 className="text-sm font-semibold text-muted-foreground mb-2">Nakliyeciler</h2>
         {balancesLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -931,50 +905,42 @@ function CarrierTab() {
           <div className="space-y-2">
             {balances.map((b) => (
               <Link key={b.id} href={`/settings/carriers/${b.id}`}>
-                <Card className="transition-colors hover:bg-muted/50">
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-sm">{b.name}</p>
-                        <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                          <span>Nakliye: {masked(b.total_freight)}</span>
-                          <span>Ödenen: {masked(b.total_paid)}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <p
-                          className={`font-bold text-sm ${
-                            b.balance > 0
-                              ? "text-red-600"
-                              : b.balance < 0
-                                ? "text-green-600"
-                                : ""
-                          }`}
-                        >
-                          {masked(Math.abs(b.balance))}
-                        </p>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <div className="rounded-xl bg-card p-3 shadow-sm transition-colors hover:bg-muted/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{b.name}</p>
+                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>Nakliye: {masked(b.total_freight)}</span>
+                        <span>Ödenen: {masked(b.total_paid)}</span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="flex items-center gap-1">
+                      <p
+                        className={`font-bold text-sm ${
+                          b.balance > 0 ? "text-red-600" : b.balance < 0 ? "text-green-600" : ""
+                        }`}
+                      >
+                        {masked(Math.abs(b.balance))}
+                      </p>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </div>
               </Link>
             ))}
           </div>
         ) : (
-          <EmptyState
-            icon={Truck}
-            title="Nakliyeci bulunamadı"
-            description="Ayarlar sayfasından nakliyeci ekleyebilirsiniz."
-          />
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Truck className="h-12 w-12 text-muted-foreground mb-3" />
+            <p className="text-sm font-medium">Nakliyeci bulunamadı</p>
+            <p className="text-xs text-muted-foreground mt-1">Ayarlar sayfasından nakliyeci ekleyebilirsiniz.</p>
+          </div>
         )}
       </div>
 
       {/* Recent transactions */}
       <div>
-        <h2 className="text-sm font-semibold text-muted-foreground mb-2">
-          Son İşlemler
-        </h2>
+        <h2 className="text-sm font-semibold text-muted-foreground mb-2">Son İşlemler</h2>
         {txsLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -984,44 +950,36 @@ function CarrierTab() {
         ) : recentTxs && recentTxs.length > 0 ? (
           <div className="space-y-1.5">
             {recentTxs.map((tx) => (
-              <Card key={tx.id}>
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {tx.type === "freight_charge" ? (
-                        <Truck className="h-4 w-4 shrink-0 text-red-500" />
-                      ) : (
-                        <Banknote className="h-4 w-4 shrink-0 text-green-500" />
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {tx.carrier_name || "—"}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {formatDateShort(tx.transaction_date)}
-                          {tx.description && ` · ${tx.description}`}
-                        </p>
-                      </div>
+              <div key={tx.id} className="rounded-xl bg-card p-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {tx.type === "freight_charge" ? (
+                      <Truck className="h-4 w-4 shrink-0 text-red-500" />
+                    ) : (
+                      <Banknote className="h-4 w-4 shrink-0 text-green-500" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{tx.carrier_name || "—"}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {formatDateShort(tx.transaction_date)}
+                        {tx.description && ` · ${tx.description}`}
+                      </p>
                     </div>
-                    <p
-                      className={`font-semibold text-sm shrink-0 ml-2 ${
-                        tx.type === "freight_charge"
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
-                    >
-                      {tx.type === "freight_charge" ? "+" : "-"}
-                      {masked(tx.amount)}
-                    </p>
                   </div>
-                </CardContent>
-              </Card>
+                  <p
+                    className={`font-semibold text-sm shrink-0 ml-2 ${
+                      tx.type === "freight_charge" ? "text-red-600" : "text-green-600"
+                    }`}
+                  >
+                    {tx.type === "freight_charge" ? "+" : "-"}
+                    {masked(tx.amount)}
+                  </p>
+                </div>
+              </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Henüz işlem yok
-          </p>
+          <p className="text-sm text-muted-foreground text-center py-4">Henüz işlem yok</p>
         )}
       </div>
     </>
