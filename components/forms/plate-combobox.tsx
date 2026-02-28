@@ -136,13 +136,17 @@ export function PlateCombobox({
     (v) => v.plate.toLowerCase().trim() === searchText
   );
 
-  // Close on outside click
+  // Close on outside click — but ignore clicks inside Radix portals
+  // (Select/Popover content is portalled outside containerRef)
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setShowNewForm(false);
-      }
+      if (!containerRef.current) return;
+      if (containerRef.current.contains(e.target as Node)) return;
+      // Radix Select portals live outside our container — don't close on those clicks
+      const target = e.target as HTMLElement;
+      if (target.closest?.("[data-radix-popper-content-wrapper]")) return;
+      setOpen(false);
+      setShowNewForm(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
