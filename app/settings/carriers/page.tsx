@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useCarriers, useCreateCarrier, useDeleteCarrier } from "@/lib/hooks/use-carriers";
+import { useCarriers, useCreateCarrier, useUpdateCarrier, useDeleteCarrier } from "@/lib/hooks/use-carriers";
 import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 import { useVehicles, useCreateVehicle, useDeleteVehicle } from "@/lib/hooks/use-vehicles";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import {
   Phone,
   MapPin,
   Trash2,
+  Pencil,
   ChevronDown,
   ChevronUp,
   Save,
@@ -41,6 +42,7 @@ export default function CarriersPage() {
   const { data: vehicles, isLoading: vehiclesLoading } = useVehicles();
   const { data: balances } = useCarrierBalances();
   const createCarrier = useCreateCarrier();
+  const updateCarrier = useUpdateCarrier();
   const deleteCarrier = useDeleteCarrier();
   const createVehicle = useCreateVehicle();
   const deleteVehicle = useDeleteVehicle();
@@ -49,6 +51,7 @@ export default function CarriersPage() {
   const [showNewVehicle, setShowNewVehicle] = useState(false);
   const [expandedCarrier, setExpandedCarrier] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "carrier" | "vehicle"; id: string; label: string } | null>(null);
+  const [editTarget, setEditTarget] = useState<{ id: string; name: string; phone: string; phone2: string; city: string; notes: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // New carrier form
@@ -131,6 +134,39 @@ export default function CarriersPage() {
       setVCapacity("");
     } catch {
       toast.error("Ekleme başarısız (plaka zaten kayıtlı olabilir)");
+    }
+  }
+
+  function openEditDialog(carrier: { id: string; name: string; phone: string | null; phone2: string | null; city: string | null; notes: string | null }) {
+    setEditTarget({
+      id: carrier.id,
+      name: carrier.name,
+      phone: carrier.phone || "",
+      phone2: carrier.phone2 || "",
+      city: carrier.city || "",
+      notes: carrier.notes || "",
+    });
+  }
+
+  async function handleUpdateCarrier() {
+    if (!editTarget) return;
+    if (!editTarget.name.trim()) {
+      toast.error("Nakliyeci adı giriniz");
+      return;
+    }
+    try {
+      await updateCarrier.mutateAsync({
+        id: editTarget.id,
+        name: editTarget.name.trim(),
+        phone: editTarget.phone || null,
+        phone2: editTarget.phone2 || null,
+        city: editTarget.city || null,
+        notes: editTarget.notes || null,
+      });
+      toast.success("Nakliyeci güncellendi");
+      setEditTarget(null);
+    } catch {
+      toast.error("Güncelleme başarısız");
     }
   }
 
@@ -338,6 +374,13 @@ export default function CarriersPage() {
                           >
                             Cari Hesap
                           </Link>
+                          <button
+                            onClick={() => openEditDialog(carrier)}
+                            className="flex items-center gap-1 rounded-xl bg-muted px-3 py-2.5 text-xs font-semibold"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Düzenle
+                          </button>
                           <button
                             onClick={() => {
                               setVCarrierId(carrier.id);
@@ -583,6 +626,86 @@ export default function CarriersPage() {
               className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {createVehicle.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Kaydet
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Carrier Dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Nakliyeci Düzenle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Ad *</label>
+              <Input
+                value={editTarget?.name || ""}
+                onChange={(e) => setEditTarget((p) => p ? { ...p, name: e.target.value } : p)}
+                placeholder="Nakliyeci adı"
+                className="rounded-xl bg-muted border-0 h-12"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Telefon</label>
+                <Input
+                  type="tel"
+                  value={editTarget?.phone || ""}
+                  onChange={(e) => setEditTarget((p) => p ? { ...p, phone: e.target.value } : p)}
+                  placeholder="05XX XXX XXXX"
+                  className="rounded-xl bg-muted border-0 h-12"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Telefon 2</label>
+                <Input
+                  type="tel"
+                  value={editTarget?.phone2 || ""}
+                  onChange={(e) => setEditTarget((p) => p ? { ...p, phone2: e.target.value } : p)}
+                  placeholder="05XX XXX XXXX"
+                  className="rounded-xl bg-muted border-0 h-12"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Şehir</label>
+              <Input
+                value={editTarget?.city || ""}
+                onChange={(e) => setEditTarget((p) => p ? { ...p, city: e.target.value } : p)}
+                placeholder="Şehir"
+                className="rounded-xl bg-muted border-0 h-12"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Notlar</label>
+              <Input
+                value={editTarget?.notes || ""}
+                onChange={(e) => setEditTarget((p) => p ? { ...p, notes: e.target.value } : p)}
+                placeholder="Ek notlar..."
+                className="rounded-xl bg-muted border-0 h-12"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setEditTarget(null)}
+              className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleUpdateCarrier}
+              disabled={updateCarrier.isPending}
+              className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {updateCarrier.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Save className="h-4 w-4" />
