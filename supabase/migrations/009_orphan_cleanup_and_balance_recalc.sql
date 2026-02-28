@@ -125,15 +125,8 @@ WHERE deleted_at IS NULL
   );
 
 -- ─── 8. Recalculate ALL account balances from active transactions ───
+-- accounts table only has 'balance' column (no total_debit/total_credit)
 UPDATE accounts SET
-  total_debit = COALESCE((
-    SELECT SUM(amount) FROM account_transactions
-    WHERE account_id = accounts.id AND type = 'debit' AND deleted_at IS NULL
-  ), 0),
-  total_credit = COALESCE((
-    SELECT SUM(amount) FROM account_transactions
-    WHERE account_id = accounts.id AND type = 'credit' AND deleted_at IS NULL
-  ), 0),
   balance = COALESCE((
     SELECT SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END) -
            SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END)

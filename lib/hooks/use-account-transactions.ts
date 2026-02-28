@@ -33,16 +33,37 @@ export function useAccountSummaries() {
         }
       }
 
+      // Compute total_debit and total_credit from active transactions
+      // (accounts table only stores 'balance', not debit/credit totals)
+      const accountIds = (accounts || []).map((a) => a.id);
+      const txTotals = new Map<string, { totalDebit: number; totalCredit: number }>();
+      if (accountIds.length > 0) {
+        const { data: txs } = await supabase
+          .from("account_transactions")
+          .select("account_id, type, amount")
+          .in("account_id", accountIds)
+          .is("deleted_at", null);
+        if (txs) {
+          for (const tx of txs) {
+            const entry = txTotals.get(tx.account_id) || { totalDebit: 0, totalCredit: 0 };
+            if (tx.type === "debit") entry.totalDebit += Number(tx.amount);
+            else entry.totalCredit += Number(tx.amount);
+            txTotals.set(tx.account_id, entry);
+          }
+        }
+      }
+
       const result: AccountSummary[] = (accounts || []).map((a) => {
         const contact = contactMap.get(a.contact_id);
+        const totals = txTotals.get(a.id) || { totalDebit: 0, totalCredit: 0 };
         return {
           account_id: a.id,
           contact_id: a.contact_id,
           contact_name: contact?.name || "—",
           contact_type: (contact?.type || "supplier") as AccountSummary["contact_type"],
           balance: a.balance ?? 0,
-          total_debit: a.total_debit ?? 0,
-          total_credit: a.total_credit ?? 0,
+          total_debit: totals.totalDebit,
+          total_credit: totals.totalCredit,
         };
       });
 

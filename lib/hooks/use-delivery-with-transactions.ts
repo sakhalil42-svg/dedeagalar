@@ -25,13 +25,10 @@ export async function recalcAccountBalance(
 
   const balance = totalDebit - totalCredit;
 
+  // accounts table only has 'balance' column
   await supabase
     .from("accounts")
-    .update({
-      balance: Math.round(balance * 100) / 100,
-      total_debit: Math.round(totalDebit * 100) / 100,
-      total_credit: Math.round(totalCredit * 100) / 100,
-    })
+    .update({ balance: Math.round(balance * 100) / 100 })
     .eq("id", accountId);
 }
 
