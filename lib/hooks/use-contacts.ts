@@ -38,9 +38,9 @@ export function useContact(id: string) {
         .from("contacts")
         .select("*, accounts(*)")
         .eq("id", id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as Contact & { accounts: { id: string; balance: number; total_debit: number; total_credit: number }[] };
+      return data as (Contact & { accounts: { id: string; balance: number; total_debit: number; total_credit: number }[] }) | null;
     },
     enabled: !!id,
   });
@@ -93,6 +93,11 @@ export function useDeleteContact() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Cache'den bu kişiyi hemen kaldır — refetch 406 vermesin
+      queryClient.removeQueries({ queryKey: [...CONTACTS_KEY, id] });
+      queryClient.removeQueries({ queryKey: ["account_by_contact", id] });
+      queryClient.removeQueries({ queryKey: ["deliveries_by_contact", id] });
+
       // ── 1. Account ID'leri bul ──
       const { data: accounts } = await supabase
         .from("accounts")

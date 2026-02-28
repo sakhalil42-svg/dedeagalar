@@ -132,11 +132,8 @@ export default function ContactDetailPage() {
   }
 
   if (!contact) {
-    return (
-      <div className="p-4 text-center text-muted-foreground">
-        Kişi bulunamadı.
-      </div>
-    );
+    router.replace("/contacts");
+    return null;
   }
 
   const account = contact.accounts?.[0];
