@@ -787,7 +787,7 @@ export function DashboardContent() {
       <div className="fixed bottom-24 sm:bottom-20 right-4 z-50">
         {showFab && (
           <div className="mb-2 flex flex-col gap-2 items-end animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <Link href="/sales/new">
+            <Link href="/sales">
               <Button size="sm" className="gap-2 rounded-full bg-green-600 hover:bg-green-700 shadow-lg">
                 <Truck className="h-4 w-4" />
                 Hızlı Sevkiyat

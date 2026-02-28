@@ -149,12 +149,21 @@ function buildWhatsAppUrl(
   if (!phone) return null;
 
   const total = delivery.net_weight * customerPrice;
+  let driverLine = "";
+  if (delivery.driver_name) {
+    driverLine = `Şoför: ${delivery.driver_name}\n`;
+  }
+  const freightLine = delivery.freight_cost
+    ? `Nakliye: ${delivery.freight_cost.toLocaleString("tr-TR")} ₺\n`
+    : "";
   const msg =
     `Sayın ${customerName},\n` +
     `${formatDateShort(delivery.delivery_date)} tarihinde ${delivery.net_weight.toLocaleString("tr-TR")} kg ${feedTypeName || "yem"} yüklenmiştir.\n` +
     (delivery.vehicle_plate ? `Plaka: ${delivery.vehicle_plate}\n` : "") +
+    driverLine +
     `Birim Fiyat: ${customerPrice.toLocaleString("tr-TR")} ₺/kg\n` +
     `Tutar: ${total.toLocaleString("tr-TR")} ₺\n` +
+    freightLine +
     `Dedeağalar Grup`;
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;

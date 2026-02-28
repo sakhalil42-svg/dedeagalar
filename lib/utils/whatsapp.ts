@@ -49,7 +49,7 @@ export type TemplateKey =
 
 const DEFAULT_TEMPLATES: Record<TemplateKey, string> = {
   sevkiyat_bildirimi:
-    "Sayın {müşteri}, {tarih} tarihinde {tonaj} kg {yem_türü} yüklenmiştir. Plaka: {plaka}. Dedeağalar Grup",
+    "Sayın {müşteri},\n{tarih} tarihinde {tonaj} kg {yem_türü} yüklenmiştir.\nPlaka: {plaka}\n{şoför}Birim Fiyat: {birim_fiyat} ₺/kg\nTutar: {tutar} ₺\n{nakliye}Dedeağalar Grup",
   odeme_hatirlatma:
     "Sayın {kişi}, güncel bakiyeniz {bakiye} tutarındadır. Ödeme planlamanız için bilgilerinize sunarız. Dedeağalar Grup",
   cek_vade_hatirlatma:
@@ -104,13 +104,36 @@ export function buildSevkiyatMessage(params: {
   netWeight: number;
   feedType?: string;
   plate?: string;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  unitPrice?: number;
+  freightCost?: number | null;
 }): string {
+  const total = params.unitPrice ? params.netWeight * params.unitPrice : 0;
+
+  // Build driver line
+  let driverLine = "";
+  if (params.driverName) {
+    driverLine = params.driverPhone
+      ? `Şoför: ${params.driverName} - ${params.driverPhone}\n`
+      : `Şoför: ${params.driverName}\n`;
+  }
+
+  // Build freight line
+  const freightLine = params.freightCost
+    ? `Nakliye: ${params.freightCost.toLocaleString("tr-TR")} ₺\n`
+    : "";
+
   return getTemplate("sevkiyat_bildirimi")
     .replace("{müşteri}", params.customerName)
     .replace("{tarih}", formatDateShort(params.date))
     .replace("{tonaj}", params.netWeight.toLocaleString("tr-TR"))
     .replace("{yem_türü}", params.feedType || "yem")
-    .replace("{plaka}", params.plate || "-");
+    .replace("{plaka}", params.plate || "-")
+    .replace("{şoför}", driverLine)
+    .replace("{birim_fiyat}", params.unitPrice ? params.unitPrice.toLocaleString("tr-TR") : "-")
+    .replace("{tutar}", total ? total.toLocaleString("tr-TR") : "-")
+    .replace("{nakliye}", freightLine);
 }
 
 export function buildOdemeHatirlatmaMessage(params: {
@@ -184,7 +207,7 @@ export const TEMPLATE_META: {
     key: "sevkiyat_bildirimi",
     label: "Sevkiyat Bildirimi",
     description: "Yeni sevkiyat kaydedildikten sonra müşteriye gönderilir",
-    variables: ["{müşteri}", "{tarih}", "{tonaj}", "{yem_türü}", "{plaka}"],
+    variables: ["{müşteri}", "{tarih}", "{tonaj}", "{yem_türü}", "{plaka}", "{şoför}", "{birim_fiyat}", "{tutar}", "{nakliye}"],
   },
   {
     key: "odeme_hatirlatma",
