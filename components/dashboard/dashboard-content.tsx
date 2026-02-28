@@ -24,11 +24,10 @@ import {
   FileText,
   Banknote,
   Plus,
-  UserPlus,
-  CreditCard,
   Trophy,
   ArrowRight,
   MessageCircle,
+  Calendar,
 } from "lucide-react";
 import { SkeletonKpiCard, SkeletonChart, Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
@@ -48,17 +47,15 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { useState } from "react";
 import { openWhatsAppMessage, buildOdemeHatirlatmaMessage, buildCekVadeMessage } from "@/lib/utils/whatsapp";
 import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 import { Onboarding } from "@/components/layout/onboarding";
 import { useSeasonFilter } from "@/lib/contexts/season-context";
 
 // ═══════════════════════════════════════════════════════════
-// SHARED COMPONENTS
+// SHARED HELPERS
 // ═══════════════════════════════════════════════════════════
 
-/** Format currency compactly for mobile KPI cards */
 function formatMobileAmount(amount: number): string {
   const abs = Math.abs(amount);
   const sign = amount < 0 ? "-" : "";
@@ -67,17 +64,33 @@ function formatMobileAmount(amount: number): string {
   return `${sign}${abs.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}`;
 }
 
-// Color mappings for KPI decorative elements
-const KPI_ICON_COLORS: Record<string, { icon: string; circle: string }> = {
-  blue: { icon: "text-blue-600 dark:text-blue-400", circle: "bg-blue-100 dark:bg-blue-900/20" },
-  purple: { icon: "text-purple-600 dark:text-purple-400", circle: "bg-purple-100 dark:bg-purple-900/20" },
-  green: { icon: "text-primary", circle: "bg-primary/10" },
-  red: { icon: "text-red-600 dark:text-red-400", circle: "bg-red-100 dark:bg-red-900/20" },
-  amber: { icon: "text-amber-600 dark:text-amber-400", circle: "bg-amber-100 dark:bg-amber-900/20" },
-  orange: { icon: "text-orange-600 dark:text-orange-400", circle: "bg-orange-100 dark:bg-orange-900/20" },
-  teal: { icon: "text-teal-600 dark:text-teal-400", circle: "bg-teal-100 dark:bg-teal-900/20" },
-  yellow: { icon: "text-yellow-600 dark:text-yellow-400", circle: "bg-yellow-100 dark:bg-yellow-900/20" },
+function formatCompact(n: number): string {
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toFixed(0);
+}
+
+function getBalanceLevel(amount: number): { color: string; bg: string; label: string } {
+  if (amount >= 500_000) return { color: "text-red-600", bg: "bg-red-100", label: "Acil" };
+  if (amount >= 200_000) return { color: "text-yellow-600", bg: "bg-yellow-100", label: "Dikkat" };
+  return { color: "text-green-600", bg: "bg-green-100", label: "Normal" };
+}
+
+// KPI icon color configs
+const KPI_CONFIGS = {
+  blue: { icon: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/30" },
+  purple: { icon: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30" },
+  green: { icon: "text-primary", bg: "bg-primary/10" },
+  red: { icon: "text-red-600 dark:text-red-400", bg: "bg-red-100 dark:bg-red-900/30" },
+  amber: { icon: "text-amber-600 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-900/30" },
+  orange: { icon: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100 dark:bg-orange-900/30" },
+  teal: { icon: "text-teal-600 dark:text-teal-400", bg: "bg-teal-100 dark:bg-teal-900/30" },
+  yellow: { icon: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-100 dark:bg-yellow-900/30" },
 };
+
+// ═══════════════════════════════════════════════════════════
+// KPI CARD — Stitch Style
+// ═══════════════════════════════════════════════════════════
 
 function KpiCard({
   title,
@@ -98,48 +111,32 @@ function KpiCard({
   iconColor?: string;
   href?: string;
 }) {
-  const kpiColors = KPI_ICON_COLORS[iconColor] || KPI_ICON_COLORS.green;
+  const cfg = KPI_CONFIGS[iconColor as keyof typeof KPI_CONFIGS] || KPI_CONFIGS.green;
 
   const content = (
-    <Card className={`relative overflow-hidden ${href ? "transition-colors hover:border-primary/30" : ""}`}>
-      <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-28 sm:h-32">
-        {/* Decorative corner circle */}
-        <div className={`absolute -right-3 -top-3 h-14 w-14 rounded-full ${kpiColors.circle} transition-transform`} />
-        <div className="relative z-10">
-          <Icon className={`h-5 w-5 mb-1 ${kpiColors.icon}`} />
-          <p className="text-[10px] sm:text-xs text-muted-foreground font-medium leading-tight">{title}</p>
+    <Card className={`rounded-2xl ${href ? "transition-colors hover:border-primary/30" : ""}`}>
+      <CardContent className="p-4 flex flex-col gap-2">
+        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${cfg.bg}`}>
+          <Icon className={`h-4.5 w-4.5 ${cfg.icon}`} />
         </div>
         {loading ? (
-          <div className="space-y-1 relative z-10">
-            <Skeleton className="h-6 w-20" />
-            <Skeleton className="h-2.5 w-12" />
+          <div className="space-y-1">
+            <Skeleton className="h-7 w-20" />
+            <Skeleton className="h-3 w-16" />
           </div>
         ) : (
-          <div className="relative z-10">
-            <p className={`text-lg sm:text-xl font-bold leading-tight truncate ${color || ""}`}>{value}</p>
-            {subtitle && <p className="text-[9px] sm:text-[10px] text-muted-foreground truncate">{subtitle}</p>}
+          <div>
+            <p className={`text-2xl font-extrabold leading-tight truncate ${color || ""}`}>{value}</p>
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mt-0.5">{title}</p>
+            {subtitle && <p className="text-[9px] text-muted-foreground truncate">{subtitle}</p>}
           </div>
         )}
       </CardContent>
     </Card>
   );
 
-  if (href) {
-    return <Link href={href}>{content}</Link>;
-  }
+  if (href) return <Link href={href}>{content}</Link>;
   return content;
-}
-
-function formatCompact(n: number): string {
-  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return n.toFixed(0);
-}
-
-function getBalanceLevel(amount: number): { color: string; bg: string; label: string } {
-  if (amount >= 500_000) return { color: "text-red-600", bg: "bg-red-100", label: "Acil" };
-  if (amount >= 200_000) return { color: "text-yellow-600", bg: "bg-yellow-100", label: "Dikkat" };
-  return { color: "text-green-600", bg: "bg-green-100", label: "Normal" };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -161,13 +158,9 @@ export function DashboardContent() {
   const hasAnyError = kpisError || chartError || dailyError || weeklyError || feedError || activitiesError || seasonError || dueError || carrierError;
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
-  /** Compact version for KPI cards — shows "142K" on mobile */
   const maskedCompact = (amount: number) => (isVisible ? formatMobileAmount(amount) : "••••");
   const tooltipFormatter = (value: number | undefined) => masked(value ?? 0);
 
-  const [showFab, setShowFab] = useState(false);
-
-  // Show onboarding when no data
   const showOnboarding =
     !kpisLoading &&
     kpis &&
@@ -177,7 +170,7 @@ export function DashboardContent() {
     kpis.pendingPayables === 0;
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="space-y-5 page-enter">
       {hasAnyError && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -185,8 +178,9 @@ export function DashboardContent() {
         </div>
       )}
       <Onboarding show={!!showOnboarding} />
-      {/* ═══ 6.1 — Günlük Özet Kartları (Üst sıra 4) ═══ */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+
+      {/* ═══ KPI Grid — 2 col × 4 rows ═══ */}
+      <div className="grid grid-cols-2 gap-3">
         <KpiCard
           title="Bugün Tır"
           value={kpis ? String(kpis.todayTruckCount) : "--"}
@@ -220,10 +214,6 @@ export function DashboardContent() {
           color={kpis ? (kpis.monthProfit >= 0 ? "text-green-600" : "text-red-600") : ""}
           href="/finance/profit"
         />
-      </div>
-
-      {/* Alt sıra (4 kart) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <KpiCard
           title="Toplam Alacak"
           value={kpis ? maskedCompact(kpis.pendingReceivables) : "--"}
@@ -262,247 +252,192 @@ export function DashboardContent() {
         />
       </div>
 
-      {/* ═══ 6.2 — Bakiye Uyarı Sistemi ═══ */}
+      {/* ═══ Dikkat Gerekenler ═══ */}
       {!kpisLoading && kpis && (kpis.customerBalances.length > 0 || kpis.supplierBalances.length > 0) && (
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <AlertTriangle className="h-4 w-4" />
-              Dikkat Gerektiren Bakiyeler
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 space-y-3">
-            {/* Müşteri alacakları */}
-            {kpis.customerBalances.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">Müşteri Alacakları</p>
-                <div className="space-y-1">
-                  {kpis.customerBalances.slice(0, 5).map((b) => {
-                    const level = getBalanceLevel(b.balance);
-                    const isOverLimit = b.credit_limit != null && b.credit_limit > 0 && b.balance > b.credit_limit;
-                    return (
-                      <div
-                        key={b.contactId}
-                        className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
-                      >
-                        <Link href={`/finance/${b.contactId}`} className="flex items-center gap-2 min-w-0 flex-1">
-                          {isOverLimit ? (
-                            <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0 shrink-0">
-                              LİMİT AŞIMI
-                            </Badge>
-                          ) : (
-                            <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0 shrink-0`}>
-                              {level.label}
-                            </Badge>
-                          )}
-                          <p className="text-xs sm:text-sm truncate">{b.name}</p>
-                        </Link>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <p className={`text-xs sm:text-sm font-bold ${isOverLimit ? "text-red-600" : level.color}`}>{maskedCompact(b.balance)}</p>
-                          {b.phone && (
-                            <button
-                              onClick={() =>
-                                openWhatsAppMessage(
-                                  b.phone,
-                                  buildOdemeHatirlatmaMessage({ contactName: b.name, balance: b.balance })
-                                )
-                              }
-                              className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                              title="WhatsApp ile hatırlat"
-                            >
-                              <MessageCircle className="h-3 w-3" />
-                            </button>
-                          )}
-                          <Link href={`/finance/${b.contactId}`}>
-                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold">Dikkat Gerekenler</h2>
+            <Link href="/finance" className="text-xs text-primary font-medium">
+              Tümünü Gör
+            </Link>
+          </div>
+          <Card className="rounded-2xl">
+            <CardContent className="p-0 divide-y">
+              {/* Müşteri Alacakları */}
+              {kpis.customerBalances.length > 0 && (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Müşteri Alacakları</p>
+                  <div className="space-y-2">
+                    {kpis.customerBalances.slice(0, 5).map((b) => {
+                      const level = getBalanceLevel(b.balance);
+                      const isOverLimit = b.credit_limit != null && b.credit_limit > 0 && b.balance > b.credit_limit;
+                      const initials = b.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                      return (
+                        <div key={b.contactId} className="flex items-center gap-3">
+                          <Link href={`/finance/${b.contactId}`} className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isOverLimit ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : level.bg + " " + level.color}`}>
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{b.name}</p>
+                              <p className={`text-xs ${isOverLimit ? "text-red-600 font-semibold" : level.color}`}>
+                                {maskedCompact(b.balance)}
+                                {isOverLimit && " · LİMİT AŞIMI"}
+                              </p>
+                            </div>
                           </Link>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {b.phone && (
+                              <button
+                                onClick={() =>
+                                  openWhatsAppMessage(
+                                    b.phone,
+                                    buildOdemeHatirlatmaMessage({ contactName: b.name, balance: b.balance })
+                                  )
+                                }
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 transition-colors"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </button>
+                            )}
+                            <Link href={`/finance/${b.contactId}`}>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            </Link>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {kpis.customerBalances.length > 0 && kpis.supplierBalances.length > 0 && (
-              <Separator />
-            )}
-
-            {/* Tedarikçi borçları */}
-            {kpis.supplierBalances.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1.5">Tedarikçi Borçları</p>
-                <div className="space-y-1">
-                  {kpis.supplierBalances.slice(0, 5).map((b) => {
-                    const level = getBalanceLevel(b.balance);
-                    return (
-                      <div
-                        key={b.contactId}
-                        className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
-                      >
-                        <Link href={`/finance/${b.contactId}`} className="flex items-center gap-2 min-w-0 flex-1">
-                          <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0 shrink-0`}>
-                            {level.label}
-                          </Badge>
-                          <p className="text-xs sm:text-sm truncate">{b.name}</p>
-                        </Link>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <p className={`text-xs sm:text-sm font-bold ${level.color}`}>{maskedCompact(b.balance)}</p>
-                          {b.phone && (
-                            <button
-                              onClick={() =>
-                                openWhatsAppMessage(
-                                  b.phone,
-                                  buildOdemeHatirlatmaMessage({ contactName: b.name, balance: b.balance })
-                                )
-                              }
-                              className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                              title="WhatsApp ile hatırlat"
-                            >
-                              <MessageCircle className="h-3 w-3" />
-                            </button>
-                          )}
-                          <Link href={`/finance/${b.contactId}`}>
-                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+              {/* Tedarikçi Borçları */}
+              {kpis.supplierBalances.length > 0 && (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Tedarikçi Borçları</p>
+                  <div className="space-y-2">
+                    {kpis.supplierBalances.slice(0, 5).map((b) => {
+                      const level = getBalanceLevel(b.balance);
+                      const initials = b.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                      return (
+                        <div key={b.contactId} className="flex items-center gap-3">
+                          <Link href={`/finance/${b.contactId}`} className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${level.bg} ${level.color}`}>
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{b.name}</p>
+                              <p className={`text-xs ${level.color}`}>{maskedCompact(b.balance)}</p>
+                            </div>
                           </Link>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {b.phone && (
+                              <button
+                                onClick={() =>
+                                  openWhatsAppMessage(
+                                    b.phone,
+                                    buildOdemeHatirlatmaMessage({ contactName: b.name, balance: b.balance })
+                                  )
+                                }
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 transition-colors"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </button>
+                            )}
+                            <Link href={`/finance/${b.contactId}`}>
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            </Link>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+
+              {/* Nakliyeci Borçları */}
+              {!carrierLoading && carrierBalances && carrierBalances.filter((b) => b.balance > 0).length > 0 && (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-2">Nakliyeci Borçları</p>
+                  <div className="space-y-2">
+                    {carrierBalances
+                      .filter((b) => b.balance > 0)
+                      .slice(0, 5)
+                      .map((b) => {
+                        const initials = b.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                        return (
+                          <Link
+                            key={b.id}
+                            href={`/settings/carriers/${b.id}`}
+                            className="flex items-center gap-3"
+                          >
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 text-xs font-bold">
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{b.name}</p>
+                              <p className="text-xs text-orange-600">{maskedCompact(b.balance)}</p>
+                            </div>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                          </Link>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
       )}
 
-      {/* ═══ 7.5.5 — Nakliyeci Borç Kartı ═══ */}
-      {!carrierLoading && carrierBalances && carrierBalances.filter((b) => b.balance > 0).length > 0 && (
-        <Card>
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Truck className="h-4 w-4" />
-              Nakliyeci Borçları
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 space-y-1">
-            {carrierBalances
-              .filter((b) => b.balance > 0)
-              .slice(0, 5)
-              .map((b) => (
-                <Link
-                  key={b.id}
-                  href={`/settings/carriers/${b.id}`}
-                  className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Truck className="h-3.5 w-3.5 shrink-0 text-orange-500" />
-                    <p className="text-xs sm:text-sm truncate">{b.name}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <p className="text-xs sm:text-sm font-bold text-orange-600">
-                      {maskedCompact(b.balance)}
-                    </p>
-                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  </div>
-                </Link>
-              ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Due Items Warning — Enhanced */}
+      {/* ═══ Yaklaşan Vadeler — Horizontal Scroll ═══ */}
       {!dueLoading && dueItems && dueItems.length > 0 && (() => {
         const overdue = dueItems.filter((i) => i.days_diff < 0);
         const todayDue = dueItems.filter((i) => i.days_diff === 0);
-        const next3Days = dueItems.filter((i) => i.days_diff > 0 && i.days_diff <= 3);
-        const thisWeek = dueItems.filter((i) => i.days_diff > 3 && i.days_diff <= 7);
+        const thisWeek = dueItems.filter((i) => i.days_diff > 0 && i.days_diff <= 7);
         const later = dueItems.filter((i) => i.days_diff > 7);
 
-        const categories: { label: string; color: string; badgeClass: string; items: typeof dueItems }[] = [];
-        if (overdue.length > 0) categories.push({ label: "Vadesi GEÇMİŞ", color: "text-red-600", badgeClass: "bg-red-100 text-red-800", items: overdue });
-        if (todayDue.length > 0) categories.push({ label: "Bugün Vadeli", color: "text-orange-600", badgeClass: "bg-orange-100 text-orange-800", items: todayDue });
-        if (next3Days.length > 0) categories.push({ label: "3 Gün İçinde", color: "text-yellow-600", badgeClass: "bg-yellow-100 text-yellow-800", items: next3Days });
-        if (thisWeek.length > 0) categories.push({ label: "Bu Hafta", color: "text-green-600", badgeClass: "bg-green-100 text-green-800", items: thisWeek });
-        if (later.length > 0) categories.push({ label: "Yaklaşan", color: "text-blue-600", badgeClass: "bg-blue-100 text-blue-800", items: later });
+        const overdueTotal = overdue.reduce((s, i) => s + i.amount, 0);
+        const todayTotal = todayDue.reduce((s, i) => s + i.amount, 0);
+        const weekTotal = thisWeek.reduce((s, i) => s + i.amount, 0);
+        const laterTotal = later.reduce((s, i) => s + i.amount, 0);
 
-        const getDaysLabel = (diff: number) => {
-          if (diff < 0) return `${Math.abs(diff)} gün gecikmiş`;
-          if (diff === 0) return "Bugün!";
-          return `${diff} gün kaldı`;
-        };
+        const cards: { label: string; count: number; total: number; color: string; bgColor: string; iconColor: string }[] = [];
+        if (overdue.length > 0) cards.push({ label: "Gecikmiş", count: overdue.length, total: overdueTotal, color: "text-red-700 dark:text-red-400", bgColor: "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800", iconColor: "text-red-500" });
+        if (todayDue.length > 0) cards.push({ label: "Bugün", count: todayDue.length, total: todayTotal, color: "text-amber-700 dark:text-amber-400", bgColor: "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800", iconColor: "text-amber-500" });
+        if (thisWeek.length > 0) cards.push({ label: "Bu Hafta", count: thisWeek.length, total: weekTotal, color: "text-green-700 dark:text-green-400", bgColor: "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800", iconColor: "text-green-500" });
+        if (later.length > 0) cards.push({ label: "Yaklaşan", count: later.length, total: laterTotal, color: "text-blue-700 dark:text-blue-400", bgColor: "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800", iconColor: "text-blue-500" });
 
         return (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <AlertTriangle className="h-4 w-4" />
-                Vadesi Yaklaşanlar
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 px-4 pb-3">
-              {categories.map((cat) => (
-                <div key={cat.label}>
-                  <p className={`text-xs font-medium mb-1.5 ${cat.color}`}>{cat.label}</p>
-                  <div className="space-y-1">
-                    {cat.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
-                      >
-                        <Link href="/finance/calendar" className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="secondary" className={`shrink-0 text-[10px] px-1 py-0 ${cat.badgeClass}`}>
-                              {item.type}
-                            </Badge>
-                            <p className="text-xs sm:text-sm truncate">{item.contact_name}</p>
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <p className={`text-[10px] font-medium ${cat.color}`}>
-                              {getDaysLabel(item.days_diff)}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {formatDateShort(item.due_date)}
-                            </p>
-                          </div>
-                        </Link>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <p className="text-xs sm:text-sm font-bold">{masked(item.amount)}</p>
-                          {item.contact_phone && (
-                            <button
-                              onClick={() =>
-                                openWhatsAppMessage(
-                                  item.contact_phone,
-                                  buildCekVadeMessage({
-                                    contactName: item.contact_name,
-                                    amount: item.amount,
-                                    type: item.raw_type,
-                                    serialNo: item.serial_no || undefined,
-                                    dueDate: item.due_date,
-                                  })
-                                )
-                              }
-                              className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                              title="WhatsApp ile hatırlat"
-                            >
-                              <MessageCircle className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">Yaklaşan Vadeler</h2>
+              <Link href="/finance/calendar" className="text-xs text-primary font-medium">
+                Takvim
+              </Link>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
+              {cards.map((card) => (
+                <Link
+                  key={card.label}
+                  href="/finance/calendar"
+                  className={`flex-shrink-0 w-36 rounded-2xl border p-3 ${card.bgColor} transition-colors`}
+                >
+                  <Calendar className={`h-5 w-5 mb-2 ${card.iconColor}`} />
+                  <p className={`text-lg font-extrabold ${card.color}`}>{card.count}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{card.label}</p>
+                  <p className={`text-xs font-semibold mt-1 ${card.color}`}>{maskedCompact(card.total)}</p>
+                </Link>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         );
       })()}
 
-      {/* ═══ 6.3 — Charts ═══ */}
+      {/* ═══ Charts ═══ */}
 
-      {/* Chart 1: Daily Tonnage (last 30 days) */}
-      <Card>
+      {/* Daily Tonnage (last 30 days) */}
+      <Card className="rounded-2xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Günlük Sevkiyat (Son 30 Gün)</CardTitle>
         </CardHeader>
@@ -513,11 +448,7 @@ export function DashboardContent() {
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={dailyTonnage} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 9 }}
-                  interval={4}
-                />
+                <XAxis dataKey="label" tick={{ fontSize: 9 }} interval={4} />
                 <YAxis tick={{ fontSize: 9 }} tickFormatter={(v) => `${v}t`} />
                 <Tooltip
                   formatter={(v: number | undefined) => [`${(v ?? 0).toFixed(1)} ton`, "Tonaj"]}
@@ -534,8 +465,8 @@ export function DashboardContent() {
         </CardContent>
       </Card>
 
-      {/* Chart 2: Weekly Profit (last 12 weeks) */}
-      <Card>
+      {/* Weekly Profit (last 12 weeks) */}
+      <Card className="rounded-2xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Haftalık Kâr Trendi (12 Hafta)</CardTitle>
         </CardHeader>
@@ -571,10 +502,9 @@ export function DashboardContent() {
         </CardContent>
       </Card>
 
-      {/* Chart 3: Feed Type Distribution + Monthly Chart side by side on wider screens */}
+      {/* Feed Type + Monthly Chart */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {/* Feed Type Pie Chart */}
-        <Card>
+        <Card className="rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Yem Türü Dağılımı</CardTitle>
           </CardHeader>
@@ -625,8 +555,7 @@ export function DashboardContent() {
           </CardContent>
         </Card>
 
-        {/* Monthly Purchase/Sales Chart */}
-        <Card>
+        <Card className="rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Aylık Alım / Satış</CardTitle>
           </CardHeader>
@@ -657,8 +586,8 @@ export function DashboardContent() {
         </Card>
       </div>
 
-      {/* ═══ 6.5 — Son Aktiviteler ═══ */}
-      <Card>
+      {/* ═══ Son İşlemler ═══ */}
+      <Card className="rounded-2xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Son İşlemler</CardTitle>
         </CardHeader>
@@ -721,8 +650,8 @@ export function DashboardContent() {
         </CardContent>
       </Card>
 
-      {/* ═══ 6.6 — Sezon Performans Özeti ═══ */}
-      <Card>
+      {/* ═══ Sezon Özeti ═══ */}
+      <Card className="rounded-2xl">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Trophy className="h-4 w-4" />
@@ -745,27 +674,24 @@ export function DashboardContent() {
             </div>
           ) : season ? (
             <>
-              {/* KPI grid */}
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg bg-muted/50 p-2">
-                  <p className="text-[10px] text-muted-foreground">Toplam Tonaj</p>
+                <div className="rounded-xl bg-muted/50 p-2">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Toplam Tonaj</p>
                   <p className="text-sm font-bold">{formatWeight(season.totalTonnage)}</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-2">
-                  <p className="text-[10px] text-muted-foreground">Toplam Ciro</p>
+                <div className="rounded-xl bg-muted/50 p-2">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Toplam Ciro</p>
                   <p className="text-xs sm:text-sm font-bold truncate">{maskedCompact(season.totalRevenue)}</p>
                 </div>
-                <div className="rounded-lg bg-muted/50 p-2">
-                  <p className="text-[10px] text-muted-foreground">Toplam Kâr</p>
+                <div className="rounded-xl bg-muted/50 p-2">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Toplam Kâr</p>
                   <p className={`text-xs sm:text-sm font-bold truncate ${season.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
                     {maskedCompact(season.totalProfit)}
                   </p>
                 </div>
               </div>
 
-              {/* Top lists */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {/* Top Customers */}
                 {season.topCustomers.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">En Çok Satılan</p>
@@ -777,8 +703,6 @@ export function DashboardContent() {
                     ))}
                   </div>
                 )}
-
-                {/* Top Suppliers */}
                 {season.topSuppliers.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">En Çok Alınan</p>
@@ -790,8 +714,6 @@ export function DashboardContent() {
                     ))}
                   </div>
                 )}
-
-                {/* Top Carriers/Plates */}
                 {(season.topCarriers.length > 0 || season.topPlates.length > 0) && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">En Çok Nakliye</p>
@@ -809,43 +731,16 @@ export function DashboardContent() {
         </CardContent>
       </Card>
 
-      {/* ═══ 6.4 — Floating Action Button ═══ */}
-      <div className="fixed bottom-24 sm:bottom-20 right-4 z-50">
-        {showFab && (
-          <div className="mb-2 flex flex-col gap-2 items-end animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <Link href="/sales">
-              <Button size="sm" className="gap-2 rounded-full bg-green-600 hover:bg-green-700 shadow-lg">
-                <Truck className="h-4 w-4" />
-                Hızlı Sevkiyat
-              </Button>
-            </Link>
-            <Link href="/finance/payments/new">
-              <Button size="sm" className="gap-2 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg">
-                <Banknote className="h-4 w-4" />
-                Ödeme / Tahsilat
-              </Button>
-            </Link>
-            <Link href="/contacts/new">
-              <Button size="sm" className="gap-2 rounded-full bg-purple-600 hover:bg-purple-700 shadow-lg">
-                <UserPlus className="h-4 w-4" />
-                Yeni Kişi
-              </Button>
-            </Link>
-            <Link href="/finance/checks/new">
-              <Button size="sm" className="gap-2 rounded-full bg-amber-600 hover:bg-amber-700 shadow-lg">
-                <CreditCard className="h-4 w-4" />
-                Çek / Senet
-              </Button>
-            </Link>
-          </div>
-        )}
-        <Button
-          size="icon"
-          className={`h-14 w-14 rounded-full shadow-xl transition-transform ${showFab ? "rotate-45 bg-muted-foreground" : "bg-primary"}`}
-          onClick={() => setShowFab((v) => !v)}
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
+      {/* ═══ FAB — Simple Green Circle ═══ */}
+      <div className="fixed bottom-20 right-4 z-50">
+        <Link href="/sales">
+          <Button
+            size="icon"
+            className="h-14 w-14 rounded-full bg-primary shadow-xl hover:bg-primary/90"
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
+        </Link>
       </div>
     </div>
   );
