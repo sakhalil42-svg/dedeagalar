@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronRight, Wheat, Warehouse, Users, Truck, MessageCircle, Database, Palette } from "lucide-react";
+import { ArrowLeft, ChevronRight, Wheat, Warehouse, Users, Truck, MessageCircle, Database, Palette, Calendar } from "lucide-react";
 
 const SETTINGS_ITEMS = [
+  {
+    title: "Sezon Yönetimi",
+    description: "Sezon oluşturma, kapatma ve sezon raporları",
+    href: "/settings/seasons",
+    icon: Calendar,
+  },
   {
     title: "Yem Türleri",
     description: "Yonca, saman, silaj vb. yem türlerini yönetin",

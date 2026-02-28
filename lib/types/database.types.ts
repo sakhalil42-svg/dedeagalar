@@ -88,6 +88,7 @@ export interface Delivery {
   freight_cost: number | null;
   freight_payer: FreightPayer | null;
   notes: string | null;
+  season_id: string | null;
   created_at: string;
 }
 
@@ -106,6 +107,7 @@ export interface DeliveryInsert {
   freight_cost?: number | null;
   freight_payer?: FreightPayer | null;
   notes?: string | null;
+  season_id?: string | null;
 }
 
 export interface DeliveryUpdate extends Partial<DeliveryInsert> {}
@@ -173,6 +175,7 @@ export interface Sale {
   status: SaleStatus;
   sale_date: string;
   due_date: string | null;
+  season_id: string | null;
   notes: string | null;
   created_at: string;
   // joined
@@ -194,6 +197,7 @@ export interface SaleInsert {
   sale_date: string;
   due_date?: string | null;
   notes?: string | null;
+  season_id?: string | null;
 }
 
 export interface SaleUpdate extends Partial<SaleInsert> {}
@@ -211,6 +215,7 @@ export interface AccountTransaction {
   description: string | null;
   reference_type: string | null;
   reference_id: string | null;
+  season_id: string | null;
   transaction_date: string;
   created_at: string;
 }
@@ -282,6 +287,7 @@ export interface Check {
   due_date: string;
   status: CheckStatus;
   endorsed_to: string | null;
+  season_id: string | null;
   notes: string | null;
   created_at: string;
   // joined
@@ -302,6 +308,7 @@ export interface CheckInsert {
   status?: CheckStatus;
   endorsed_to?: string | null;
   notes?: string | null;
+  season_id?: string | null;
 }
 
 export interface CheckUpdate extends Partial<CheckInsert> {}
@@ -414,6 +421,7 @@ export interface CarrierTransaction {
   description: string | null;
   reference_id: string | null;
   transaction_date: string;
+  season_id: string | null;
   payment_method: string | null;
   created_at: string;
 }
@@ -426,6 +434,7 @@ export interface CarrierTransactionInsert {
   reference_id?: string | null;
   transaction_date?: string;
   payment_method?: string | null;
+  season_id?: string | null;
 }
 
 export interface CarrierBalance {
@@ -436,6 +445,28 @@ export interface CarrierBalance {
   total_paid: number;
   balance: number;
 }
+
+// --- Seasons ---
+
+export interface Season {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface SeasonInsert {
+  name: string;
+  start_date?: string;
+  end_date?: string | null;
+  is_active?: boolean;
+  notes?: string | null;
+}
+
+export interface SeasonUpdate extends Partial<SeasonInsert> {}
 
 // --- Dashboard ---
 

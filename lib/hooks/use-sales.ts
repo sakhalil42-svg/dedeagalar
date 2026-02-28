@@ -7,17 +7,21 @@ import type { Sale, SaleInsert, SaleUpdate } from "@/lib/types/database.types";
 const SALES_KEY = ["sales"];
 const SELECT_WITH_JOINS = "*, contact:contacts(*), feed_type:feed_types(*), warehouse:warehouses(*)";
 
-export function useSales() {
+export function useSales(seasonId?: string | null) {
   const supabase = createClient();
 
   return useQuery({
-    queryKey: SALES_KEY,
+    queryKey: [...SALES_KEY, seasonId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("sales")
         .select(SELECT_WITH_JOINS)
         .is("deleted_at", null)
         .order("sale_date", { ascending: false });
+      if (seasonId) {
+        query = query.eq("season_id", seasonId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data as Sale[];
     },

@@ -21,11 +21,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useSeasonFilter } from "@/lib/contexts/season-context";
 
 export default function NewCheckPage() {
   const router = useRouter();
   const createCheck = useCreateCheckWithTransaction();
   const { data: contacts } = useContacts();
+  const { selectedSeasonId } = useSeasonFilter();
 
   const {
     register,
@@ -66,6 +68,7 @@ export default function NewCheckPage() {
         due_date: values.due_date,
         endorsed_to: values.endorsed_to || null,
         notes: values.notes || null,
+        season_id: selectedSeasonId || null,
       });
       toast.success(
         values.type === "check" ? "Çek kaydedildi" : "Senet kaydedildi"

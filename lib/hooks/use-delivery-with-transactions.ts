@@ -42,6 +42,7 @@ interface CreateDeliveryWithTxParams {
   customerPrice: number; // ₺/kg
   supplierPrice: number; // ₺/kg
   pricingModel: PricingModel;
+  seasonId?: string | null;
 }
 
 export function useCreateDeliveryWithTransactions() {
@@ -56,11 +57,12 @@ export function useCreateDeliveryWithTransactions() {
       customerPrice,
       supplierPrice,
       pricingModel,
+      seasonId,
     }: CreateDeliveryWithTxParams) => {
       // 1. Insert delivery
       const { data: del, error: delErr } = await supabase
         .from("deliveries")
-        .insert(delivery)
+        .insert({ ...delivery, season_id: seasonId || null })
         .select()
         .single();
       if (delErr) throw delErr;
@@ -104,6 +106,7 @@ export function useCreateDeliveryWithTransactions() {
           reference_type: "sale",
           reference_id: del.sale_id,
           transaction_date: del.delivery_date,
+          season_id: seasonId || null,
         });
       if (ctxErr) throw ctxErr;
 
@@ -118,6 +121,7 @@ export function useCreateDeliveryWithTransactions() {
           reference_type: "purchase",
           reference_id: del.id,
           transaction_date: del.delivery_date,
+          season_id: seasonId || null,
         });
       if (stxErr) throw stxErr;
 
@@ -134,6 +138,7 @@ export function useCreateDeliveryWithTransactions() {
               description: `Nakliye - ${netKg.toLocaleString("tr-TR")} kg, ${del.vehicle_plate || "-"}`,
               reference_id: del.id,
               transaction_date: del.delivery_date,
+              season_id: seasonId || null,
             });
         }
       }

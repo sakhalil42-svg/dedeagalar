@@ -24,6 +24,7 @@ import { formatCurrency, formatDateShort, formatNumberInput, parseNumberInput, h
 import type { Sale, Delivery, FreightPayer, Contact, PricingModel } from "@/lib/types/database.types";
 import { PlateCombobox } from "@/components/forms/plate-combobox";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
+import { useSeasonFilter } from "@/lib/contexts/season-context";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -245,6 +246,7 @@ function ActiveOrderView({
   setOrder: React.Dispatch<React.SetStateAction<OrderConfig>>;
   onShowHistory: () => void;
 }) {
+  const { selectedSeasonId } = useSeasonFilter();
   const { data: customers } = useContacts("customer");
   const { data: suppliers } = useContacts("supplier");
   const { data: feedTypes } = useFeedTypes(true);
@@ -504,6 +506,7 @@ function ActiveOrderView({
               supplierPrice={parseFloat(order.supplierPrice)}
               pricingModel={order.pricingModel}
               ensureSaleExists={ensureSaleExists}
+              seasonId={selectedSeasonId}
             />
 
             {activeSaleId && (
@@ -802,6 +805,7 @@ function QuickEntryForm({
   supplierPrice,
   pricingModel,
   ensureSaleExists,
+  seasonId,
 }: {
   saleId: string | null;
   purchaseId: string | null;
@@ -811,6 +815,7 @@ function QuickEntryForm({
   supplierPrice: number;
   pricingModel: PricingModel;
   ensureSaleExists: () => Promise<string | null>;
+  seasonId?: string | null;
 }) {
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
@@ -901,8 +906,6 @@ function QuickEntryForm({
           .eq("is_active", true)
           .maybeSingle();
 
-        console.log("[handleSave] Nakliyeci arama:", resolvedCarrierName, "→", existingCarrier, findErr);
-
         if (existingCarrier) {
           resolvedCarrierId = existingCarrier.id;
         } else {
@@ -912,12 +915,9 @@ function QuickEntryForm({
             .select("id")
             .single();
 
-          console.log("[handleSave] Nakliyeci oluşturma:", newCarrier, insertErr);
           if (newCarrier) resolvedCarrierId = newCarrier.id;
         }
       }
-      console.log("[handleSave] resolvedCarrierId:", resolvedCarrierId);
-
       // B) Araç bul/oluştur ve nakliyeciye bağla
       if (plate) {
         // Plaka DB'de boşluklu saklanıyor (ör: "42 BN 010"), exact match kullan
@@ -926,8 +926,6 @@ function QuickEntryForm({
           .select("id, carrier_id")
           .eq("plate", plate)
           .maybeSingle();
-
-        console.log("[handleSave] Araç arama:", plate, "→", existingVehicle, vehErr);
 
         if (existingVehicle) {
           // Araç var → şoför bilgilerini ve carrier_id güncelle (her zaman üstüne yaz)
@@ -940,7 +938,6 @@ function QuickEntryForm({
               .from("vehicles")
               .update(updates)
               .eq("id", existingVehicle.id);
-            console.log("[handleSave] Araç güncelleme:", updates, updErr);
           }
         } else {
           // Araç yok → yeni oluştur
@@ -952,7 +949,6 @@ function QuickEntryForm({
               driver_phone: driverPhone.trim() || null,
               carrier_id: resolvedCarrierId,
             });
-          console.log("[handleSave] Yeni araç oluşturma:", plate, insErr);
         }
       }
 
@@ -976,6 +972,7 @@ function QuickEntryForm({
         customerPrice,
         supplierPrice,
         pricingModel,
+        seasonId,
       });
 
       toast.success(
@@ -1187,7 +1184,8 @@ function QuickEntryForm({
           disabled={
             saving ||
             !netWeight ||
-            parseInt(netWeight) <= 0 ||
+            isNaN(parseInt(netWeight, 10)) ||
+            parseInt(netWeight, 10) <= 0 ||
             (!!vehiclePlate.trim() && !carrierName.trim())
           }
           className="w-full h-12 text-base font-bold"

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useState, type ReactNode } from "react";
 import { BalanceVisibilityProvider } from "@/lib/contexts/balance-visibility";
+import { SeasonProvider } from "@/lib/contexts/season-context";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -21,7 +22,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
-        <BalanceVisibilityProvider>{children}</BalanceVisibilityProvider>
+        <BalanceVisibilityProvider>
+          <SeasonProvider>{children}</SeasonProvider>
+        </BalanceVisibilityProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

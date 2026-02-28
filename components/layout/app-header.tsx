@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { GlobalSearch } from "./global-search";
+import { SeasonSelector } from "./season-selector";
 
 const TITLE_MAP: Record<string, string> = {
   "/": "Dedeagalar",
@@ -28,7 +29,10 @@ export function AppHeader() {
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur-sm">
       <div className="flex h-12 items-center justify-between px-4">
         <h1 className="text-base font-bold truncate">{title}</h1>
-        <GlobalSearch />
+        <div className="flex items-center gap-2">
+          <SeasonSelector />
+          <GlobalSearch />
+        </div>
       </div>
     </header>
   );

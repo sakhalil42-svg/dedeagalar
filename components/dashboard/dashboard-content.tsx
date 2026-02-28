@@ -52,6 +52,7 @@ import { useState } from "react";
 import { openWhatsAppMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
 import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 import { Onboarding } from "@/components/layout/onboarding";
+import { useSeasonFilter } from "@/lib/contexts/season-context";
 
 // ═══════════════════════════════════════════════════════════
 // SHARED COMPONENTS
@@ -128,15 +129,18 @@ function getBalanceLevel(amount: number): { color: string; bg: string; label: st
 // ═══════════════════════════════════════════════════════════
 
 export function DashboardContent() {
-  const { data: kpis, isLoading: kpisLoading } = useDashboardKpis();
-  const { data: chartData, isLoading: chartLoading } = useMonthlyChart();
-  const { data: dailyTonnage, isLoading: dailyLoading } = useDailyTonnageChart();
-  const { data: weeklyProfit, isLoading: weeklyLoading } = useWeeklyProfitChart();
-  const { data: feedDist, isLoading: feedLoading } = useFeedTypeDistribution();
-  const { data: activities, isLoading: activitiesLoading } = useRecentActivities();
-  const { data: season, isLoading: seasonLoading } = useSeasonSummary();
-  const { data: dueItems, isLoading: dueLoading } = useDueItems();
-  const { data: carrierBalances, isLoading: carrierLoading } = useCarrierBalances();
+  const { selectedSeasonId } = useSeasonFilter();
+  const { data: kpis, isLoading: kpisLoading, isError: kpisError } = useDashboardKpis();
+  const { data: chartData, isLoading: chartLoading, isError: chartError } = useMonthlyChart();
+  const { data: dailyTonnage, isLoading: dailyLoading, isError: dailyError } = useDailyTonnageChart();
+  const { data: weeklyProfit, isLoading: weeklyLoading, isError: weeklyError } = useWeeklyProfitChart();
+  const { data: feedDist, isLoading: feedLoading, isError: feedError } = useFeedTypeDistribution();
+  const { data: activities, isLoading: activitiesLoading, isError: activitiesError } = useRecentActivities();
+  const { data: season, isLoading: seasonLoading, isError: seasonError } = useSeasonSummary(selectedSeasonId);
+  const { data: dueItems, isLoading: dueLoading, isError: dueError } = useDueItems();
+  const { data: carrierBalances, isLoading: carrierLoading, isError: carrierError } = useCarrierBalances();
+
+  const hasAnyError = kpisError || chartError || dailyError || weeklyError || feedError || activitiesError || seasonError || dueError || carrierError;
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
   /** Compact version for KPI cards — shows "142K" on mobile */
@@ -156,6 +160,12 @@ export function DashboardContent() {
 
   return (
     <div className="space-y-4 page-enter">
+      {hasAnyError && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <p>Bazı veriler yüklenirken hata oluştu. İnternet bağlantınızı kontrol edin.</p>
+        </div>
+      )}
       <Onboarding show={!!showOnboarding} />
       {/* ═══ 6.1 — Günlük Özet Kartları (Üst sıra 4) ═══ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

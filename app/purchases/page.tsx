@@ -12,6 +12,7 @@ import {
   useDeleteDeliveryWithTransactions,
 } from "@/lib/hooks/use-delivery-with-transactions";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
+import { useSeasonFilter } from "@/lib/contexts/season-context";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
 import { PlateCombobox } from "@/components/forms/plate-combobox";
@@ -151,7 +152,8 @@ export default function DeliveriesPage() {
 // ═══════════════════════════════════════════════════════════════
 
 function DeliveriesTab() {
-  const { data: deliveries, isLoading } = useAllDeliveries();
+  const { selectedSeasonId } = useSeasonFilter();
+  const { data: deliveries, isLoading } = useAllDeliveries(selectedSeasonId);
   const { data: contacts } = useContacts("customer");
   const { data: feedTypes } = useFeedTypes(true);
   const { isVisible } = useBalanceVisibility();

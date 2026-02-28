@@ -80,7 +80,7 @@ export function useCreateCheckWithTransaction() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (values: CheckInsert) => {
+    mutationFn: async (values: CheckInsert & { season_id?: string | null }) => {
       // 1. Insert check
       const { data: check, error } = await supabase
         .from("checks")
@@ -106,6 +106,7 @@ export function useCreateCheckWithTransaction() {
             reference_type: "payment",
             reference_id: check.id,
             transaction_date: values.issue_date,
+            season_id: values.season_id || null,
           });
         if (txErr) throw txErr;
       } else {
@@ -120,6 +121,7 @@ export function useCreateCheckWithTransaction() {
             reference_type: "payment",
             reference_id: check.id,
             transaction_date: values.issue_date,
+            season_id: values.season_id || null,
           });
         if (txErr) throw txErr;
       }

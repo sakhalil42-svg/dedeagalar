@@ -14,6 +14,7 @@ export function useDashboardKpis() {
   return useQuery({
     queryKey: ["dashboard", "kpis"],
     queryFn: async () => {
+      try {
       const now = new Date();
       const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
       const today = now.toISOString().split("T")[0];
@@ -202,7 +203,11 @@ export function useDashboardKpis() {
         customerBalances,
         supplierBalances,
       };
+      } catch (err) {
+        throw new Error("Dashboard verileri yüklenirken hata oluştu");
+      }
     },
+    retry: 1,
   });
 }
 
@@ -215,6 +220,7 @@ export function useMonthlyChart() {
 
   return useQuery({
     queryKey: ["dashboard", "monthly_chart"],
+    retry: 1,
     queryFn: async () => {
       const now = new Date();
       const months: MonthlyData[] = [];
@@ -259,6 +265,7 @@ export function useDailyTonnageChart() {
 
   return useQuery({
     queryKey: ["dashboard", "daily_tonnage"],
+    retry: 1,
     queryFn: async () => {
       const end = new Date();
       const start = new Date();
@@ -306,6 +313,7 @@ export function useWeeklyProfitChart() {
 
   return useQuery({
     queryKey: ["dashboard", "weekly_profit"],
+    retry: 1,
     queryFn: async () => {
       const result: { week: string; profit: number }[] = [];
 
@@ -352,6 +360,7 @@ export function useFeedTypeDistribution() {
 
   return useQuery({
     queryKey: ["dashboard", "feed_type_dist"],
+    retry: 1,
     queryFn: async () => {
       // Get deliveries with their purchase/sale to find feed type
       const { data: deliveries } = await supabase
@@ -431,6 +440,7 @@ export function useRecentActivities() {
 
   return useQuery({
     queryKey: ["dashboard", "recent_activities"],
+    retry: 1,
     queryFn: async () => {
       const activities: RecentActivity[] = [];
 
@@ -554,43 +564,67 @@ export function useRecentActivities() {
 // 6.6 — Season performance summary
 // ═══════════════════════════════════════════════════════════
 
-export function useSeasonSummary() {
+export function useSeasonSummary(seasonId?: string | null) {
   const supabase = createClient();
 
   return useQuery({
-    queryKey: ["dashboard", "season_summary"],
+    queryKey: ["dashboard", "season_summary", seasonId],
+    retry: 1,
     queryFn: async () => {
-      // Season = current year starting from September (typical harvest season)
-      // Or just use all-time if less than 1 year of data
-      const now = new Date();
-      const seasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-      const seasonStart = `${seasonYear}-09-01`;
-
-      // Total tonnage
-      const { data: deliveries } = await supabase
+      // Build delivery query with season filter
+      let deliveryQuery = supabase
         .from("deliveries")
         .select("net_weight, vehicle_plate, sale_id, purchase_id, carrier_name")
-        .gte("delivery_date", seasonStart);
+        .is("deleted_at", null);
+
+      if (seasonId) {
+        deliveryQuery = deliveryQuery.eq("season_id", seasonId);
+      } else {
+        // Fallback: current season year starting from September
+        const now = new Date();
+        const seasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+        const seasonStart = `${seasonYear}-09-01`;
+        deliveryQuery = deliveryQuery.gte("delivery_date", seasonStart);
+      }
+
+      // Total tonnage
+      const { data: deliveries } = await deliveryQuery;
 
       const totalTonnage = (deliveries || []).reduce((s, d) => s + (d.net_weight || 0), 0);
 
       // Total revenue (sales)
-      const { data: saleTxs } = await supabase
+      let saleTxQuery = supabase
         .from("account_transactions")
         .select("amount")
         .eq("reference_type", "sale")
         .eq("type", "debit")
-        .gte("transaction_date", seasonStart);
+        .is("deleted_at", null);
+      if (seasonId) {
+        saleTxQuery = saleTxQuery.eq("season_id", seasonId);
+      } else {
+        const now2 = new Date();
+        const sy = now2.getMonth() >= 8 ? now2.getFullYear() : now2.getFullYear() - 1;
+        saleTxQuery = saleTxQuery.gte("transaction_date", `${sy}-09-01`);
+      }
+      const { data: saleTxs } = await saleTxQuery;
 
       const totalRevenue = (saleTxs || []).reduce((s, t) => s + (t.amount || 0), 0);
 
       // Total cost (purchases)
-      const { data: purchaseTxs } = await supabase
+      let purchaseTxQuery = supabase
         .from("account_transactions")
         .select("amount")
         .eq("reference_type", "purchase")
         .eq("type", "credit")
-        .gte("transaction_date", seasonStart);
+        .is("deleted_at", null);
+      if (seasonId) {
+        purchaseTxQuery = purchaseTxQuery.eq("season_id", seasonId);
+      } else {
+        const now3 = new Date();
+        const sy3 = now3.getMonth() >= 8 ? now3.getFullYear() : now3.getFullYear() - 1;
+        purchaseTxQuery = purchaseTxQuery.gte("transaction_date", `${sy3}-09-01`);
+      }
+      const { data: purchaseTxs } = await purchaseTxQuery;
 
       const totalCost = (purchaseTxs || []).reduce((s, t) => s + (t.amount || 0), 0);
 
@@ -676,7 +710,7 @@ export function useSeasonSummary() {
         .map(([plate, count]) => ({ plate, count }));
 
       return {
-        seasonStart,
+        seasonId: seasonId || null,
         totalTonnage,
         totalRevenue,
         totalProfit,

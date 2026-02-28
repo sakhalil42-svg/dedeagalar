@@ -30,6 +30,7 @@ import { formatNumberInput, parseNumberInput, handleNumberChange } from "@/lib/u
 import { toast } from "sonner";
 import Link from "next/link";
 import { generateReceiptPdf } from "@/lib/utils/pdf-export";
+import { useSeasonFilter } from "@/lib/contexts/season-context";
 
 export default function NewPaymentPage() {
   return (
@@ -65,6 +66,7 @@ function NewPaymentForm() {
   const preselectedContactId = searchParams.get("contact_id") || "";
   const createPayment = useCreatePaymentWithTransaction();
   const { data: contacts } = useContacts();
+  const { selectedSeasonId } = useSeasonFilter();
 
   const [direction, setDirection] = useState<Direction>("outbound");
   const [contactId, setContactId] = useState(preselectedContactId);
@@ -109,6 +111,7 @@ function NewPaymentForm() {
         amount: parseNumberInput(amount),
         payment_date: paymentDate,
         description: description || null,
+        season_id: selectedSeasonId || null,
         ...(isCheckOrNote
           ? {
               serial_no: serialNo || undefined,

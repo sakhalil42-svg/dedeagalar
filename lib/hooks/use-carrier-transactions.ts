@@ -54,7 +54,7 @@ export function useCreateCarrierTransaction() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (values: CarrierTransactionInsert) => {
+    mutationFn: async (values: CarrierTransactionInsert & { season_id?: string | null }) => {
       const { data, error } = await supabase
         .from("carrier_transactions")
         .insert(values)

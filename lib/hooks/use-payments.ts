@@ -38,7 +38,7 @@ export function useCreatePaymentWithTransaction() {
 
   return useMutation({
     mutationFn: async (
-      values: Omit<PaymentInsert, "account_id"> & { serial_no?: string; bank_name?: string; branch?: string; due_date?: string }
+      values: Omit<PaymentInsert, "account_id"> & { serial_no?: string; bank_name?: string; branch?: string; due_date?: string; season_id?: string | null }
     ) => {
       // 1. Get account_id from contact_id
       const { data: account, error: accErr } = await supabase
@@ -49,7 +49,7 @@ export function useCreatePaymentWithTransaction() {
       if (accErr) throw new Error("Cari hesap bulunamadı. Önce kişi kaydını kontrol edin.");
 
       // 2. Insert payment (include account_id)
-      const { serial_no, bank_name, branch, due_date, ...paymentValues } = values;
+      const { serial_no, bank_name, branch, due_date, season_id, ...paymentValues } = values;
       const { data: payment, error: payErr } = await supabase
         .from("payments")
         .insert({
@@ -80,6 +80,7 @@ export function useCreatePaymentWithTransaction() {
           reference_type: "payment",
           reference_id: payment.id,
           transaction_date: values.payment_date,
+          season_id: season_id || null,
         });
       if (txErr) throw txErr;
 
@@ -99,6 +100,7 @@ export function useCreatePaymentWithTransaction() {
           issue_date: values.payment_date,
           due_date: due_date,
           status: "pending",
+          season_id: season_id || null,
         });
         if (chkErr) throw chkErr;
       }
