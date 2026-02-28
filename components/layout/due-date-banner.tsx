@@ -15,6 +15,7 @@ export function DueDateBanner() {
     const dismissKey = `due_banner_dismissed_${today}`;
     const wasDismissed = localStorage.getItem(dismissKey);
     if (!wasDismissed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDismissed(false);
     }
   }, []);

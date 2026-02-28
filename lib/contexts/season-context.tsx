@@ -24,6 +24,7 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedSeasonIdState(stored === "all" ? null : stored);
     }
     setInitialized(true);
@@ -32,6 +33,7 @@ export function SeasonProvider({ children }: { children: ReactNode }) {
   // If not initialized from localStorage, use active season
   useEffect(() => {
     if (initialized && !localStorage.getItem(STORAGE_KEY) && activeSeason) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedSeasonIdState(activeSeason.id);
     }
   }, [initialized, activeSeason]);

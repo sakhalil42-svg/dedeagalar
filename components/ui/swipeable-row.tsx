@@ -102,7 +102,7 @@ export function SwipeableRow({
         className="relative bg-card transition-transform duration-200"
         style={{
           transform: `translateX(${offsetX}px)`,
-          transitionDuration: swiping.current ? "0ms" : "200ms",
+          transitionDuration: swiping.current ? "0ms" : "200ms", // eslint-disable-line
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

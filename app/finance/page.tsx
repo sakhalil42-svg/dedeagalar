@@ -3,11 +3,10 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useAccountSummaries } from "@/lib/hooks/use-account-transactions";
-import type { AccountSummary, ContactType } from "@/lib/types/database.types";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Wallet, Plus, Phone, TrendingUp, SlidersHorizontal, Users } from "lucide-react";
+import { Search, Wallet, TrendingUp, SlidersHorizontal, Users } from "lucide-react";
 import { SkeletonRow } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";

@@ -87,7 +87,7 @@ export function parseNumberInput(formatted: string): number {
  */
 export function handleNumberChange(displayValue: string, allowDecimal: boolean = true): string {
   // Step 1: Keep only digits, dots, commas
-  let filtered = displayValue.replace(/[^0-9.,]/g, "");
+  const filtered = displayValue.replace(/[^0-9.,]/g, "");
   if (!filtered) return "";
 
   if (!allowDecimal) {

@@ -27,6 +27,7 @@ export default function TemplatesPage() {
     for (const meta of TEMPLATE_META) {
       loaded[meta.key] = getTemplate(meta.key);
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTemplates(loaded as Record<TemplateKey, string>);
   }, []);
 

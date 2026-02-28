@@ -229,7 +229,7 @@ export function PlateCombobox({
       });
       setOpen(false);
       setShowNewForm(false);
-    } catch (err) {
+    } catch {
       // save error — silently handled
     } finally {
       setSaving(false);

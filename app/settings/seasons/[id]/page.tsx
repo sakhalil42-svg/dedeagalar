@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Loader2,
   Download,
-  TrendingUp,
   Truck,
   Scale,
   CircleDollarSign,

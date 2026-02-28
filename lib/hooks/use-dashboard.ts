@@ -205,7 +205,8 @@ export function useDashboardKpis() {
         customerBalances,
         supplierBalances,
       };
-      } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_err) {
         throw new Error("Dashboard verileri yüklenirken hata oluştu");
       }
     },
@@ -631,8 +632,6 @@ export function useSeasonSummary(seasonId?: string | null) {
       const totalCost = (purchaseTxs || []).reduce((s, t) => s + (t.amount || 0), 0);
 
       // Total freight
-      const totalFreight = (deliveries || []).reduce((s, d) => s + ((d as unknown as { freight_cost?: number }).freight_cost || 0), 0);
-
       const totalProfit = totalRevenue - totalCost;
 
       // Top 3 customers (by sale tonnage)

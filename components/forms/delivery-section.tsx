@@ -41,6 +41,135 @@ const FREIGHT_PAYER_LABELS: Record<string, string> = {
   supplier: "Üretici",
 };
 
+// Auto-calculate net weight from gross - tare
+function handleWeightChange(form: ReturnType<typeof useForm<DeliveryFormValues>>) {
+  const gross = parseFloat(form.getValues("gross_weight") || "0");
+  const tare = parseFloat(form.getValues("tare_weight") || "0");
+  if (gross > 0 && tare > 0) {
+    form.setValue("net_weight", String(gross - tare));
+  }
+}
+
+function DeliveryForm({
+  form,
+  onSubmit,
+  isPending,
+  onCancel,
+}: {
+  form: ReturnType<typeof useForm<DeliveryFormValues>>;
+  onSubmit: (v: DeliveryFormValues) => void;
+  isPending: boolean;
+  onCancel: () => void;
+}) {
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Kantar Fişi No</Label>
+          <Input {...form.register("ticket_no")} placeholder="Fiş no" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Teslimat Tarihi *</Label>
+          <Input type="date" {...form.register("delivery_date")} />
+          {form.formState.errors.delivery_date && (
+            <p className="text-xs text-destructive">{form.formState.errors.delivery_date.message}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Brüt (kg)</Label>
+          <Input
+            type="number"
+            step="0.01"
+            {...form.register("gross_weight")}
+            placeholder="0"
+            onChange={(e) => {
+              form.register("gross_weight").onChange(e);
+              setTimeout(() => handleWeightChange(form), 0);
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Dara (kg)</Label>
+          <Input
+            type="number"
+            step="0.01"
+            {...form.register("tare_weight")}
+            placeholder="0"
+            onChange={(e) => {
+              form.register("tare_weight").onChange(e);
+              setTimeout(() => handleWeightChange(form), 0);
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Net (kg) *</Label>
+          <Input
+            type="number"
+            step="0.01"
+            {...form.register("net_weight")}
+            placeholder="0"
+            className="font-semibold"
+          />
+          {form.formState.errors.net_weight && (
+            <p className="text-xs text-destructive">{form.formState.errors.net_weight.message}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Plaka</Label>
+          <Input {...form.register("vehicle_plate")} placeholder="34 ABC 123" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Nakliyeci</Label>
+          <Input {...form.register("carrier_name")} placeholder="Nakliyeci adı" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Nakliye Ücreti</Label>
+          <Input type="number" step="0.01" {...form.register("freight_cost")} placeholder="0.00" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Nakliye Ödeyen</Label>
+          <Select
+            value={form.watch("freight_payer") || ""}
+            onValueChange={(val) => form.setValue("freight_payer", val)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seçiniz" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="customer">Müşteri</SelectItem>
+              <SelectItem value="me">Ben</SelectItem>
+              <SelectItem value="supplier">Üretici</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">Notlar</Label>
+        <Textarea {...form.register("notes")} rows={2} placeholder="Ek notlar..." />
+      </div>
+
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          İptal
+        </Button>
+        <Button type="submit" size="sm" disabled={isPending}>
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Kaydet"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 interface DeliverySectionProps {
   deliveries: Delivery[] | undefined;
   isLoading: boolean;
@@ -164,135 +293,6 @@ export function DeliverySection({
     } catch {
       toast.error("Silme sırasında hata oluştu");
     }
-  }
-
-  // Auto-calculate net weight from gross - tare
-  function handleWeightChange(form: ReturnType<typeof useForm<DeliveryFormValues>>) {
-    const gross = parseFloat(form.getValues("gross_weight") || "0");
-    const tare = parseFloat(form.getValues("tare_weight") || "0");
-    if (gross > 0 && tare > 0) {
-      form.setValue("net_weight", String(gross - tare));
-    }
-  }
-
-  function DeliveryForm({
-    form,
-    onSubmit,
-    isPending,
-    onCancel,
-  }: {
-    form: ReturnType<typeof useForm<DeliveryFormValues>>;
-    onSubmit: (v: DeliveryFormValues) => void;
-    isPending: boolean;
-    onCancel: () => void;
-  }) {
-    return (
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Kantar Fişi No</Label>
-            <Input {...form.register("ticket_no")} placeholder="Fiş no" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Teslimat Tarihi *</Label>
-            <Input type="date" {...form.register("delivery_date")} />
-            {form.formState.errors.delivery_date && (
-              <p className="text-xs text-destructive">{form.formState.errors.delivery_date.message}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Brüt (kg)</Label>
-            <Input
-              type="number"
-              step="0.01"
-              {...form.register("gross_weight")}
-              placeholder="0"
-              onChange={(e) => {
-                form.register("gross_weight").onChange(e);
-                setTimeout(() => handleWeightChange(form), 0);
-              }}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Dara (kg)</Label>
-            <Input
-              type="number"
-              step="0.01"
-              {...form.register("tare_weight")}
-              placeholder="0"
-              onChange={(e) => {
-                form.register("tare_weight").onChange(e);
-                setTimeout(() => handleWeightChange(form), 0);
-              }}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Net (kg) *</Label>
-            <Input
-              type="number"
-              step="0.01"
-              {...form.register("net_weight")}
-              placeholder="0"
-              className="font-semibold"
-            />
-            {form.formState.errors.net_weight && (
-              <p className="text-xs text-destructive">{form.formState.errors.net_weight.message}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Plaka</Label>
-            <Input {...form.register("vehicle_plate")} placeholder="34 ABC 123" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Nakliyeci</Label>
-            <Input {...form.register("carrier_name")} placeholder="Nakliyeci adı" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Nakliye Ücreti</Label>
-            <Input type="number" step="0.01" {...form.register("freight_cost")} placeholder="0.00" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Nakliye Ödeyen</Label>
-            <Select
-              value={form.watch("freight_payer") || ""}
-              onValueChange={(val) => form.setValue("freight_payer", val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seçiniz" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="customer">Müşteri</SelectItem>
-                <SelectItem value="me">Ben</SelectItem>
-                <SelectItem value="supplier">Üretici</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <Label className="text-xs">Notlar</Label>
-          <Textarea {...form.register("notes")} rows={2} placeholder="Ek notlar..." />
-        </div>
-
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-            İptal
-          </Button>
-          <Button type="submit" size="sm" disabled={isPending}>
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Kaydet"}
-          </Button>
-        </div>
-      </form>
-    );
   }
 
   return (

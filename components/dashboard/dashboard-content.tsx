@@ -12,7 +12,6 @@ import {
   useDueItems,
 } from "@/lib/hooks/use-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -29,7 +28,7 @@ import {
   MessageCircle,
   Calendar,
 } from "lucide-react";
-import { SkeletonKpiCard, SkeletonChart, Skeleton } from "@/components/ui/skeleton";
+import { SkeletonChart, Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import {
@@ -47,7 +46,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { openWhatsAppMessage, buildOdemeHatirlatmaMessage, buildCekVadeMessage } from "@/lib/utils/whatsapp";
+import { openWhatsAppMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
 import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 import { Onboarding } from "@/components/layout/onboarding";
 import { useSeasonFilter } from "@/lib/contexts/season-context";

@@ -8,7 +8,6 @@ import {
   useAccountTransactions,
 } from "@/lib/hooks/use-account-transactions";
 import { useContact } from "@/lib/hooks/use-contacts";
-import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -99,11 +98,6 @@ export default function AccountDetailPage() {
   const sevkiyatTotal = useMemo(
     () => sevkiyatTxs.reduce((sum, t) => sum + safeNum(t.amount), 0),
     [sevkiyatTxs]
-  );
-
-  const odemeTotal = useMemo(
-    () => odemeTxs.reduce((sum, t) => sum + safeNum(t.amount), 0),
-    [odemeTxs]
   );
 
   if (isLoading) {

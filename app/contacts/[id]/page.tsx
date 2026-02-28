@@ -37,7 +37,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, Pencil, Trash2, Phone, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { formatPhoneForWhatsApp, openPhoneDialer, openWhatsAppMessage, buildGunlukOzetMessage, buildOdemeHatirlatmaMessage, getWhatsAppLink } from "@/lib/utils/whatsapp";
+import { formatPhoneForWhatsApp, openPhoneDialer, openWhatsAppMessage, buildGunlukOzetMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { formatCurrency } from "@/lib/utils/format";
 import { useDeliveriesByContact } from "@/lib/hooks/use-deliveries-by-contact";
@@ -66,6 +66,7 @@ export default function ContactDetailPage() {
   const deleteContact = useDeleteContact();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
+  const { data: deliveries } = useDeliveriesByContact(id);
 
   const {
     register,
@@ -139,7 +140,6 @@ export default function ContactDetailPage() {
   }
 
   const account = contact.accounts?.[0];
-  const { data: deliveries } = useDeliveriesByContact(id);
 
   // Today's deliveries for this contact
   const today = new Date().toISOString().split("T")[0];

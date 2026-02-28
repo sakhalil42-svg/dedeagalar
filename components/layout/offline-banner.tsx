@@ -9,6 +9,7 @@ export function OfflineBanner() {
 
   useEffect(() => {
     // Set initial state
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsOffline(!navigator.onLine);
 
     function handleOffline() {

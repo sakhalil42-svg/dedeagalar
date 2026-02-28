@@ -55,7 +55,8 @@ export function useCreateSale() {
       // Generate sale_no if not provided (trigger may not exist)
       const saleNo = values.sale_no || `ST-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}`;
       // total_amount is GENERATED ALWAYS AS (quantity * unit_price) — never send it
-      const { total_amount: _unused, ...rest } = values;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { total_amount: _totalAmount, ...rest } = values;
 
       const { data, error } = await supabase
         .from("sales")
@@ -80,7 +81,8 @@ export function useUpdateSale() {
 
   return useMutation({
     mutationFn: async ({ id, ...values }: SaleUpdate & { id: string }) => {
-      const { total_amount: _unused, ...updateValues } = values;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { total_amount: _totalAmount, ...updateValues } = values;
       const { data, error } = await supabase
         .from("sales")
         .update(updateValues)

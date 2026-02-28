@@ -63,14 +63,16 @@ function SkeletonKpiCard() {
   );
 }
 
+const CHART_BAR_HEIGHTS = [52, 78, 41, 85, 63, 90, 47, 72];
+
 function SkeletonChart() {
   return (
     <div className="flex h-40 items-end gap-1 px-4 pb-4 pt-2">
-      {Array.from({ length: 8 }).map((_, i) => (
+      {CHART_BAR_HEIGHTS.map((h, i) => (
         <Skeleton
           key={i}
           className="flex-1 rounded-t"
-          style={{ height: `${30 + Math.random() * 60}%` }}
+          style={{ height: `${h}%` }}
         />
       ))}
     </div>

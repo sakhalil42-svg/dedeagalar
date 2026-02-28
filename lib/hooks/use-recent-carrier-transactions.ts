@@ -22,6 +22,7 @@ export function useRecentCarrierTransactions(limit = 20) {
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data || []).map((tx: any) => ({
         ...tx,
         carrier_name: tx.carrier?.name ?? null,

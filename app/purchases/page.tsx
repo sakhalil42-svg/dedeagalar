@@ -32,11 +32,9 @@ import {
 import type { TodayDelivery } from "@/lib/hooks/use-deliveries";
 import type { FreightPayer } from "@/lib/types/database.types";
 
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -56,7 +54,6 @@ import {
   TrendingUp,
   ChevronRight,
   MessageCircle,
-  Camera,
   AlertTriangle,
   Plus,
 } from "lucide-react";

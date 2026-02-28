@@ -631,8 +631,10 @@ export function useDeleteDeliveryWithTransactions() {
   return useMutation({
     mutationFn: async ({
       deliveryId,
-      saleId,
-      purchaseId,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      saleId: _saleId,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      purchaseId: _purchaseId,
     }: {
       deliveryId: string;
       saleId: string | null;

@@ -58,6 +58,7 @@ export default function CarrierDetailPage() {
 
   useEffect(() => {
     if (carrier) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditName(carrier.name);
       setEditPhone(carrier.phone || "");
       setEditPhone2(carrier.phone2 || "");

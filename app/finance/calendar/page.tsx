@@ -8,7 +8,6 @@ import { useSales } from "@/lib/hooks/use-sales";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, AlertTriangle, Clock, Calendar } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";

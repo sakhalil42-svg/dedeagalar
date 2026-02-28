@@ -161,7 +161,7 @@ export function GlobalSearch() {
           });
         }
       }
-    } catch (err) {
+    } catch {
       // search error — silently handled
     }
 

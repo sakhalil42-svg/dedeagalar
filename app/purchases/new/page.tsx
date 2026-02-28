@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Save, Truck, Scale, X } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Truck, Scale } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils/format";
