@@ -93,6 +93,98 @@ export function useDeleteContact() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // ── 1. Account ID'leri bul ──
+      const { data: accounts } = await supabase
+        .from("accounts")
+        .select("id")
+        .eq("contact_id", id);
+      const accountIds = (accounts || []).map((a) => a.id);
+
+      // ── 2. Account transactions sil ──
+      if (accountIds.length > 0) {
+        await supabase
+          .from("account_transactions")
+          .delete()
+          .in("account_id", accountIds);
+      }
+
+      // ── 3. Sale ID'leri bul (müşteri) ──
+      const { data: sales } = await supabase
+        .from("sales")
+        .select("id")
+        .eq("contact_id", id);
+      const saleIds = (sales || []).map((s) => s.id);
+
+      // ── 4. Purchase ID'leri bul (tedarikçi) ──
+      const { data: purchases } = await supabase
+        .from("purchases")
+        .select("id")
+        .eq("contact_id", id);
+      const purchaseIds = (purchases || []).map((p) => p.id);
+
+      // ── 5. Delivery ID'leri bul (sale + purchase üzerinden) ──
+      let deliveryIds: string[] = [];
+      if (saleIds.length > 0) {
+        const { data: saleDeliveries } = await supabase
+          .from("deliveries")
+          .select("id")
+          .in("sale_id", saleIds);
+        deliveryIds.push(...(saleDeliveries || []).map((d) => d.id));
+      }
+      if (purchaseIds.length > 0) {
+        const { data: purchaseDeliveries } = await supabase
+          .from("deliveries")
+          .select("id")
+          .in("purchase_id", purchaseIds);
+        deliveryIds.push(...(purchaseDeliveries || []).map((d) => d.id));
+      }
+      deliveryIds = [...new Set(deliveryIds)];
+
+      // ── 6. Carrier transactions sil (delivery üzerinden) ──
+      if (deliveryIds.length > 0) {
+        await supabase
+          .from("carrier_transactions")
+          .delete()
+          .in("reference_id", deliveryIds);
+      }
+
+      // ── 7. Checks sil ──
+      await supabase.from("checks").delete().eq("contact_id", id);
+
+      // ── 8. Payments sil ──
+      await supabase.from("payments").delete().eq("contact_id", id);
+
+      // ── 9. Deliveries sil ──
+      if (saleIds.length > 0) {
+        await supabase.from("deliveries").delete().in("sale_id", saleIds);
+      }
+      if (purchaseIds.length > 0) {
+        await supabase.from("deliveries").delete().in("purchase_id", purchaseIds);
+      }
+
+      // ── 10. Inventory movements sil (sale/purchase referansları) ──
+      const refIds = [...saleIds, ...purchaseIds, ...deliveryIds];
+      if (refIds.length > 0) {
+        await supabase
+          .from("inventory_movements")
+          .delete()
+          .in("reference_id", refIds);
+      }
+
+      // ── 11. Sales sil ──
+      if (saleIds.length > 0) {
+        await supabase.from("sales").delete().in("id", saleIds);
+      }
+
+      // ── 12. Purchases sil ──
+      if (purchaseIds.length > 0) {
+        await supabase.from("purchases").delete().in("id", purchaseIds);
+      }
+
+      // ── 13. Accounts sil ──
+      await supabase.from("accounts").delete().eq("contact_id", id);
+
+      // ── 14. Contact sil ──
       const { error } = await supabase
         .from("contacts")
         .delete()
@@ -101,6 +193,12 @@ export function useDeleteContact() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CONTACTS_KEY });
+      queryClient.invalidateQueries({ queryKey: ["account_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["checks"] });
     },
   });
 }
