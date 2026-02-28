@@ -49,7 +49,7 @@ import {
   Legend,
 } from "recharts";
 import { useState } from "react";
-import { openWhatsAppMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
+import { openWhatsAppMessage, buildOdemeHatirlatmaMessage, buildCekVadeMessage } from "@/lib/utils/whatsapp";
 import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 import { Onboarding } from "@/components/layout/onboarding";
 import { useSeasonFilter } from "@/lib/contexts/season-context";
@@ -253,19 +253,26 @@ export function DashboardContent() {
                 <div className="space-y-1">
                   {kpis.customerBalances.slice(0, 5).map((b) => {
                     const level = getBalanceLevel(b.balance);
+                    const isOverLimit = b.credit_limit != null && b.credit_limit > 0 && b.balance > b.credit_limit;
                     return (
                       <div
                         key={b.contactId}
                         className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
                       >
                         <Link href={`/finance/${b.contactId}`} className="flex items-center gap-2 min-w-0 flex-1">
-                          <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0 shrink-0`}>
-                            {level.label}
-                          </Badge>
+                          {isOverLimit ? (
+                            <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0 shrink-0">
+                              LİMİT AŞIMI
+                            </Badge>
+                          ) : (
+                            <Badge className={`${level.bg} ${level.color} text-[10px] px-1.5 py-0 shrink-0`}>
+                              {level.label}
+                            </Badge>
+                          )}
                           <p className="text-xs sm:text-sm truncate">{b.name}</p>
                         </Link>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <p className={`text-xs sm:text-sm font-bold ${level.color}`}>{maskedCompact(b.balance)}</p>
+                          <p className={`text-xs sm:text-sm font-bold ${isOverLimit ? "text-red-600" : level.color}`}>{maskedCompact(b.balance)}</p>
                           {b.phone && (
                             <button
                               onClick={() =>
@@ -378,43 +385,93 @@ export function DashboardContent() {
         </Card>
       )}
 
-      {/* Due Items Warning */}
-      {!dueLoading && dueItems && dueItems.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <AlertTriangle className="h-4 w-4" />
-              Vadesi Yaklaşanlar
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-0 p-0">
-            {dueItems.map((item, i) => (
-              <div key={item.id}>
-                {i > 0 && <Separator />}
-                <Link href="/finance/calendar" className="flex items-center justify-between px-4 py-2.5 transition-colors hover:bg-muted/50">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="shrink-0 text-xs">
-                        {item.type}
-                      </Badge>
-                      {item.overdue && (
-                        <Badge variant="secondary" className="shrink-0 bg-red-100 text-xs text-red-800">
-                          Gecikmiş
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-0.5 truncate text-sm">{item.contact_name}</p>
+      {/* Due Items Warning — Enhanced */}
+      {!dueLoading && dueItems && dueItems.length > 0 && (() => {
+        const overdue = dueItems.filter((i) => i.days_diff < 0);
+        const todayDue = dueItems.filter((i) => i.days_diff === 0);
+        const next3Days = dueItems.filter((i) => i.days_diff > 0 && i.days_diff <= 3);
+        const thisWeek = dueItems.filter((i) => i.days_diff > 3 && i.days_diff <= 7);
+        const later = dueItems.filter((i) => i.days_diff > 7);
+
+        const categories: { label: string; color: string; badgeClass: string; items: typeof dueItems }[] = [];
+        if (overdue.length > 0) categories.push({ label: "Vadesi GEÇMİŞ", color: "text-red-600", badgeClass: "bg-red-100 text-red-800", items: overdue });
+        if (todayDue.length > 0) categories.push({ label: "Bugün Vadeli", color: "text-orange-600", badgeClass: "bg-orange-100 text-orange-800", items: todayDue });
+        if (next3Days.length > 0) categories.push({ label: "3 Gün İçinde", color: "text-yellow-600", badgeClass: "bg-yellow-100 text-yellow-800", items: next3Days });
+        if (thisWeek.length > 0) categories.push({ label: "Bu Hafta", color: "text-green-600", badgeClass: "bg-green-100 text-green-800", items: thisWeek });
+        if (later.length > 0) categories.push({ label: "Yaklaşan", color: "text-blue-600", badgeClass: "bg-blue-100 text-blue-800", items: later });
+
+        const getDaysLabel = (diff: number) => {
+          if (diff < 0) return `${Math.abs(diff)} gün gecikmiş`;
+          if (diff === 0) return "Bugün!";
+          return `${diff} gün kaldı`;
+        };
+
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4" />
+                Vadesi Yaklaşanlar
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 px-4 pb-3">
+              {categories.map((cat) => (
+                <div key={cat.label}>
+                  <p className={`text-xs font-medium mb-1.5 ${cat.color}`}>{cat.label}</p>
+                  <div className="space-y-1">
+                    {cat.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between rounded-md px-2 py-1.5 transition-colors hover:bg-muted/50"
+                      >
+                        <Link href="/finance/calendar" className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="secondary" className={`shrink-0 text-[10px] px-1 py-0 ${cat.badgeClass}`}>
+                              {item.type}
+                            </Badge>
+                            <p className="text-xs sm:text-sm truncate">{item.contact_name}</p>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className={`text-[10px] font-medium ${cat.color}`}>
+                              {getDaysLabel(item.days_diff)}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {formatDateShort(item.due_date)}
+                            </p>
+                          </div>
+                        </Link>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <p className="text-xs sm:text-sm font-bold">{masked(item.amount)}</p>
+                          {item.contact_phone && (
+                            <button
+                              onClick={() =>
+                                openWhatsAppMessage(
+                                  item.contact_phone,
+                                  buildCekVadeMessage({
+                                    contactName: item.contact_name,
+                                    amount: item.amount,
+                                    type: item.raw_type,
+                                    serialNo: item.serial_no || undefined,
+                                    dueDate: item.due_date,
+                                  })
+                                )
+                              }
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                              title="WhatsApp ile hatırlat"
+                            >
+                              <MessageCircle className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-bold">{masked(item.amount)}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateShort(item.due_date)}</p>
-                  </div>
-                </Link>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* ═══ 6.3 — Charts ═══ */}
 

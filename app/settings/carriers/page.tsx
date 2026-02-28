@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -45,6 +46,7 @@ export default function CarriersPage() {
   const [showNewCarrier, setShowNewCarrier] = useState(false);
   const [showNewVehicle, setShowNewVehicle] = useState(false);
   const [expandedCarrier, setExpandedCarrier] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "carrier" | "vehicle"; id: string; label: string } | null>(null);
 
   // New carrier form
   const [cName, setCName] = useState("");
@@ -258,15 +260,7 @@ export default function CarriersPage() {
                                   </div>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (
-                                        confirm(
-                                          `${v.plate} aracını silmek istediğinize emin misiniz?`
-                                        )
-                                      ) {
-                                        deleteVehicle.mutate(v.id);
-                                      }
-                                    }}
+                                    onClick={() => setDeleteTarget({ type: "vehicle", id: v.id, label: v.plate })}
                                     className="text-muted-foreground hover:text-destructive"
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
@@ -328,15 +322,7 @@ export default function CarriersPage() {
                               size="sm"
                               variant="ghost"
                               className="text-xs text-destructive"
-                              onClick={() => {
-                                if (
-                                  confirm(
-                                    `${carrier.name} nakliyecisini silmek istediğinize emin misiniz?`
-                                  )
-                                ) {
-                                  deleteCarrier.mutate(carrier.id);
-                                }
-                              }}
+                              onClick={() => setDeleteTarget({ type: "carrier", id: carrier.id, label: carrier.name })}
                             >
                               <Trash2 className="mr-1 h-3 w-3" />
                               Sil
@@ -379,15 +365,7 @@ export default function CarriersPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (
-                          confirm(
-                            `${v.plate} aracını silmek istediğinize emin misiniz?`
-                          )
-                        ) {
-                          deleteVehicle.mutate(v.id);
-                        }
-                      }}
+                      onClick={() => setDeleteTarget({ type: "vehicle", id: v.id, label: v.plate })}
                       className="text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -549,6 +527,39 @@ export default function CarriersPage() {
               disabled={createVehicle.isPending}
             >
               {createVehicle.isPending ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deleteTarget?.type === "carrier" ? "Nakliyeciyi Sil" : "Aracı Sil"}
+            </DialogTitle>
+            <DialogDescription>
+              &quot;{deleteTarget?.label}&quot; silinecek. Bu işlem geri alınamaz.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              İptal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!deleteTarget) return;
+                if (deleteTarget.type === "carrier") {
+                  deleteCarrier.mutate(deleteTarget.id);
+                } else {
+                  deleteVehicle.mutate(deleteTarget.id);
+                }
+                setDeleteTarget(null);
+              }}
+            >
+              Sil
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -10,6 +10,7 @@ export const contactSchema = z.object({
   address: z.string().optional().or(z.literal("")),
   city: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
+  credit_limit: z.string().optional().or(z.literal("")),
 });
 
 export type ContactFormValues = z.infer<typeof contactSchema>;

@@ -139,6 +139,7 @@ export function usePaymentsByContact(contactId: string) {
         .from("payments")
         .select("*")
         .eq("contact_id", contactId)
+        .is("deleted_at", null)
         .order("payment_date", { ascending: false });
       if (error) throw error;
       return data as Array<{

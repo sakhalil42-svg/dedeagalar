@@ -9,6 +9,7 @@ export interface Contact {
   address: string | null;
   city: string | null;
   notes: string | null;
+  credit_limit: number | null;
   created_at: string;
 }
 
@@ -20,6 +21,7 @@ export interface ContactInsert {
   address?: string | null;
   city?: string | null;
   notes?: string | null;
+  credit_limit?: number | null;
 }
 
 export interface ContactUpdate extends Partial<ContactInsert> {}

@@ -40,6 +40,7 @@ export default function NewContactPage() {
       address: "",
       city: "",
       notes: "",
+      credit_limit: "",
     },
   });
 
@@ -52,6 +53,7 @@ export default function NewContactPage() {
         address: values.address || null,
         city: values.city || null,
         notes: values.notes || null,
+        credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
       };
       await createContact.mutateAsync(payload);
       toast.success("Kişi başarıyla eklendi");
@@ -125,6 +127,18 @@ export default function NewContactPage() {
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email.message}</p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="credit_limit">Kredi Limiti (₺)</Label>
+              <Input
+                id="credit_limit"
+                type="number"
+                step="0.01"
+                {...register("credit_limit")}
+                placeholder="Boş = sınırsız, 0 = peşin"
+              />
+              <p className="text-[10px] text-muted-foreground">Boş bırakılırsa limit uygulanmaz</p>
             </div>
 
             <div className="space-y-2">

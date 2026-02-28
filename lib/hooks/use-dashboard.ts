@@ -112,14 +112,14 @@ export function useDashboardKpis() {
         .order("balance", { ascending: false });
 
       const contactIds = [...new Set((accounts || []).map((a) => a.contact_id).filter(Boolean))];
-      let contactMap = new Map<string, { name: string; type: string; phone: string | null }>();
+      let contactMap = new Map<string, { name: string; type: string; phone: string | null; credit_limit: number | null }>();
       if (contactIds.length > 0) {
         const { data: contacts } = await supabase
           .from("contacts")
-          .select("id, name, type, phone")
+          .select("id, name, type, phone, credit_limit")
           .in("id", contactIds);
         if (contacts) {
-          contactMap = new Map(contacts.map((c) => [c.id, { name: c.name, type: c.type, phone: c.phone }]));
+          contactMap = new Map(contacts.map((c) => [c.id, { name: c.name, type: c.type, phone: c.phone, credit_limit: c.credit_limit }]));
         }
       }
 
@@ -166,6 +166,7 @@ export function useDashboardKpis() {
         phone: string | null;
         type: string;
         balance: number;
+        credit_limit: number | null;
       }> = (accounts || [])
         .filter((a) => a.balance > 0 && contactMap.has(a.contact_id))
         .map((a) => {
@@ -176,6 +177,7 @@ export function useDashboardKpis() {
             phone: c.phone || null,
             type: c.type,
             balance: a.balance,
+            credit_limit: c.credit_limit,
           };
         })
         .sort((a, b) => b.balance - a.balance);
@@ -796,39 +798,54 @@ export function useDueItems() {
         .limit(10);
 
       const contactIds = [...new Set((checks || []).map((c) => c.contact_id).filter(Boolean))];
-      let contactMap = new Map<string, string>();
+      let contactMap = new Map<string, { name: string; phone: string | null }>();
       if (contactIds.length > 0) {
         const { data: contacts } = await supabase
           .from("contacts")
-          .select("id, name")
+          .select("id, name, phone")
           .in("id", contactIds);
         if (contacts) {
-          contactMap = new Map(contacts.map((c) => [c.id, c.name]));
+          contactMap = new Map(contacts.map((c) => [c.id, { name: c.name, phone: c.phone }]));
         }
       }
 
       const items: Array<{
         id: string;
         type: string;
+        raw_type: string;
         contact_name: string;
+        contact_phone: string | null;
+        serial_no: string | null;
         amount: number;
         due_date: string;
         overdue: boolean;
+        days_diff: number;
       }> = [];
 
       (checks || []).forEach((c) => {
+        const contact = contactMap.get(c.contact_id);
+        const dueDate = new Date(c.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        const todayDate = new Date(today);
+        todayDate.setHours(0, 0, 0, 0);
+        const daysDiff = Math.ceil((dueDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+
         items.push({
           id: c.id,
           type: c.type === "check" ? "Çek" : "Senet",
-          contact_name: contactMap.get(c.contact_id) || "—",
+          raw_type: c.type,
+          contact_name: contact?.name || "—",
+          contact_phone: contact?.phone || null,
+          serial_no: c.serial_no || null,
           amount: c.amount,
           due_date: c.due_date,
           overdue: c.due_date < today,
+          days_diff: daysDiff,
         });
       });
 
       items.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
-      return items.slice(0, 5);
+      return items.slice(0, 10);
     },
   });
 }

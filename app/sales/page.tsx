@@ -17,7 +17,17 @@ import {
 import {
   useDeliveryPhotos,
   useUploadDeliveryPhoto,
+  useDeleteDeliveryPhoto,
 } from "@/lib/hooks/use-delivery-photos";
+import { compressImage } from "@/lib/utils/image-compress";
+import {
+  type ShipmentTemplate,
+  getTemplatesSorted,
+  saveTemplate,
+  deleteTemplate,
+  markTemplateUsed,
+  getRecentTemplateIds,
+} from "@/lib/utils/shipment-templates";
 import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { formatCurrency, formatDateShort, formatNumberInput, parseNumberInput, handleNumberChange } from "@/lib/utils/format";
@@ -60,6 +70,11 @@ import {
   Undo2,
   SlidersHorizontal,
   Search,
+  Download,
+  Save,
+  BookTemplate,
+  Star,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Dialog,
@@ -307,6 +322,60 @@ function ActiveOrderView({
   const supplierName = suppliers?.find((c) => c.id === order.supplierId)?.name;
   const feedTypeName = feedTypes?.find((f) => f.id === order.feedTypeId)?.name;
 
+  // ─── TEMPLATE STATE ───
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [showTemplateList, setShowTemplateList] = useState(false);
+  const [templates, setTemplates] = useState<ShipmentTemplate[]>([]);
+
+  useEffect(() => {
+    setTemplates(getTemplatesSorted());
+  }, []);
+
+  const handleSaveTemplate = () => {
+    if (!templateName.trim()) {
+      toast.error("Şablon adı giriniz");
+      return;
+    }
+    saveTemplate({
+      name: templateName.trim(),
+      customerId: order.customerId,
+      supplierId: order.supplierId,
+      feedTypeId: order.feedTypeId,
+      customerPrice: order.customerPrice,
+      supplierPrice: order.supplierPrice,
+      pricingModel: order.pricingModel,
+      carrierName: "",
+    });
+    setTemplates(getTemplatesSorted());
+    setTemplateName("");
+    setShowSaveTemplate(false);
+    toast.success("Şablon kaydedildi");
+  };
+
+  const handleLoadTemplate = (t: ShipmentTemplate) => {
+    setOrder({
+      customerId: t.customerId,
+      supplierId: t.supplierId,
+      feedTypeId: t.feedTypeId,
+      customerPrice: t.customerPrice,
+      supplierPrice: t.supplierPrice,
+      pricingModel: t.pricingModel,
+      saleId: null,
+      purchaseId: null,
+    });
+    markTemplateUsed(t.id);
+    setTemplates(getTemplatesSorted());
+    setShowTemplateList(false);
+    toast.success(`"${t.name}" şablonu yüklendi`);
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    deleteTemplate(id);
+    setTemplates(getTemplatesSorted());
+    toast.success("Şablon silindi");
+  };
+
   const handleResetAll = () => {
     setOrder({
       customerId: "",
@@ -319,6 +388,8 @@ function ActiveOrderView({
       purchaseId: null,
     });
   };
+
+  const recentIds = new Set(getRecentTemplateIds());
 
   return (
     <div className="flex flex-col pb-4">
@@ -339,6 +410,107 @@ function ActiveOrderView({
             </Button>
           </div>
         </div>
+
+        {/* ─── TEMPLATE BUTTONS ─── */}
+        <div className="flex gap-2 px-4 pb-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-7"
+            onClick={() => {
+              setShowTemplateList(!showTemplateList);
+              setShowSaveTemplate(false);
+            }}
+          >
+            <BookTemplate className="mr-1 h-3 w-3" />
+            Şablonlar {templates.length > 0 && `(${templates.length})`}
+          </Button>
+          {isOrderReady && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => {
+                setShowSaveTemplate(!showSaveTemplate);
+                setShowTemplateList(false);
+              }}
+            >
+              <Save className="mr-1 h-3 w-3" />
+              Şablon Kaydet
+            </Button>
+          )}
+        </div>
+
+        {/* Template Save Dialog */}
+        {showSaveTemplate && (
+          <div className="mx-4 mb-2 rounded-lg border p-3 space-y-2 bg-blue-50/50">
+            <p className="text-xs font-medium">Şablon Olarak Kaydet</p>
+            <Input
+              placeholder="Şablon adı (ör: Ofis-Samed Arpa)"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              className="h-8 text-sm"
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleSaveTemplate()}
+            />
+            <div className="flex gap-2">
+              <Button size="sm" className="h-7 text-xs" onClick={handleSaveTemplate}>
+                <Save className="mr-1 h-3 w-3" />
+                Kaydet
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowSaveTemplate(false)}>
+                İptal
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Template List */}
+        {showTemplateList && (
+          <div className="mx-4 mb-2 rounded-lg border bg-background max-h-64 overflow-y-auto">
+            {templates.length === 0 ? (
+              <p className="p-3 text-xs text-muted-foreground text-center">
+                Henüz şablon yok. Sipariş bilgilerini girdikten sonra &ldquo;Şablon Kaydet&rdquo; ile kaydedin.
+              </p>
+            ) : (
+              <div className="divide-y">
+                {templates.map((t) => {
+                  const customer = customers?.find((c) => c.id === t.customerId)?.name || "—";
+                  const supplier = suppliers?.find((c) => c.id === t.supplierId)?.name || "—";
+                  const feed = feedTypes?.find((f) => f.id === t.feedTypeId)?.name || "—";
+                  const isRecent = recentIds.has(t.id);
+
+                  return (
+                    <div key={t.id} className="flex items-center gap-2 p-2.5 hover:bg-muted/50 transition-colors">
+                      <button
+                        className="flex-1 min-w-0 text-left"
+                        onClick={() => handleLoadTemplate(t)}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {isRecent && <Star className="h-3 w-3 text-amber-500 shrink-0 fill-amber-500" />}
+                          <p className="text-sm font-medium truncate">{t.name}</p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {customer} · {feed} · {supplier}
+                        </p>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTemplate(t.id);
+                        }}
+                        className="shrink-0 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="Şablonu sil"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ─── ORDER CONFIG ─── */}
         <div className="px-4 pb-3 space-y-3">
@@ -687,6 +859,25 @@ function TodayDeliveryRow({
   isSaving: boolean;
 }) {
   const [waSent, setWaSent] = useState(() => isWhatsAppSent(delivery.id));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { data: photos } = useDeliveryPhotos(delivery.id);
+  const uploadPhoto = useUploadDeliveryPhoto();
+  const hasPhotos = photos && photos.length > 0;
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    for (const rawFile of Array.from(files)) {
+      try {
+        const file = await compressImage(rawFile);
+        await uploadPhoto.mutateAsync({ deliveryId: delivery.id, file });
+        toast.success("Fotoğraf yüklendi");
+      } catch {
+        toast.error("Fotoğraf yüklenemedi");
+      }
+    }
+    e.target.value = "";
+  };
 
   if (isEditing) {
     return (
@@ -776,6 +967,30 @@ function TodayDeliveryRow({
           </a>
         )}
         <button
+          onClick={() => fileInputRef.current?.click()}
+          className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+            hasPhotos
+              ? "text-green-600 hover:bg-green-50"
+              : "text-blue-600 hover:bg-blue-50"
+          }`}
+          disabled={uploadPhoto.isPending}
+          title={hasPhotos ? "Fotoğraf var" : "Fotoğraf ekle"}
+        >
+          {uploadPhoto.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Camera className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <button
           onClick={onStartEdit}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"
           title="Düzenle"
@@ -830,6 +1045,13 @@ function QuickEntryForm({
   const [freightPayer, setFreightPayer] = useState<FreightPayer>("me");
   const [saving, setSaving] = useState(false);
   const [lastTicketNo, setLastTicketNo] = useState("");
+  const [creditWarning, setCreditWarning] = useState<{
+    contactName: string;
+    limit: number;
+    currentBalance: number;
+    shipmentAmount: number;
+    newBalance: number;
+  } | null>(null);
 
   const createDeliveryTx = useCreateDeliveryWithTransactions();
 
@@ -880,13 +1102,63 @@ function QuickEntryForm({
     ? parseInt(netWeight, 10).toLocaleString("tr-TR")
     : "";
 
-  const handleSave = async () => {
+  const checkCreditLimitAndSave = async () => {
     const kg = parseInt(netWeight, 10);
     if (!kg || kg <= 0) {
       toast.error("Net ağırlık giriniz");
       return;
     }
 
+    // Credit limit check
+    try {
+      const supabase = (await import("@/lib/supabase/client")).createClient();
+      const { data: customer } = await supabase
+        .from("contacts")
+        .select("name, credit_limit")
+        .eq("id", customerContactId)
+        .single();
+
+      if (customer?.credit_limit != null && customer.credit_limit >= 0) {
+        const { data: account } = await supabase
+          .from("accounts")
+          .select("balance")
+          .eq("contact_id", customerContactId)
+          .single();
+
+        const currentBalance = account?.balance ?? 0;
+        const shipmentAmount = kg * customerPrice;
+        const newBalance = currentBalance + shipmentAmount;
+
+        if (newBalance > customer.credit_limit) {
+          setCreditWarning({
+            contactName: customer.name,
+            limit: customer.credit_limit,
+            currentBalance,
+            shipmentAmount,
+            newBalance,
+          });
+          return;
+        }
+      }
+    } catch {
+      // If credit check fails, proceed with save
+    }
+
+    await doSave();
+  };
+
+  const handleSave = async () => {
+    await checkCreditLimitAndSave();
+  };
+
+  const doSave = async () => {
+    const kg = parseInt(netWeight, 10);
+    if (!kg || kg <= 0) {
+      toast.error("Net ağırlık giriniz");
+      return;
+    }
+
+    setCreditWarning(null);
     setSaving(true);
     try {
       const resolvedSaleId = await ensureSaleExists();
@@ -1198,6 +1470,65 @@ function QuickEntryForm({
           )}
           Kaydet
         </Button>
+
+        {/* Credit Limit Warning Dialog */}
+        <Dialog open={!!creditWarning} onOpenChange={(open) => !open && setCreditWarning(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                Kredi Limiti Uyarısı
+              </DialogTitle>
+              <DialogDescription asChild>
+                <div className="space-y-2 pt-2">
+                  {creditWarning && (
+                    <>
+                      <p className="text-sm font-medium">{creditWarning.contactName}</p>
+                      <div className="rounded-lg border p-3 space-y-1.5 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Kredi Limiti:</span>
+                          <span className="font-medium">{formatCurrency(creditWarning.limit)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Mevcut Bakiye:</span>
+                          <span className="font-medium">{formatCurrency(creditWarning.currentBalance)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Bu Sevkiyat:</span>
+                          <span className="font-medium">+{formatCurrency(creditWarning.shipmentAmount)}</span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Yeni Bakiye:</span>
+                          <span className="font-bold text-red-600">{formatCurrency(creditWarning.newBalance)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Limit Aşımı:</span>
+                          <span className="font-bold text-red-600">
+                            {formatCurrency(creditWarning.newBalance - creditWarning.limit)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setCreditWarning(null)}>
+                İptal
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => doSave()}
+                disabled={saving}
+              >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Yine de Kaydet
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
@@ -1375,6 +1706,7 @@ function TicketRow({
   isDeleting: boolean;
 }) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<{ name: string; url: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [editWeight, setEditWeight] = useState("");
   const [editPlate, setEditPlate] = useState("");
@@ -1394,12 +1726,15 @@ function TicketRow({
     ? buildWhatsAppUrl(customerContact.phone, customerContact.name, delivery, customerPrice, feedTypeName)
     : null;
 
+  const deletePhoto = useDeleteDeliveryPhoto();
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    for (const file of Array.from(files)) {
+    for (const rawFile of Array.from(files)) {
       try {
+        const file = await compressImage(rawFile);
         await uploadPhoto.mutateAsync({ deliveryId: delivery.id, file });
         toast.success("Fotoğraf yüklendi");
       } catch {
@@ -1408,6 +1743,8 @@ function TicketRow({
     }
     e.target.value = "";
   };
+
+  const hasPhotos = photos && photos.length > 0;
 
   // 3.3 — Open edit mode
   const startEdit = () => {
@@ -1598,10 +1935,21 @@ function TicketRow({
 
             {/* Camera / Photo */}
             <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-blue-600 hover:bg-blue-50 transition-colors"
+              onClick={() => {
+                if (hasPhotos) {
+                  setLightboxUrl(photos[0].url);
+                  setLightboxPhoto(photos[0]);
+                } else {
+                  fileInputRef.current?.click();
+                }
+              }}
+              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                hasPhotos
+                  ? "text-green-600 hover:bg-green-50"
+                  : "text-blue-600 hover:bg-blue-50"
+              }`}
               disabled={uploadPhoto.isPending}
-              title="Fotoğraf ekle"
+              title={hasPhotos ? "Fotoğrafı görüntüle" : "Fotoğraf ekle"}
             >
               {uploadPhoto.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1641,12 +1989,12 @@ function TicketRow({
         </div>
 
         {/* Photo thumbnails */}
-        {photos && photos.length > 0 && (
+        {hasPhotos && (
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {photos.map((p) => (
               <button
                 key={p.name}
-                onClick={() => setLightboxUrl(p.url)}
+                onClick={() => { setLightboxUrl(p.url); setLightboxPhoto(p); }}
                 className="shrink-0 h-12 w-12 rounded-md overflow-hidden border hover:ring-2 ring-primary transition-all"
               >
                 <img
@@ -1666,24 +2014,75 @@ function TicketRow({
         )}
       </div>
 
-      {/* Lightbox */}
+      {/* Enhanced Lightbox */}
       {lightboxUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightboxUrl(null)}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-4"
+          onClick={() => { setLightboxUrl(null); setLightboxPhoto(null); }}
         >
+          {/* Close */}
           <button
-            onClick={() => setLightboxUrl(null)}
-            className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
+            onClick={() => { setLightboxUrl(null); setLightboxPhoto(null); }}
+            className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors z-10"
           >
             <X className="h-6 w-6" />
           </button>
+
+          {/* Delivery info */}
+          <div className="mb-3 text-center text-white/90 text-sm" onClick={(e) => e.stopPropagation()}>
+            <p className="font-bold">{formatDateShort(delivery.delivery_date)} · {delivery.net_weight.toLocaleString("tr-TR")} kg</p>
+            {delivery.vehicle_plate && <p className="text-xs text-white/70">Plaka: {delivery.vehicle_plate}</p>}
+            {customerContact?.name && <p className="text-xs text-white/70">{customerContact.name}</p>}
+          </div>
+
+          {/* Image */}
           <img
             src={lightboxUrl}
             alt="Kantar fişi"
-            className="max-h-[85vh] max-w-full rounded-lg object-contain"
+            className="max-h-[70vh] max-w-full rounded-lg object-contain"
             onClick={(e) => e.stopPropagation()}
           />
+
+          {/* Action buttons */}
+          <div className="mt-3 flex gap-3" onClick={(e) => e.stopPropagation()}>
+            <a
+              href={lightboxUrl}
+              download={`kantar-${delivery.ticket_no || delivery.id}.jpg`}
+              className="flex items-center gap-1.5 rounded-lg bg-white/20 px-4 py-2 text-sm text-white hover:bg-white/30 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              İndir
+            </a>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-lg bg-white/20 px-4 py-2 text-sm text-white hover:bg-white/30 transition-colors"
+            >
+              <Camera className="h-4 w-4" />
+              Yeni Ekle
+            </button>
+            {lightboxPhoto && (
+              <button
+                onClick={async () => {
+                  try {
+                    await deletePhoto.mutateAsync({
+                      deliveryId: delivery.id,
+                      fileName: lightboxPhoto.name,
+                    });
+                    toast.success("Fotoğraf silindi");
+                    setLightboxUrl(null);
+                    setLightboxPhoto(null);
+                  } catch {
+                    toast.error("Fotoğraf silinemedi");
+                  }
+                }}
+                disabled={deletePhoto.isPending}
+                className="flex items-center gap-1.5 rounded-lg bg-red-600/80 px-4 py-2 text-sm text-white hover:bg-red-600 transition-colors"
+              >
+                {deletePhoto.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Sil
+              </button>
+            )}
+          </div>
         </div>
       )}
     </>
@@ -2396,8 +2795,28 @@ function HistoryTicketRow({
   onReturn: (delivery: Delivery) => void;
 }) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<{ name: string; url: string } | null>(null);
   const [waSent, setWaSent] = useState(() => isWhatsAppSent(delivery.id));
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: photos } = useDeliveryPhotos(delivery.id);
+  const uploadPhoto = useUploadDeliveryPhoto();
+  const deletePhotoMut = useDeleteDeliveryPhoto();
+  const hasPhotos = photos && photos.length > 0;
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    for (const rawFile of Array.from(files)) {
+      try {
+        const file = await compressImage(rawFile);
+        await uploadPhoto.mutateAsync({ deliveryId: delivery.id, file });
+        toast.success("Fotoğraf yüklendi");
+      } catch {
+        toast.error("Fotoğraf yüklenemedi");
+      }
+    }
+    e.target.value = "";
+  };
 
   const waUrl = customerPhone
     ? buildWhatsAppUrl(customerPhone, customerName, delivery, customerPrice, feedTypeName)
@@ -2441,6 +2860,38 @@ function HistoryTicketRow({
           </div>
 
           <div className="flex flex-col gap-1 shrink-0">
+            {/* Camera / Photo */}
+            <button
+              onClick={() => {
+                if (hasPhotos) {
+                  setLightboxUrl(photos[0].url);
+                  setLightboxPhoto(photos[0]);
+                } else {
+                  fileInputRef.current?.click();
+                }
+              }}
+              className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                hasPhotos
+                  ? "text-green-600 hover:bg-green-50"
+                  : "text-blue-600 hover:bg-blue-50"
+              }`}
+              disabled={uploadPhoto.isPending}
+              title={hasPhotos ? "Fotoğrafı görüntüle" : "Fotoğraf ekle"}
+            >
+              {uploadPhoto.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileChange}
+            />
             {waUrl && (
               <a
                 href={waUrl}
@@ -2476,12 +2927,12 @@ function HistoryTicketRow({
         </div>
 
         {/* Photo thumbnails */}
-        {photos && photos.length > 0 && (
+        {hasPhotos && (
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {photos.map((p) => (
               <button
                 key={p.name}
-                onClick={() => setLightboxUrl(p.url)}
+                onClick={() => { setLightboxUrl(p.url); setLightboxPhoto(p); }}
                 className="shrink-0 h-12 w-12 rounded-md overflow-hidden border hover:ring-2 ring-primary transition-all"
               >
                 <img
@@ -2491,28 +2942,81 @@ function HistoryTicketRow({
                 />
               </button>
             ))}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="shrink-0 h-12 w-12 rounded-md border border-dashed flex items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
+            >
+              <ImageIcon className="h-4 w-4" />
+            </button>
           </div>
         )}
       </div>
 
-      {/* Lightbox */}
+      {/* Enhanced Lightbox */}
       {lightboxUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightboxUrl(null)}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-4"
+          onClick={() => { setLightboxUrl(null); setLightboxPhoto(null); }}
         >
           <button
-            onClick={() => setLightboxUrl(null)}
-            className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
+            onClick={() => { setLightboxUrl(null); setLightboxPhoto(null); }}
+            className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors z-10"
           >
             <X className="h-6 w-6" />
           </button>
+
+          <div className="mb-3 text-center text-white/90 text-sm" onClick={(e) => e.stopPropagation()}>
+            <p className="font-bold">{formatDateShort(delivery.delivery_date)} · {delivery.net_weight.toLocaleString("tr-TR")} kg</p>
+            {delivery.vehicle_plate && <p className="text-xs text-white/70">Plaka: {delivery.vehicle_plate}</p>}
+            <p className="text-xs text-white/70">{customerName}</p>
+          </div>
+
           <img
             src={lightboxUrl}
             alt="Kantar fişi"
-            className="max-h-[85vh] max-w-full rounded-lg object-contain"
+            className="max-h-[70vh] max-w-full rounded-lg object-contain"
             onClick={(e) => e.stopPropagation()}
           />
+
+          <div className="mt-3 flex gap-3" onClick={(e) => e.stopPropagation()}>
+            <a
+              href={lightboxUrl}
+              download={`kantar-${delivery.ticket_no || delivery.id}.jpg`}
+              className="flex items-center gap-1.5 rounded-lg bg-white/20 px-4 py-2 text-sm text-white hover:bg-white/30 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              İndir
+            </a>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-lg bg-white/20 px-4 py-2 text-sm text-white hover:bg-white/30 transition-colors"
+            >
+              <Camera className="h-4 w-4" />
+              Yeni Ekle
+            </button>
+            {lightboxPhoto && (
+              <button
+                onClick={async () => {
+                  try {
+                    await deletePhotoMut.mutateAsync({
+                      deliveryId: delivery.id,
+                      fileName: lightboxPhoto.name,
+                    });
+                    toast.success("Fotoğraf silindi");
+                    setLightboxUrl(null);
+                    setLightboxPhoto(null);
+                  } catch {
+                    toast.error("Fotoğraf silinemedi");
+                  }
+                }}
+                disabled={deletePhotoMut.isPending}
+                className="flex items-center gap-1.5 rounded-lg bg-red-600/80 px-4 py-2 text-sm text-white hover:bg-red-600 transition-colors"
+              >
+                {deletePhotoMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Sil
+              </button>
+            )}
+          </div>
         </div>
       )}
     </>

@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { Toaster } from "@/components/ui/sonner";
 import { OfflineBanner } from "@/components/layout/offline-banner";
 import { KeyboardShortcuts } from "@/components/layout/keyboard-shortcuts";
+import { DueDateBanner } from "@/components/layout/due-date-banner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -55,6 +56,7 @@ export default function RootLayout({
         <Providers>
           <OfflineBanner />
           <AppHeader />
+          <DueDateBanner />
           <main className="pb-20">{children}</main>
           <BottomTabBar />
           <KeyboardShortcuts />

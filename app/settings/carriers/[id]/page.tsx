@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useCarriers } from "@/lib/hooks/use-carriers";
+import { useCarriers, useUpdateCarrier } from "@/lib/hooks/use-carriers";
 import {
   useCarrierTransactions,
   useCarrierBalances,
@@ -28,6 +28,10 @@ import {
   Truck,
   Banknote,
   Plus,
+  Pencil,
+  Check,
+  X,
+  Phone,
 } from "lucide-react";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { toast } from "sonner";
@@ -38,6 +42,7 @@ export default function CarrierDetailPage() {
   const { data: balances } = useCarrierBalances();
   const { data: transactions, isLoading: txLoading } = useCarrierTransactions(id);
   const createTx = useCreateCarrierTransaction();
+  const updateCarrier = useUpdateCarrier();
 
   const [showPayment, setShowPayment] = useState(false);
   const [payAmount, setPayAmount] = useState("");
@@ -45,8 +50,27 @@ export default function CarrierDetailPage() {
   const [payMethod, setPayMethod] = useState("nakit");
   const [payNote, setPayNote] = useState("");
 
+  // Edit state
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editPhone2, setEditPhone2] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+
   const carrier = carriers?.find((c) => c.id === id);
   const balance = balances?.find((b) => b.id === id);
+
+  // Populate edit form when carrier loads
+  useEffect(() => {
+    if (carrier) {
+      setEditName(carrier.name);
+      setEditPhone(carrier.phone || "");
+      setEditPhone2(carrier.phone2 || "");
+      setEditCity(carrier.city || "");
+      setEditNotes(carrier.notes || "");
+    }
+  }, [carrier]);
 
   if (carriersLoading) {
     return (
@@ -62,6 +86,36 @@ export default function CarrierDetailPage() {
         Nakliyeci bulunamadı.
       </div>
     );
+  }
+
+  function startEdit() {
+    setEditName(carrier!.name);
+    setEditPhone(carrier!.phone || "");
+    setEditPhone2(carrier!.phone2 || "");
+    setEditCity(carrier!.city || "");
+    setEditNotes(carrier!.notes || "");
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!editName.trim()) {
+      toast.error("Nakliyeci adı boş olamaz");
+      return;
+    }
+    try {
+      await updateCarrier.mutateAsync({
+        id,
+        name: editName.trim(),
+        phone: editPhone.trim() || null,
+        phone2: editPhone2.trim() || null,
+        city: editCity.trim() || null,
+        notes: editNotes.trim() || null,
+      });
+      toast.success("Nakliyeci güncellendi");
+      setEditing(false);
+    } catch {
+      toast.error("Güncelleme başarısız");
+    }
   }
 
   async function handlePayment() {
@@ -91,17 +145,125 @@ export default function CarrierDetailPage() {
   return (
     <div className="space-y-4 p-4">
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/settings/carriers">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-xl font-bold">{carrier.name}</h1>
-          <p className="text-sm text-muted-foreground">Nakliyeci Cari Hesap</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/settings/carriers">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold">{carrier.name}</h1>
+            <p className="text-sm text-muted-foreground">Nakliyeci Cari Hesap</p>
+          </div>
         </div>
+        {!editing && (
+          <Button variant="outline" size="sm" onClick={startEdit}>
+            <Pencil className="mr-1 h-3.5 w-3.5" />
+            Düzenle
+          </Button>
+        )}
       </div>
+
+      {/* Edit Form */}
+      {editing && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Bilgileri Düzenle</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0">
+            <div>
+              <Label>Ad *</Label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Nakliyeci adı"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Telefon</Label>
+                <Input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="05XX XXX XXXX"
+                />
+              </div>
+              <div>
+                <Label>Telefon 2</Label>
+                <Input
+                  type="tel"
+                  value={editPhone2}
+                  onChange={(e) => setEditPhone2(e.target.value)}
+                  placeholder="05XX XXX XXXX"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Şehir</Label>
+              <Input
+                value={editCity}
+                onChange={(e) => setEditCity(e.target.value)}
+                placeholder="Şehir"
+              />
+            </div>
+            <div>
+              <Label>Notlar</Label>
+              <Input
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Ek notlar..."
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                onClick={saveEdit}
+                disabled={updateCarrier.isPending}
+              >
+                {updateCarrier.isPending ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="mr-1 h-4 w-4" />
+                )}
+                Kaydet
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setEditing(false)}
+              >
+                <X className="mr-1 h-4 w-4" />
+                İptal
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Carrier Info (when not editing) */}
+      {!editing && (carrier.phone || carrier.city || carrier.notes) && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            {carrier.phone && (
+              <div className="flex items-center gap-2 text-sm">
+                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>{carrier.phone}</span>
+                {carrier.phone2 && (
+                  <span className="text-muted-foreground">/ {carrier.phone2}</span>
+                )}
+              </div>
+            )}
+            {carrier.city && (
+              <p className="text-sm text-muted-foreground">{carrier.city}</p>
+            )}
+            {carrier.notes && (
+              <p className="text-sm text-muted-foreground italic">{carrier.notes}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Balance Summary */}
       <Card>

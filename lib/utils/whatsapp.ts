@@ -42,7 +42,8 @@ export type TemplateKey =
   | "sevkiyat_bildirimi"
   | "odeme_hatirlatma"
   | "cek_vade_hatirlatma"
-  | "ekstre_paylasim";
+  | "ekstre_paylasim"
+  | "gunluk_ozet";
 
 // ─── Default Templates ───
 
@@ -55,6 +56,8 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, string> = {
     "Sayın {kişi}, {tutar} tutarındaki {tür} (No: {seri_no}) {vade_tarihi} tarihinde vadesi dolmaktadır. Dedeağalar Grup",
   ekstre_paylasim:
     "Sayın {kişi}, cari hesap ekstreniz hazırlanmıştır. Dedeağalar Grup",
+  gunluk_ozet:
+    "Sayın {kişi}, {tarih} tarihli hesap özetiniz:\n\n{sevkiyatlar}\nGüncel Bakiye: {bakiye}\n\nDedeağalar Grup",
 };
 
 /**
@@ -89,6 +92,7 @@ export function getAllTemplates(): Record<TemplateKey, string> {
     odeme_hatirlatma: getTemplate("odeme_hatirlatma"),
     cek_vade_hatirlatma: getTemplate("cek_vade_hatirlatma"),
     ekstre_paylasim: getTemplate("ekstre_paylasim"),
+    gunluk_ozet: getTemplate("gunluk_ozet"),
   };
 }
 
@@ -140,6 +144,34 @@ export function buildEkstreMessage(params: {
     .replace("{kişi}", params.contactName);
 }
 
+export function buildGunlukOzetMessage(params: {
+  contactName: string;
+  date: string;
+  deliveries: { netWeight: number; feedType?: string; plate?: string }[];
+  balance: number;
+}): string {
+  const sevkiyatLines = params.deliveries.length > 0
+    ? params.deliveries.map((d, i) =>
+        `${i + 1}. ${d.feedType || "Yem"} - ${d.netWeight.toLocaleString("tr-TR")} kg${d.plate ? ` (${d.plate})` : ""}`
+      ).join("\n")
+    : "Bugün sevkiyat yok.";
+
+  return getTemplate("gunluk_ozet")
+    .replace("{kişi}", params.contactName)
+    .replace("{tarih}", formatDateShort(params.date))
+    .replace("{sevkiyatlar}", sevkiyatLines)
+    .replace("{bakiye}", formatCurrency(Math.abs(params.balance)));
+}
+
+/**
+ * Generate a wa.me link for a given phone and message (for copy/share).
+ */
+export function getWhatsAppLink(phone: string | null | undefined, message: string): string {
+  const whatsappPhone = formatPhoneForWhatsApp(phone);
+  if (!whatsappPhone) return "";
+  return `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
+}
+
 // ─── Template metadata for settings page ───
 
 export const TEMPLATE_META: {
@@ -171,5 +203,11 @@ export const TEMPLATE_META: {
     label: "Ekstre Paylaşım",
     description: "Cari hesap ekstresi ile birlikte gönderilir",
     variables: ["{kişi}"],
+  },
+  {
+    key: "gunluk_ozet",
+    label: "Günlük Hesap Özeti",
+    description: "Günlük sevkiyat ve bakiye özeti mesajı",
+    variables: ["{kişi}", "{tarih}", "{sevkiyatlar}", "{bakiye}"],
   },
 ];

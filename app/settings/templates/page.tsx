@@ -22,6 +22,7 @@ export default function TemplatesPage() {
     odeme_hatirlatma: "",
     cek_vade_hatirlatma: "",
     ekstre_paylasim: "",
+    gunluk_ozet: "",
   });
 
   useEffect(() => {

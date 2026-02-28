@@ -63,6 +63,7 @@ export function useAccountTransactions(accountId: string) {
         .from("account_transactions")
         .select("*")
         .eq("account_id", accountId)
+        .is("deleted_at", null)
         .order("transaction_date", { ascending: false });
       if (error) throw error;
       return data as AccountTransaction[];

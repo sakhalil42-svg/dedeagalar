@@ -237,24 +237,46 @@ export default function ContactsPage() {
         <div className="space-y-2">
           {filtered.map((contact) => {
             const balance = balanceMap.get(contact.id) || 0;
+            const creditLimit = contact.credit_limit;
+            const hasLimit = creditLimit != null && creditLimit > 0;
+            const limitRatio = hasLimit ? (balance / creditLimit) * 100 : 0;
+            const limitColor = limitRatio >= 100 ? "text-red-600" : limitRatio >= 80 ? "text-yellow-600" : "text-green-600";
+            const limitBarColor = limitRatio >= 100 ? "bg-red-500" : limitRatio >= 80 ? "bg-yellow-500" : "bg-green-500";
             return (
               <Link key={contact.id} href={`/contacts/${contact.id}`}>
                 <Card className="transition-colors hover:bg-muted/50">
                   <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <p className="font-medium">{contact.name}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium truncate">{contact.name}</p>
+                          {hasLimit && balance > 0 && limitRatio >= 100 && (
+                            <Badge variant="secondary" className="bg-red-100 text-red-800 text-[9px] px-1 py-0 shrink-0">
+                              LİMİT AŞIMI
+                            </Badge>
+                          )}
+                        </div>
                         {contact.phone && (
                           <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Phone className="h-3 w-3" />
-                            {contact.phone}
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{contact.phone}</span>
                           </p>
                         )}
                         {contact.city && (
                           <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
-                            {contact.city}
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{contact.city}</span>
                           </p>
+                        )}
+                        {hasLimit && balance > 0 && (
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <div className="h-1 flex-1 rounded-full bg-muted max-w-[120px]">
+                              <div className={`h-full rounded-full transition-all ${limitBarColor}`} style={{ width: `${Math.min(limitRatio, 100)}%` }} />
+                            </div>
+                            <span className={`text-[10px] font-medium ${limitColor}`}>
+                              %{Math.min(limitRatio, 999).toFixed(0)}
+                            </span>
+                          </div>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5">

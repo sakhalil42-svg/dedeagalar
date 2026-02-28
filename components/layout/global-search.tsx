@@ -162,7 +162,7 @@ export function GlobalSearch() {
         }
       }
     } catch (err) {
-      console.error("[GlobalSearch] error:", err);
+      // search error — silently handled
     }
 
     setResults(allResults);

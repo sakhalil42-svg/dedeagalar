@@ -80,7 +80,6 @@ export function PlateCombobox({
       .select("*")
       .then(({ data, error }) => {
         if (error) {
-          console.error("[PlateCombobox] vehicles fetch error:", error);
           return;
         }
         if (!data || data.length === 0) {
@@ -231,7 +230,7 @@ export function PlateCombobox({
       setOpen(false);
       setShowNewForm(false);
     } catch (err) {
-      console.error("[PlateCombobox] save error:", err);
+      // save error — silently handled
     } finally {
       setSaving(false);
       setCreatingCarrier(false);

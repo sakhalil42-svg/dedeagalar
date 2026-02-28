@@ -37,7 +37,11 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Loader2, Pencil, Trash2, Phone, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { formatPhoneForWhatsApp, openPhoneDialer } from "@/lib/utils/whatsapp";
+import { formatPhoneForWhatsApp, openPhoneDialer, openWhatsAppMessage, buildGunlukOzetMessage, buildOdemeHatirlatmaMessage, getWhatsAppLink } from "@/lib/utils/whatsapp";
+import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
+import { formatCurrency } from "@/lib/utils/format";
+import { useDeliveriesByContact } from "@/lib/hooks/use-deliveries-by-contact";
+import { Copy, Send } from "lucide-react";
 
 const TYPE_LABELS: Record<ContactType, string> = {
   supplier: "Üretici",
@@ -60,6 +64,8 @@ export default function ContactDetailPage() {
   const { data: contact, isLoading } = useContact(id);
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => isVisible ? formatCurrency(amount) : "••••••";
 
   const {
     register,
@@ -81,6 +87,7 @@ export default function ContactDetailPage() {
       address: contact.address || "",
       city: contact.city || "",
       notes: contact.notes || "",
+      credit_limit: contact.credit_limit != null ? String(contact.credit_limit) : "",
     });
     setEditing(true);
   }
@@ -95,6 +102,7 @@ export default function ContactDetailPage() {
         address: values.address || null,
         city: values.city || null,
         notes: values.notes || null,
+        credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
       };
       await updateContact.mutateAsync(payload);
       toast.success("Kişi güncellendi");
@@ -131,6 +139,13 @@ export default function ContactDetailPage() {
   }
 
   const account = contact.accounts?.[0];
+  const { data: deliveries } = useDeliveriesByContact(id);
+
+  // Today's deliveries for this contact
+  const today = new Date().toISOString().split("T")[0];
+  const todayDeliveries = (deliveries || []).filter(
+    (d) => d.delivery_date === today
+  );
 
   return (
     <div className="space-y-4 p-4">
@@ -246,6 +261,18 @@ export default function ContactDetailPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="credit_limit">Kredi Limiti (₺)</Label>
+                <Input
+                  id="credit_limit"
+                  type="number"
+                  step="0.01"
+                  {...register("credit_limit")}
+                  placeholder="Boş = sınırsız, 0 = peşin"
+                />
+                <p className="text-[10px] text-muted-foreground">Boş bırakılırsa limit uygulanmaz</p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="address">Adres</Label>
                 <Textarea id="address" {...register("address")} rows={2} />
               </div>
@@ -353,7 +380,7 @@ export default function ContactDetailPage() {
                 <>
                   <div className="flex flex-col gap-1">
                     <span className="text-sm text-muted-foreground">Adres</span>
-                    <span className="text-sm">{contact.address}</span>
+                    <span className="text-sm break-words">{contact.address}</span>
                   </div>
                   <Separator />
                 </>
@@ -373,19 +400,52 @@ export default function ContactDetailPage() {
                 <CardTitle className="text-base">Cari Hesap</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 p-4 pt-0">
+                {contact.credit_limit != null && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Kredi Limiti</span>
+                      <span className="text-sm font-medium">{masked(contact.credit_limit)}</span>
+                    </div>
+                    {account.balance > 0 && contact.credit_limit > 0 && (
+                      <div className="w-full">
+                        {(() => {
+                          const ratio = (account.balance / contact.credit_limit) * 100;
+                          const barColor = ratio >= 100 ? "bg-red-500" : ratio >= 80 ? "bg-yellow-500" : "bg-green-500";
+                          return (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className={ratio >= 100 ? "text-red-600 font-bold" : ratio >= 80 ? "text-yellow-600 font-medium" : "text-green-600"}>
+                                  %{Math.min(ratio, 999).toFixed(0)} kullanım
+                                </span>
+                                {ratio >= 100 && (
+                                  <Badge variant="secondary" className="bg-red-100 text-red-800 text-[9px] px-1 py-0">
+                                    LİMİT AŞIMI
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="h-1.5 w-full rounded-full bg-muted">
+                                <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(ratio, 100)}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    <Separator />
+                  </>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Bakiye</span>
                   <span
                     className={`text-sm font-bold ${
-                      account.balance >= 0
-                        ? "text-green-600"
-                        : "text-red-600"
+                      account.balance > 0
+                        ? "text-red-600"
+                        : account.balance < 0
+                          ? "text-green-600"
+                          : ""
                     }`}
                   >
-                    {new Intl.NumberFormat("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    }).format(account.balance)}
+                    {masked(Math.abs(account.balance))}
                   </span>
                 </div>
                 <Separator />
@@ -394,10 +454,7 @@ export default function ContactDetailPage() {
                     Toplam Borç
                   </span>
                   <span className="text-sm font-medium">
-                    {new Intl.NumberFormat("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    }).format(account.total_debit)}
+                    {masked(account.total_debit)}
                   </span>
                 </div>
                 <Separator />
@@ -406,11 +463,98 @@ export default function ContactDetailPage() {
                     Toplam Alacak
                   </span>
                   <span className="text-sm font-medium">
-                    {new Intl.NumberFormat("tr-TR", {
-                      style: "currency",
-                      currency: "TRY",
-                    }).format(account.total_credit)}
+                    {masked(account.total_credit)}
                   </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* WhatsApp Mesaj Gönder */}
+          {contact.phone && account && (
+            <Card>
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <MessageCircle className="h-4 w-4 text-green-600" />
+                  WhatsApp Mesaj Gönder
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3 space-y-2">
+                {/* Günlük Özet */}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 text-green-700 border-green-200 hover:bg-green-50"
+                    onClick={() => {
+                      const msg = buildGunlukOzetMessage({
+                        contactName: contact.name,
+                        date: today,
+                        deliveries: todayDeliveries.map((d) => ({
+                          netWeight: d.net_weight,
+                          plate: d.vehicle_plate || undefined,
+                        })),
+                        balance: account.balance,
+                      });
+                      openWhatsAppMessage(contact.phone, msg);
+                    }}
+                  >
+                    <Send className="mr-1 h-3 w-3" />
+                    Günlük Özet
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-green-700 border-green-200 hover:bg-green-50"
+                    onClick={() => {
+                      const msg = buildGunlukOzetMessage({
+                        contactName: contact.name,
+                        date: today,
+                        deliveries: todayDeliveries.map((d) => ({
+                          netWeight: d.net_weight,
+                          plate: d.vehicle_plate || undefined,
+                        })),
+                        balance: account.balance,
+                      });
+                      navigator.clipboard.writeText(msg);
+                      toast.success("Mesaj kopyalandı");
+                    }}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+                {/* Ödeme Hatırlatma */}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 text-green-700 border-green-200 hover:bg-green-50"
+                    onClick={() => {
+                      const msg = buildOdemeHatirlatmaMessage({
+                        contactName: contact.name,
+                        balance: account.balance,
+                      });
+                      openWhatsAppMessage(contact.phone, msg);
+                    }}
+                  >
+                    <Send className="mr-1 h-3 w-3" />
+                    Ödeme Hatırlatma
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-green-700 border-green-200 hover:bg-green-50"
+                    onClick={() => {
+                      const msg = buildOdemeHatirlatmaMessage({
+                        contactName: contact.name,
+                        balance: account.balance,
+                      });
+                      navigator.clipboard.writeText(msg);
+                      toast.success("Mesaj kopyalandı");
+                    }}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
