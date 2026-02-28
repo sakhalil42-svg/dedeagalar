@@ -85,6 +85,7 @@ export interface Delivery {
   net_weight: number;
   vehicle_plate: string | null;
   driver_name: string | null;
+  driver_phone: string | null;
   carrier_name: string | null;
   carrier_phone: string | null;
   freight_cost: number | null;
@@ -104,6 +105,7 @@ export interface DeliveryInsert {
   net_weight: number;
   vehicle_plate?: string | null;
   driver_name?: string | null;
+  driver_phone?: string | null;
   carrier_name?: string | null;
   carrier_phone?: string | null;
   freight_cost?: number | null;

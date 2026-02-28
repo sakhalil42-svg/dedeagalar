@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAllDeliveries } from "@/lib/hooks/use-all-deliveries";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
+import { useVehicles } from "@/lib/hooks/use-vehicles";
 import { useCarrierBalances } from "@/lib/hooks/use-carrier-transactions";
 import { useRecentCarrierTransactions } from "@/lib/hooks/use-recent-carrier-transactions";
 import {
@@ -187,8 +188,18 @@ function DeliveriesTab() {
   const { data: deliveries, isLoading } = useAllDeliveries(selectedSeasonId);
   const { data: contacts } = useContacts("customer");
   const { data: feedTypes } = useFeedTypes(true);
+  const { data: vehicles } = useVehicles();
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
+
+  // Build plate→driver_phone lookup from vehicles (fallback for old deliveries without driver_phone)
+  const vehiclePhoneMap = useMemo(() => {
+    const map = new Map<string, string>();
+    vehicles?.forEach((v) => {
+      if (v.plate && v.driver_phone) map.set(v.plate, v.driver_phone);
+    });
+    return map;
+  }, [vehicles]);
 
   // Filters
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
@@ -205,6 +216,7 @@ function DeliveriesTab() {
   const [editFreightCost, setEditFreightCost] = useState("");
   const [editFreightPayer, setEditFreightPayer] = useState<FreightPayer>("customer");
   const [editDriverName, setEditDriverName] = useState("");
+  const [editDriverPhone, setEditDriverPhone] = useState("");
   const [editTicketNo, setEditTicketNo] = useState("");
   const [editNotes, setEditNotes] = useState("");
 
@@ -328,6 +340,7 @@ function DeliveriesTab() {
     setEditFreightCost(d.freight_cost ? formatNumberInput(String(d.freight_cost)) : "");
     setEditFreightPayer((d.freight_payer as FreightPayer) || "customer");
     setEditDriverName(d.driver_name || "");
+    setEditDriverPhone(d.driver_phone || "");
     setEditTicketNo(d.ticket_no || "");
     setEditNotes(d.notes || "");
   };
@@ -349,6 +362,7 @@ function DeliveriesTab() {
         freight_cost: parseNumberInput(editFreightCost) || null,
         freight_payer: editFreightPayer,
         driver_name: editDriverName || null,
+        driver_phone: editDriverPhone || null,
         ticket_no: editTicketNo || null,
         notes: editNotes || null,
       });
@@ -539,6 +553,7 @@ function DeliveriesTab() {
               key={d.id}
               delivery={d}
               masked={masked}
+              vehiclePhoneMap={vehiclePhoneMap}
               onEdit={() => openEdit(d)}
               onDelete={() => setDeleteTarget(d)}
             />
@@ -625,14 +640,24 @@ function DeliveriesTab() {
                 />
               </div>
               <div>
-                <Label className="text-xs">Fiş No</Label>
+                <Label className="text-xs">Şoför Telefon</Label>
                 <Input
-                  value={editTicketNo}
-                  onChange={(e) => setEditTicketNo(e.target.value)}
+                  value={editDriverPhone}
+                  onChange={(e) => setEditDriverPhone(e.target.value)}
                   className="mt-1 h-9"
-                  placeholder="Fiş numarası"
+                  placeholder="05xx xxx xx xx"
+                  inputMode="tel"
                 />
               </div>
+            </div>
+            <div>
+              <Label className="text-xs">Fiş No</Label>
+              <Input
+                value={editTicketNo}
+                onChange={(e) => setEditTicketNo(e.target.value)}
+                className="mt-1 h-9"
+                placeholder="Fiş numarası"
+              />
             </div>
             <div>
               <Label className="text-xs">Notlar</Label>
@@ -700,11 +725,13 @@ function DeliveriesTab() {
 function DeliveryCard({
   delivery: d,
   masked,
+  vehiclePhoneMap,
   onEdit,
   onDelete,
 }: {
   delivery: TodayDelivery;
   masked: (amount: number) => string;
+  vehiclePhoneMap: Map<string, string>;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -712,6 +739,9 @@ function DeliveryCard({
   const phone = d.sale?.contact?.phone;
   const hasPhone = !!formatPhoneForWhatsApp(phone);
   const [waSent, setWaSent] = useState(() => isWhatsAppSent(d.id));
+
+  // driver_phone: delivery first, then vehicle fallback
+  const driverPhone = d.driver_phone || (d.vehicle_plate ? vehiclePhoneMap.get(d.vehicle_plate) : undefined) || null;
 
   const handleWhatsApp = () => {
     if (!phone) return;
@@ -722,6 +752,7 @@ function DeliveryCard({
       feedType: d.sale?.feed_type?.name,
       plate: d.vehicle_plate || undefined,
       driverName: d.driver_name,
+      driverPhone: driverPhone,
       unitPrice: d.sale?.unit_price,
       freightCost: d.freight_cost,
     });

@@ -151,7 +151,9 @@ function buildWhatsAppUrl(
   const total = delivery.net_weight * customerPrice;
   let driverLine = "";
   if (delivery.driver_name) {
-    driverLine = `Şoför: ${delivery.driver_name}\n`;
+    driverLine = delivery.driver_phone
+      ? `Şoför: ${delivery.driver_name} - ${delivery.driver_phone}\n`
+      : `Şoför: ${delivery.driver_name}\n`;
   }
   const freightLine = delivery.freight_cost
     ? `Nakliye: ${delivery.freight_cost.toLocaleString("tr-TR")} ₺\n`
@@ -1243,6 +1245,7 @@ function QuickEntryForm({
           net_weight: kg,
           vehicle_plate: plate,
           driver_name: driverName.trim() || null,
+          driver_phone: driverPhone.trim() || null,
           carrier_name: resolvedCarrierName,
           carrier_phone: carrierPhone.trim() || null,
           freight_cost: freightCost ? parseFloat(freightCost) : null,
@@ -1722,6 +1725,7 @@ function TicketRow({
   const [editFreight, setEditFreight] = useState("");
   const [editFreightPayer, setEditFreightPayer] = useState<FreightPayer>("me");
   const [editDriverName, setEditDriverName] = useState("");
+  const [editDriverPhone, setEditDriverPhone] = useState("");
   const [editCarrier, setEditCarrier] = useState("");
   const [editCarrierPhone, setEditCarrierPhone] = useState("");
   const [waSent, setWaSent] = useState(() => isWhatsAppSent(delivery.id));
@@ -1762,6 +1766,7 @@ function TicketRow({
     setEditFreight(delivery.freight_cost ? String(delivery.freight_cost) : "");
     setEditFreightPayer((delivery.freight_payer as FreightPayer) || "me");
     setEditDriverName(delivery.driver_name || "");
+    setEditDriverPhone(delivery.driver_phone || "");
     setEditCarrier(delivery.carrier_name || "");
     setEditCarrierPhone(delivery.carrier_phone || "");
     setEditing(true);
@@ -1781,6 +1786,7 @@ function TicketRow({
         freight_cost: editFreight ? parseFloat(editFreight) : null,
         freight_payer: editFreight ? editFreightPayer : null,
         driver_name: editDriverName || null,
+        driver_phone: editDriverPhone || null,
         carrier_name: editCarrier || null,
         carrier_phone: editCarrierPhone || null,
       });
