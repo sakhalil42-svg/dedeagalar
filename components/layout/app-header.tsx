@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Sprout } from "lucide-react";
+import Link from "next/link";
+import { Sprout, Settings } from "lucide-react";
 import { GlobalSearch } from "./global-search";
 import { SeasonSelector } from "./season-selector";
 import { BalanceToggle } from "./balance-toggle";
@@ -49,6 +50,12 @@ export function AppHeader() {
           <SeasonSelector />
           {isHome && <BalanceToggle />}
           <GlobalSearch />
+          <Link
+            href="/settings"
+            className="p-2 rounded-xl hover:bg-muted transition-colors"
+          >
+            <Settings className="h-5 w-5 text-muted-foreground" />
+          </Link>
         </div>
       </div>
     </header>

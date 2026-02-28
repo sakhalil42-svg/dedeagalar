@@ -631,24 +631,103 @@ export function useDeleteDeliveryWithTransactions() {
   return useMutation({
     mutationFn: async ({
       deliveryId,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      saleId: _saleId,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      purchaseId: _purchaseId,
+      saleId,
+      purchaseId,
     }: {
       deliveryId: string;
       saleId: string | null;
       purchaseId: string | null;
     }) => {
       const now = new Date().toISOString();
+      const today = new Date().toISOString().split("T")[0];
 
-      // Soft delete carrier transaction for this delivery
+      // 1. Reverse customer account transaction (sale debit → credit reversal)
+      if (saleId) {
+        // Find customer account via sale
+        const { data: sale } = await supabase
+          .from("sales")
+          .select("contact_id, sale_no")
+          .eq("id", saleId)
+          .maybeSingle();
+
+        if (sale) {
+          const { data: customerAccount } = await supabase
+            .from("accounts")
+            .select("id")
+            .eq("contact_id", sale.contact_id)
+            .maybeSingle();
+
+          if (customerAccount) {
+            // Find total debited for this delivery via sale reference
+            const { data: custTxs } = await supabase
+              .from("account_transactions")
+              .select("amount")
+              .eq("reference_type", "sale")
+              .eq("reference_id", saleId)
+              .eq("type", "debit")
+              .is("deleted_at", null);
+
+            // Calculate per-delivery share: total debited ÷ number of active deliveries
+            const { data: activeDeliveries } = await supabase
+              .from("deliveries")
+              .select("id, net_weight")
+              .eq("sale_id", saleId)
+              .is("deleted_at", null);
+
+            const thisDelivery = activeDeliveries?.find(d => d.id === deliveryId);
+            const totalWeight = (activeDeliveries || []).reduce((s, d) => s + d.net_weight, 0);
+            const totalDebited = (custTxs || []).reduce((s, t) => s + Number(t.amount), 0);
+
+            if (thisDelivery && totalWeight > 0 && totalDebited > 0) {
+              const deliveryShare = (thisDelivery.net_weight / totalWeight) * totalDebited;
+              if (deliveryShare > 0) {
+                await supabase.from("account_transactions").insert({
+                  account_id: customerAccount.id,
+                  type: "credit",
+                  amount: Math.round(deliveryShare * 100) / 100,
+                  description: `Sevkiyat silindi - ${sale.sale_no || saleId}`,
+                  reference_type: "sale",
+                  reference_id: saleId,
+                  transaction_date: today,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Reverse supplier account transaction (purchase credit → debit reversal)
+      {
+        // Supplier transactions use reference_type="purchase", reference_id=deliveryId
+        const { data: supplierTxs } = await supabase
+          .from("account_transactions")
+          .select("account_id, amount")
+          .eq("reference_type", "purchase")
+          .eq("reference_id", deliveryId)
+          .eq("type", "credit")
+          .is("deleted_at", null);
+
+        const totalCredited = (supplierTxs || []).reduce((s, t) => s + Number(t.amount), 0);
+        if (totalCredited > 0 && supplierTxs && supplierTxs.length > 0) {
+          await supabase.from("account_transactions").insert({
+            account_id: supplierTxs[0].account_id,
+            type: "debit",
+            amount: totalCredited,
+            description: `Sevkiyat silindi`,
+            reference_type: "purchase",
+            reference_id: deliveryId,
+            transaction_date: today,
+          });
+        }
+      }
+
+      // 3. Hard delete carrier transaction (not soft delete — removes from balance)
       await supabase
         .from("carrier_transactions")
-        .update({ deleted_at: now })
+        .delete()
         .eq("reference_id", deliveryId);
 
-      // Soft delete the delivery
+      // 4. Soft delete the delivery itself
       const { error } = await supabase
         .from("deliveries")
         .update({ deleted_at: now })

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useAccountSummaries } from "@/lib/hooks/use-account-transactions";
 import type { ContactType } from "@/lib/types/database.types";
-import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Phone, MapPin, MessageCircle, SlidersHorizontal, Users, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { SkeletonRow } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -303,13 +302,13 @@ export default function ContactsPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold truncate">{contact.name}</p>
-                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 shrink-0 ${TYPE_COLORS[contact.type]}`}>
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold shrink-0 ${TYPE_COLORS[contact.type]}`}>
                           {TYPE_LABELS[contact.type]}
-                        </Badge>
+                        </span>
                         {hasLimit && balance > 0 && limitRatio >= 100 && (
-                          <Badge variant="secondary" className="bg-red-100 text-red-700 text-[9px] px-1 py-0 shrink-0">
+                          <span className="rounded-full bg-red-100 text-red-700 text-[9px] font-semibold px-1.5 py-0.5 shrink-0">
                             LİMİT AŞIMI
-                          </Badge>
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-3 mt-1">
