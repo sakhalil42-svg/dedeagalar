@@ -26,11 +26,17 @@ import {
   parseNumberInput,
   handleNumberChange,
 } from "@/lib/utils/format";
+import {
+  buildSevkiyatMessage,
+  formatPhoneForWhatsApp,
+} from "@/lib/utils/whatsapp";
 import type { TodayDelivery } from "@/lib/hooks/use-deliveries";
+import type { FreightPayer } from "@/lib/types/database.types";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -54,6 +60,7 @@ import {
   Scale,
   DollarSign,
   ChevronRight,
+  MessageCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -63,7 +70,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+
+// ─── WhatsApp sent tracking ───
+function isWhatsAppSent(deliveryId: string): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(`whatsapp_sent_${deliveryId}`) === "true";
+}
+
+function markWhatsAppSent(deliveryId: string) {
+  localStorage.setItem(`whatsapp_sent_${deliveryId}`, "true");
+}
+
+// ─── Freight payer options ───
+const FREIGHT_PAYER_OPTIONS: { value: FreightPayer; label: string }[] = [
+  { value: "customer", label: "Müşteri" },
+  { value: "me", label: "Ben" },
+  { value: "supplier", label: "Üretici" },
+];
+
+const FREIGHT_PAYER_LABELS: Record<string, string> = {
+  customer: "Müşteri",
+  me: "Biz",
+  supplier: "Üretici",
+};
 
 // ─── Types ───
 type TabType = "deliveries" | "carrier";
@@ -167,10 +198,15 @@ function DeliveriesTab() {
   const [sortBy, setSortBy] = useState<SortOption>("date_desc");
   const [showFilters, setShowFilters] = useState(false);
 
-  // Inline edit state
-  const [editingId, setEditingId] = useState<string | null>(null);
+  // Edit dialog state
+  const [editTarget, setEditTarget] = useState<TodayDelivery | null>(null);
   const [editWeight, setEditWeight] = useState("");
   const [editPlate, setEditPlate] = useState("");
+  const [editFreightCost, setEditFreightCost] = useState("");
+  const [editFreightPayer, setEditFreightPayer] = useState<FreightPayer>("customer");
+  const [editDriverName, setEditDriverName] = useState("");
+  const [editTicketNo, setEditTicketNo] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<TodayDelivery | null>(null);
@@ -230,18 +266,19 @@ function DeliveriesTab() {
   const totals = useMemo(() => {
     let totalTonnage = 0;
     let totalCustomerAmount = 0;
-    let totalSupplierAmount = 0;
+    let totalFreight = 0;
 
     filtered.forEach((d) => {
       totalTonnage += d.net_weight;
       totalCustomerAmount += d.net_weight * (d.sale?.unit_price || 0);
-      // supplierAmount would need purchase join — we skip if not available
+      totalFreight += d.freight_cost || 0;
     });
 
     return {
       count: filtered.length,
       tonnage: totalTonnage,
       customerAmount: totalCustomerAmount,
+      totalFreight,
     };
   }, [filtered]);
 
@@ -283,20 +320,22 @@ function DeliveriesTab() {
     setSortBy("date_desc");
   };
 
-  // Inline edit handlers
-  const startEdit = (d: TodayDelivery) => {
-    setEditingId(d.id);
+  // Edit dialog handlers
+  const openEdit = (d: TodayDelivery) => {
+    setEditTarget(d);
     setEditWeight(formatNumberInput(String(d.net_weight)));
     setEditPlate(d.vehicle_plate || "");
+    setEditFreightCost(d.freight_cost ? formatNumberInput(String(d.freight_cost)) : "");
+    setEditFreightPayer((d.freight_payer as FreightPayer) || "customer");
+    setEditDriverName(d.driver_name || "");
+    setEditTicketNo(d.ticket_no || "");
+    setEditNotes(d.notes || "");
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditWeight("");
-    setEditPlate("");
-  };
+  const closeEdit = () => setEditTarget(null);
 
-  const saveEdit = async (d: TodayDelivery) => {
+  const saveEdit = async () => {
+    if (!editTarget) return;
     const newWeight = parseNumberInput(editWeight);
     if (newWeight <= 0) {
       toast.error("Ağırlık 0'dan büyük olmalı");
@@ -304,12 +343,17 @@ function DeliveriesTab() {
     }
     try {
       await updateMutation.mutateAsync({
-        id: d.id,
+        id: editTarget.id,
         net_weight: newWeight,
         vehicle_plate: editPlate || null,
+        freight_cost: parseNumberInput(editFreightCost) || null,
+        freight_payer: editFreightPayer,
+        driver_name: editDriverName || null,
+        ticket_no: editTicketNo || null,
+        notes: editNotes || null,
       });
       toast.success("Sevkiyat güncellendi");
-      cancelEdit();
+      closeEdit();
     } catch {
       toast.error("Güncelleme başarısız");
     }
@@ -349,11 +393,19 @@ function DeliveriesTab() {
               <p className="text-lg font-bold">{formatWeight(totals.tonnage)}</p>
             </CardContent>
           </Card>
-          <Card className="col-span-2">
+          <Card>
             <CardContent className="p-3 text-center">
               <p className="text-xs text-muted-foreground">Müşteri Tutarı</p>
               <p className="text-lg font-bold text-green-600">
                 {masked(totals.customerAmount)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Toplam Nakliye</p>
+              <p className="text-lg font-bold text-orange-600">
+                {masked(totals.totalFreight)}
               </p>
             </CardContent>
           </Card>
@@ -482,128 +534,15 @@ function DeliveriesTab() {
         </div>
       ) : filtered.length > 0 ? (
         <div className="space-y-2">
-          {filtered.map((d) => {
-            const isEditing = editingId === d.id;
-            const customerAmount = d.net_weight * (d.sale?.unit_price || 0);
-
-            return (
-              <Card key={d.id}>
-                <CardContent className="p-3">
-                  {isEditing ? (
-                    /* Inline edit mode */
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">
-                          {d.sale?.contact?.name || "—"}
-                        </p>
-                        <div className="flex gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => saveEdit(d)}
-                            disabled={updateMutation.isPending}
-                          >
-                            {updateMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Check className="h-4 w-4 text-green-600" />
-                            )}
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={cancelEdit}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            Net Ağırlık (kg)
-                          </p>
-                          <Input
-                            value={editWeight}
-                            onChange={(e) =>
-                              setEditWeight(
-                                formatNumberInput(
-                                  handleNumberChange(e.target.value, false)
-                                )
-                              )
-                            }
-                            className="h-8 text-sm"
-                            inputMode="numeric"
-                          />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            Plaka
-                          </p>
-                          <PlateCombobox
-                            value={editPlate}
-                            onChange={setEditPlate}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Display mode */
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">
-                            {formatDateShort(d.delivery_date)}
-                          </span>
-                          {d.sale?.feed_type?.name && (
-                            <Badge variant="secondary" className="text-xs">
-                              {d.sale.feed_type.name}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="font-medium text-sm">
-                          {d.sale?.contact?.name || "—"}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="font-semibold text-foreground">
-                            {formatWeight(d.net_weight)}
-                          </span>
-                          {d.vehicle_plate && (
-                            <span className="font-mono bg-muted px-1.5 py-0.5 rounded">
-                              {d.vehicle_plate}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 ml-2 shrink-0">
-                        <p className="font-semibold text-sm mr-1">
-                          {masked(customerAmount)}
-                        </p>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => startEdit(d)}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 text-destructive"
-                          onClick={() => setDeleteTarget(d)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {filtered.map((d) => (
+            <DeliveryCard
+              key={d.id}
+              delivery={d}
+              masked={masked}
+              onEdit={() => openEdit(d)}
+              onDelete={() => setDeleteTarget(d)}
+            />
+          ))}
         </div>
       ) : hasActiveFilters ? (
         <EmptyState
@@ -618,6 +557,103 @@ function DeliveriesTab() {
           description="Satış sayfasından hızlı sevkiyat ekleyebilirsiniz."
         />
       )}
+
+      {/* Edit dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && closeEdit()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Sevkiyat Düzenle</DialogTitle>
+            <DialogDescription>
+              {editTarget?.sale?.contact?.name} — {editTarget && formatDateShort(editTarget.delivery_date)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Net Ağırlık (kg)</Label>
+                <Input
+                  value={editWeight}
+                  onChange={(e) =>
+                    setEditWeight(formatNumberInput(handleNumberChange(e.target.value, false)))
+                  }
+                  className="mt-1 h-9"
+                  inputMode="numeric"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Plaka</Label>
+                <div className="mt-1">
+                  <PlateCombobox value={editPlate} onChange={setEditPlate} />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Nakliye Tutarı (₺)</Label>
+                <Input
+                  value={editFreightCost}
+                  onChange={(e) =>
+                    setEditFreightCost(formatNumberInput(handleNumberChange(e.target.value, false)))
+                  }
+                  className="mt-1 h-9"
+                  inputMode="numeric"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Nakliye Ödeyen</Label>
+                <Select value={editFreightPayer} onValueChange={(v) => setEditFreightPayer(v as FreightPayer)}>
+                  <SelectTrigger className="mt-1 h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FREIGHT_PAYER_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Şoför Adı</Label>
+                <Input
+                  value={editDriverName}
+                  onChange={(e) => setEditDriverName(e.target.value)}
+                  className="mt-1 h-9"
+                  placeholder="Şoför adı"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Fiş No</Label>
+                <Input
+                  value={editTicketNo}
+                  onChange={(e) => setEditTicketNo(e.target.value)}
+                  className="mt-1 h-9"
+                  placeholder="Fiş numarası"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Notlar</Label>
+              <Textarea
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="mt-1"
+                rows={2}
+                placeholder="Not ekleyin..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEdit}>İptal</Button>
+            <Button onClick={saveEdit} disabled={updateMutation.isPending}>
+              {updateMutation.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
@@ -654,6 +690,144 @@ function DeliveriesTab() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Delivery Card (detailed display with WhatsApp)
+// ═══════════════════════════════════════════════════════════════
+
+function DeliveryCard({
+  delivery: d,
+  masked,
+  onEdit,
+  onDelete,
+}: {
+  delivery: TodayDelivery;
+  masked: (amount: number) => string;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const customerAmount = d.net_weight * (d.sale?.unit_price || 0);
+  const phone = d.sale?.contact?.phone;
+  const hasPhone = !!formatPhoneForWhatsApp(phone);
+  const [waSent, setWaSent] = useState(() => isWhatsAppSent(d.id));
+
+  const handleWhatsApp = () => {
+    if (!phone) return;
+    const msg = buildSevkiyatMessage({
+      customerName: d.sale?.contact?.name || "",
+      date: d.delivery_date,
+      netWeight: d.net_weight,
+      feedType: d.sale?.feed_type?.name,
+      plate: d.vehicle_plate || undefined,
+      driverName: d.driver_name,
+      unitPrice: d.sale?.unit_price,
+      freightCost: d.freight_cost,
+    });
+    const waPhone = formatPhoneForWhatsApp(phone);
+    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(url, "_blank");
+    markWhatsAppSent(d.id);
+    setWaSent(true);
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-3 space-y-1.5">
+        {/* Row 1: Date + Feed type badge */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {formatDateShort(d.delivery_date)}
+            </span>
+            {d.sale?.feed_type?.name && (
+              <Badge variant="secondary" className="text-xs">
+                {d.sale.feed_type.name}
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: Customer name + Amount */}
+        <div className="flex items-center justify-between">
+          <p className="font-medium text-sm truncate">
+            {d.sale?.contact?.name || "—"}
+          </p>
+          <p className="font-semibold text-sm shrink-0 ml-2">
+            {masked(customerAmount)}
+          </p>
+        </div>
+
+        {/* Row 3: Weight · Plate · Ticket no */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+          <span className="font-semibold text-foreground">
+            {formatWeight(d.net_weight)}
+          </span>
+          {d.vehicle_plate && (
+            <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">
+              {d.vehicle_plate}
+            </span>
+          )}
+          {d.ticket_no && (
+            <span>Fiş: {d.ticket_no}</span>
+          )}
+        </div>
+
+        {/* Row 4: Driver · Freight cost · Freight payer */}
+        {(d.driver_name || d.freight_cost) && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+            {d.driver_name && (
+              <span>Şoför: {d.driver_name}</span>
+            )}
+            {d.freight_cost != null && d.freight_cost > 0 && (
+              <span>Nakliye: {formatCurrency(d.freight_cost)}</span>
+            )}
+            {d.freight_payer && d.freight_payer !== "customer" && (
+              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                {FREIGHT_PAYER_LABELS[d.freight_payer] || d.freight_payer}
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Actions: WhatsApp + Edit + Delete */}
+        <div className="flex items-center justify-end gap-1 pt-0.5">
+          {hasPhone && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={handleWhatsApp}
+            >
+              <MessageCircle
+                className={`h-4 w-4 ${
+                  waSent
+                    ? "text-green-300"
+                    : "text-green-600"
+                }`}
+              />
+            </Button>
+          )}
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={onEdit}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 text-destructive"
+            onClick={onDelete}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
