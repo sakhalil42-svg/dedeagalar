@@ -43,14 +43,14 @@ import { formatCurrency, capitalizeWords } from "@/lib/utils/format";
 import { useDeliveriesByContact } from "@/lib/hooks/use-deliveries-by-contact";
 import { Copy, Send } from "lucide-react";
 import { TYPE_LABELS, TYPE_COLORS } from "@/lib/constants/contact";
-import { parseLocationInput, getGoogleMapsLink } from "@/lib/utils/location";
+import { type LatLng, parseLocationInput, getGoogleMapsLink } from "@/lib/utils/location";
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [locationParsed, setLocationParsed] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationParsed, setLocationParsed] = useState<LatLng | null>(null);
   const [locationError, setLocationError] = useState(false);
 
   const { data: contact, isLoading, isPending } = useContact(id);
@@ -72,8 +72,9 @@ export default function ContactDetailPage() {
 
   function startEditing() {
     if (!contact) return;
-    const existingLocation = contact.latitude && contact.longitude
-      ? getGoogleMapsLink(contact.latitude, contact.longitude)
+    const hasCoords = contact.latitude != null && contact.longitude != null;
+    const existingLocation = hasCoords
+      ? getGoogleMapsLink(contact.latitude!, contact.longitude!)
       : "";
     reset({
       type: contact.type,
@@ -86,8 +87,8 @@ export default function ContactDetailPage() {
       location_url: existingLocation,
       credit_limit: contact.credit_limit != null ? String(contact.credit_limit) : "",
     });
-    if (contact.latitude && contact.longitude) {
-      setLocationParsed({ lat: contact.latitude, lng: contact.longitude });
+    if (hasCoords) {
+      setLocationParsed({ lat: contact.latitude!, lng: contact.longitude! });
     } else {
       setLocationParsed(null);
     }
@@ -433,7 +434,7 @@ export default function ContactDetailPage() {
                   <Separator />
                 </>
               )}
-              {contact.latitude && contact.longitude && (
+              {contact.latitude != null && contact.longitude != null && (
                 <>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground flex items-center gap-1">

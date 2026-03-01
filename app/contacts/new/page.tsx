@@ -21,13 +21,13 @@ import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { capitalizeWords } from "@/lib/utils/format";
-import { parseLocationInput } from "@/lib/utils/location";
+import { type LatLng, parseLocationInput } from "@/lib/utils/location";
 import { useState } from "react";
 
 export default function NewContactPage() {
   const router = useRouter();
   const createContact = useCreateContact();
-  const [locationParsed, setLocationParsed] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationParsed, setLocationParsed] = useState<LatLng | null>(null);
   const [locationError, setLocationError] = useState(false);
 
   const {

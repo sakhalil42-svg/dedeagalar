@@ -202,7 +202,7 @@ export function buildNakliyeciBildirimMessage(params: {
     ? `Adres: ${params.address}\n`
     : "";
   const locationLine =
-    params.latitude && params.longitude
+    params.latitude != null && params.longitude != null
       ? `Konum: https://maps.google.com/?q=${params.latitude},${params.longitude}\n`
       : "";
   const baleeLine =

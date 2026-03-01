@@ -790,7 +790,7 @@ function DeliveryCard({
 
   const handleCarrierWhatsApp = () => {
     if (!carrierPhone) return;
-    const contact = d.sale?.contact;
+    const contact = d.sale?.contact || d.purchase?.contact;
     const msg = buildNakliyeciBildirimMessage({
       customerName: contact?.name || "—",
       customerPhone: contact?.phone,
