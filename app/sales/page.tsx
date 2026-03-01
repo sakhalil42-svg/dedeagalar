@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useSales, useCreateSale } from "@/lib/hooks/use-sales";
+import { usePurchases, useCreatePurchase } from "@/lib/hooks/use-purchases";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
 import { useDeliveriesBySale, useUpdateDelivery, useTodayDeliveries } from "@/lib/hooks/use-deliveries";
@@ -273,8 +274,10 @@ function ActiveOrderView({
   const { data: suppliers } = useContacts("supplier");
   const { data: feedTypes } = useFeedTypes(true);
   const { data: allSales } = useSales();
+  const { data: allPurchases } = usePurchases();
 
   const createSale = useCreateSale();
+  const createPurchase = useCreatePurchase();
 
   const { isVisible } = useBalanceVisibility();
   const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
@@ -324,6 +327,45 @@ function ActiveOrderView({
       return null;
     }
   }, [activeSaleId, order.customerId, order.feedTypeId, effectiveCustomerPrice, createSale, setOrder]);
+
+  // ─── PURCHASE MATCHING (mirror of sale matching) ───
+  const matchingPurchase = useMemo(() => {
+    if (!allPurchases || !order.supplierId || !order.feedTypeId) return null;
+    return (
+      allPurchases.find(
+        (p) =>
+          p.contact_id === order.supplierId &&
+          p.feed_type_id === order.feedTypeId &&
+          p.status !== "cancelled" &&
+          p.status !== "delivered"
+      ) || null
+    );
+  }, [allPurchases, order.supplierId, order.feedTypeId]);
+
+  const activePurchaseId = order.purchaseId || matchingPurchase?.id || null;
+
+  const ensurePurchaseExists = useCallback(async (): Promise<string | null> => {
+    if (activePurchaseId) return activePurchaseId;
+    if (!order.supplierId || !order.feedTypeId || !order.supplierPrice) return null;
+
+    try {
+      const result = await createPurchase.mutateAsync({
+        contact_id: order.supplierId,
+        feed_type_id: order.feedTypeId,
+        quantity: 1,
+        unit: "kg",
+        unit_price: parseFloat(order.supplierPrice),
+        purchase_date: new Date().toISOString().split("T")[0],
+        status: "delivered",
+        pricing_model: order.pricingModel,
+      });
+      setOrder((prev) => ({ ...prev, purchaseId: result.id }));
+      return result.id;
+    } catch {
+      toast.error("Alım kaydı oluşturulamadı");
+      return null;
+    }
+  }, [activePurchaseId, order.supplierId, order.feedTypeId, order.supplierPrice, order.pricingModel, createPurchase, setOrder]);
 
   const customerContact = customers?.find((c) => c.id === order.customerId);
   const supplierName = suppliers?.find((c) => c.id === order.supplierId)?.name;
@@ -678,13 +720,14 @@ function ActiveOrderView({
           <>
             <QuickEntryForm
               saleId={activeSaleId}
-              purchaseId={order.purchaseId}
+              purchaseId={activePurchaseId}
               customerContactId={order.customerId}
               supplierContactId={order.supplierId}
               customerPrice={parseFloat(effectiveCustomerPrice)}
               supplierPrice={parseFloat(order.supplierPrice)}
               pricingModel={order.pricingModel}
               ensureSaleExists={ensureSaleExists}
+              ensurePurchaseExists={ensurePurchaseExists}
               seasonId={selectedSeasonId}
             />
 
@@ -1028,6 +1071,7 @@ function QuickEntryForm({
   supplierPrice,
   pricingModel,
   ensureSaleExists,
+  ensurePurchaseExists,
   seasonId,
 }: {
   saleId: string | null;
@@ -1038,6 +1082,7 @@ function QuickEntryForm({
   supplierPrice: number;
   pricingModel: PricingModel;
   ensureSaleExists: () => Promise<string | null>;
+  ensurePurchaseExists: () => Promise<string | null>;
   seasonId?: string | null;
 }) {
   const today = new Date().toISOString().split("T")[0];
@@ -1172,6 +1217,9 @@ function QuickEntryForm({
       const resolvedSaleId = await ensureSaleExists();
       if (!resolvedSaleId) return;
 
+      // Purchase opsiyonel — fail ederse sevkiyat yine kaydedilsin
+      const resolvedPurchaseId = await ensurePurchaseExists();
+
       const supabase = (await import("@/lib/supabase/client")).createClient();
       const plate = vehiclePlate.trim().toUpperCase() || null;
       const resolvedCarrierName = carrierName.trim() || null;
@@ -1241,7 +1289,7 @@ function QuickEntryForm({
       await createDeliveryTx.mutateAsync({
         delivery: {
           sale_id: resolvedSaleId,
-          purchase_id: purchaseId,
+          purchase_id: resolvedPurchaseId,
           delivery_date: date,
           ticket_no: ticketNo || null,
           net_weight: kg,
