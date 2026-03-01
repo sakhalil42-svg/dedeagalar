@@ -77,8 +77,8 @@ export default function AccountDetailPage() {
   const { data: deliveryMap } = useDeliveriesForTransactions(sevkiyatTxs, isCustomer);
 
   const getDelivery = (tx: AccountTransaction): Delivery | undefined => {
-    if (!deliveryMap || !tx.reference_id) return undefined;
-    return deliveryMap.get(tx.reference_id);
+    if (!deliveryMap) return undefined;
+    return deliveryMap.get(tx.id);
   };
 
   const anaKalem = useMemo(() => {

@@ -636,6 +636,127 @@ export function useUpdateDeliveryWithCarrierSync() {
         }
       }
 
+      // 4. Handle account transaction recalculation
+      const amountFieldChanged =
+        oldDel.net_weight !== newDel.net_weight ||
+        (oldDel.freight_cost || 0) !== (newDel.freight_cost || 0) ||
+        (oldDel.freight_payer || "me") !== (newDel.freight_payer || "me");
+
+      if (amountFieldChanged) {
+        const now = new Date().toISOString();
+        const affectedAccountIds: string[] = [];
+
+        // 4a. Supplier transaction (reference_type='purchase', reference_id=deliveryId)
+        if (newDel.purchase_id) {
+          const { data: purchase } = await supabase
+            .from("purchases")
+            .select("contact_id, unit_price, pricing_model")
+            .eq("id", newDel.purchase_id)
+            .maybeSingle();
+
+          if (purchase) {
+            const { data: supplierAccount } = await supabase
+              .from("accounts")
+              .select("id")
+              .eq("contact_id", purchase.contact_id)
+              .maybeSingle();
+
+            if (supplierAccount) {
+              // Soft-delete old supplier tx
+              await supabase
+                .from("account_transactions")
+                .update({ deleted_at: now })
+                .eq("reference_type", "purchase")
+                .eq("reference_id", id)
+                .is("deleted_at", null);
+
+              // Recalculate supplier amount
+              const supplierDebit =
+                purchase.pricing_model === "nakliye_dahil" && newPayer !== "supplier"
+                  ? newDel.net_weight * purchase.unit_price - newFreight
+                  : newDel.net_weight * purchase.unit_price;
+
+              // Insert new supplier tx
+              await supabase.from("account_transactions").insert({
+                account_id: supplierAccount.id,
+                type: "credit",
+                amount: supplierDebit,
+                description: `Alım - ${newDel.net_weight.toLocaleString("tr-TR")} kg × ${purchase.unit_price} ₺/kg${purchase.pricing_model === "nakliye_dahil" && newPayer !== "supplier" ? ` (nakliye -${newFreight} ₺)` : ""}`,
+                reference_type: "purchase",
+                reference_id: id,
+                transaction_date: newDel.delivery_date,
+                season_id: newDel.season_id || null,
+              });
+
+              affectedAccountIds.push(supplierAccount.id);
+            }
+          }
+        }
+
+        // 4b. Customer transaction (reference_type='sale', reference_id=saleId)
+        if (newDel.sale_id) {
+          const { data: sale } = await supabase
+            .from("sales")
+            .select("contact_id, unit_price")
+            .eq("id", newDel.sale_id)
+            .maybeSingle();
+
+          if (sale) {
+            const { data: customerAccount } = await supabase
+              .from("accounts")
+              .select("id")
+              .eq("contact_id", sale.contact_id)
+              .maybeSingle();
+
+            if (customerAccount) {
+              // Soft-delete ALL customer debit txs for this sale, then recreate for all active deliveries
+              await supabase
+                .from("account_transactions")
+                .update({ deleted_at: now })
+                .eq("reference_type", "sale")
+                .eq("reference_id", newDel.sale_id)
+                .eq("type", "debit")
+                .is("deleted_at", null);
+
+              // Fetch all active deliveries for this sale
+              const { data: activeDeliveries } = await supabase
+                .from("deliveries")
+                .select("id, net_weight, freight_cost, freight_payer, delivery_date, season_id")
+                .eq("sale_id", newDel.sale_id)
+                .is("deleted_at", null);
+
+              // Recreate one customer debit tx per delivery
+              for (const del of activeDeliveries || []) {
+                const fp: FreightPayer = del.freight_payer || "me";
+                const fc = del.freight_cost || 0;
+                const custAmount =
+                  fp === "customer"
+                    ? del.net_weight * sale.unit_price - fc
+                    : del.net_weight * sale.unit_price;
+
+                await supabase.from("account_transactions").insert({
+                  account_id: customerAccount.id,
+                  type: "debit",
+                  amount: custAmount,
+                  description: `Satış - ${del.net_weight.toLocaleString("tr-TR")} kg × ${sale.unit_price} ₺/kg${fp === "customer" ? ` (nakliye -${fc} ₺)` : ""}`,
+                  reference_type: "sale",
+                  reference_id: newDel.sale_id,
+                  transaction_date: del.delivery_date,
+                  season_id: del.season_id || null,
+                });
+              }
+
+              affectedAccountIds.push(customerAccount.id);
+            }
+          }
+        }
+
+        // Recalculate affected account balances
+        for (const accId of [...new Set(affectedAccountIds)]) {
+          await recalcAccountBalance(supabase, accId);
+        }
+      }
+
       return newDel;
     },
     onSuccess: () => {
