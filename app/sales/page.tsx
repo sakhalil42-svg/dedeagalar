@@ -34,6 +34,7 @@ import { BalanceToggle } from "@/components/layout/balance-toggle";
 import { formatCurrency, formatDateShort, formatNumberInput, handleNumberChange } from "@/lib/utils/format";
 import type { Sale, Delivery, FreightPayer, Contact, PricingModel } from "@/lib/types/database.types";
 import { PlateCombobox } from "@/components/forms/plate-combobox";
+import { ParcelSelect } from "@/components/forms/parcel-select";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
 import { useSeasonFilter } from "@/lib/contexts/season-context";
 
@@ -1135,6 +1136,8 @@ function QuickEntryForm({
   const [carrierPhone, setCarrierPhone] = useState("");
   const [freightCost, setFreightCost] = useState("");
   const [freightPayer, setFreightPayer] = useState<FreightPayer>("me");
+  const [parcelId, setParcelId] = useState<string | null>(null);
+  const [baleCount, setBaleCount] = useState("");
   const [saving, setSaving] = useState(false);
   const [lastTicketNo, setLastTicketNo] = useState("");
   const [creditWarning, setCreditWarning] = useState<{
@@ -1178,7 +1181,8 @@ function QuickEntryForm({
         setTicketNo("");
       }
     }
-    // Keep: date, carrierName, carrierPhone, freightCost, freightPayer, driverName
+    setBaleCount("");
+    // Keep: date, carrierName, carrierPhone, freightCost, freightPayer, driverName, parcelId
   };
 
   // 3.6 — Net weight handler: prevent leading zeros, only digits
@@ -1329,6 +1333,8 @@ function QuickEntryForm({
         delivery: {
           sale_id: resolvedSaleId,
           purchase_id: resolvedPurchaseId,
+          parcel_id: parcelId || null,
+          bale_count: baleCount ? parseInt(baleCount, 10) : null,
           delivery_date: date,
           ticket_no: ticketNo || null,
           net_weight: kg,
@@ -1482,6 +1488,32 @@ function QuickEntryForm({
             onChange={(e) => setCarrierName(e.target.value)}
             className="rounded-xl bg-muted border-0 h-12 text-sm"
           />
+        </div>
+
+        {/* Row 6: Parsel + Balya (opsiyonel) */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Parsel</label>
+            <ParcelSelect
+              value={parcelId}
+              onChange={setParcelId}
+              seasonId={seasonId}
+              className="rounded-xl bg-muted border-0 h-12 text-sm"
+            />
+          </div>
+          {parcelId && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Balya Sayisi</label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={baleCount}
+                onChange={(e) => setBaleCount(e.target.value.replace(/[^0-9]/g, ""))}
+                className="rounded-xl bg-muted border-0 h-12 text-sm"
+              />
+            </div>
+          )}
         </div>
 
         {/* Row 5: Freight Payer toggle */}

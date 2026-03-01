@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  Wheat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTodayDeliveryCount, useOverdueCheckCount } from "@/lib/hooks/use-badge-counts";
@@ -22,6 +23,7 @@ export function BottomTabBar() {
     { href: "/sales", label: "Satışlar", icon: TrendingUp, badge: 0, badgeColor: "" },
     { href: "/purchases", label: "Sevkiyatlar", icon: Truck, badge: todayCount || 0, badgeColor: "bg-green-500" },
     { href: "/contacts", label: "Kişiler", icon: Users, badge: 0, badgeColor: "" },
+    { href: "/parcels", label: "Tarlalar", icon: Wheat, badge: 0, badgeColor: "" },
     { href: "/finance", label: "Finans", icon: Wallet, badge: overdueCount || 0, badgeColor: "bg-red-500" },
   ] as const;
 

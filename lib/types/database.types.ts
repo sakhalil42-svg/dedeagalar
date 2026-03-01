@@ -79,6 +79,8 @@ export interface Delivery {
   id: string;
   sale_id: string | null;
   purchase_id: string | null;
+  parcel_id: string | null;
+  bale_count: number | null;
   delivery_date: string;
   ticket_no: string | null;
   gross_weight: number | null;
@@ -100,6 +102,8 @@ export interface Delivery {
 export interface DeliveryInsert {
   sale_id?: string | null;
   purchase_id?: string | null;
+  parcel_id?: string | null;
+  bale_count?: number | null;
   delivery_date: string;
   ticket_no?: string | null;
   gross_weight?: number | null;
@@ -474,6 +478,125 @@ export interface SeasonInsert {
 }
 
 export interface SeasonUpdate extends Partial<SeasonInsert> {}
+
+// --- Parcels (Tarla/Parsel) ---
+
+export type ParcelStatus = "active" | "baling" | "completed" | "cancelled";
+export type ParcelPaymentType = "per_dekar" | "per_bale";
+export type BalingProvider = "own" | "contractor";
+export type CropType = "bugday_sapi" | "arpa_sapi";
+
+export interface Parcel {
+  id: string;
+  contact_id: string;
+  parcel_name: string;
+  city: string | null;
+  district: string | null;
+  village: string | null;
+  region: string | null;
+  crop_type: CropType;
+  feed_type_id: string | null;
+  area_dekar: number | null;
+
+  payment_type: ParcelPaymentType;
+  price_per_dekar: number | null;
+  price_per_bale: number | null;
+  owner_total_cost: number;
+
+  baling_provider: BalingProvider;
+  contractor_id: string | null;
+  contractor_cost_per_bale: number | null;
+  baling_date: string | null;
+
+  total_bales: number;
+  shipped_bales: number;
+  remaining_bales: number;
+
+  storage_location: string | null;
+  warehouse_id: string | null;
+
+  status: ParcelStatus;
+  season_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+
+  // joined
+  contact?: Contact;
+  feed_type?: FeedType;
+  contractor?: Contact;
+  warehouse?: Warehouse;
+}
+
+export interface ParcelInsert {
+  contact_id: string;
+  parcel_name: string;
+  city?: string | null;
+  district?: string | null;
+  village?: string | null;
+  region?: string | null;
+  crop_type?: CropType;
+  feed_type_id?: string | null;
+  area_dekar?: number | null;
+
+  payment_type?: ParcelPaymentType;
+  price_per_dekar?: number | null;
+  price_per_bale?: number | null;
+
+  baling_provider?: BalingProvider;
+  contractor_id?: string | null;
+  contractor_cost_per_bale?: number | null;
+  baling_date?: string | null;
+
+  total_bales?: number;
+
+  storage_location?: string | null;
+  warehouse_id?: string | null;
+
+  status?: ParcelStatus;
+  season_id?: string | null;
+  notes?: string | null;
+}
+
+export interface ParcelUpdate extends Partial<ParcelInsert> {}
+
+export interface ParcelProfitability {
+  parcel_id: string;
+  parcel_name: string;
+  region: string | null;
+  city: string | null;
+  crop_type: CropType;
+  contact_id: string;
+  owner_name: string;
+  total_bales: number;
+  shipped_bales: number;
+  remaining_bales: number;
+  season_id: string | null;
+  owner_total_cost: number;
+  status: ParcelStatus;
+  contractor_cost: number;
+  total_revenue: number;
+  total_weight_shipped: number;
+  delivery_count: number;
+  total_freight: number;
+  avg_bale_weight: number;
+  profit: number;
+}
+
+export interface RegionProfitability {
+  region: string;
+  season_id: string | null;
+  parcel_count: number;
+  total_bales: number;
+  total_revenue: number;
+  total_owner_cost: number;
+  total_contractor_cost: number;
+  total_freight: number;
+  total_profit: number;
+  profit_margin_pct: number;
+  avg_bale_weight: number;
+}
 
 // --- Dashboard ---
 

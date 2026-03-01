@@ -737,6 +737,38 @@ export function useSeasonSummary(seasonId?: string | null) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// Parcel KPI — Remaining bales
+// ═══════════════════════════════════════════════════════════
+
+export function useParcelKpis() {
+  const supabase = createClient();
+
+  return useQuery({
+    queryKey: ["dashboard", "parcel_kpis"],
+    retry: 1,
+    queryFn: async () => {
+      const { data: parcels } = await supabase
+        .from("parcels")
+        .select("total_bales, shipped_bales, status")
+        .is("deleted_at", null)
+        .in("status", ["active", "baling"]);
+
+      const activeParcels = parcels || [];
+      const totalBales = activeParcels.reduce((s, p) => s + (p.total_bales || 0), 0);
+      const shippedBales = activeParcels.reduce((s, p) => s + (p.shipped_bales || 0), 0);
+      const remainingBales = totalBales - shippedBales;
+
+      return {
+        activeParcels: activeParcels.length,
+        totalBales,
+        shippedBales,
+        remainingBales,
+      };
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
 // Legacy hooks (kept for backward compatibility)
 // ═══════════════════════════════════════════════════════════
 

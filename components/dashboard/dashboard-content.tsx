@@ -10,6 +10,7 @@ import {
   useRecentActivities,
   useSeasonSummary,
   useDueItems,
+  useParcelKpis,
 } from "@/lib/hooks/use-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
   ArrowRight,
   MessageCircle,
   Calendar,
+  Wheat,
 } from "lucide-react";
 import { SkeletonChart, Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDateShort, formatWeight } from "@/lib/utils/format";
@@ -152,6 +154,7 @@ export function DashboardContent() {
   const { data: season, isLoading: seasonLoading, isError: seasonError } = useSeasonSummary(selectedSeasonId);
   const { data: dueItems, isLoading: dueLoading, isError: dueError } = useDueItems();
   const { data: carrierBalances, isLoading: carrierLoading, isError: carrierError } = useCarrierBalances();
+  const { data: parcelKpis, isLoading: parcelLoading } = useParcelKpis();
 
   const hasAnyError = kpisError || chartError || dailyError || weeklyError || feedError || activitiesError || seasonError || dueError || carrierError;
   const { isVisible } = useBalanceVisibility();
@@ -250,6 +253,18 @@ export function DashboardContent() {
           loading={kpisLoading}
           color="text-orange-600"
         />
+        {parcelKpis && parcelKpis.remainingBales > 0 && (
+          <KpiCard
+            title="Kalan Balya"
+            value={parcelKpis ? parcelKpis.remainingBales.toLocaleString("tr-TR") : "--"}
+            subtitle={parcelKpis ? `${parcelKpis.activeParcels} parsel` : undefined}
+            icon={Wheat}
+            iconColor="amber"
+            loading={parcelLoading}
+            color="text-amber-700"
+            href="/parcels"
+          />
+        )}
       </div>
 
       {/* ═══ Dikkat Gerekenler ═══ */}
