@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -61,7 +61,7 @@ export default function ContactDetailPage() {
   const [editing, setEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const { data: contact, isLoading } = useContact(id);
+  const { data: contact, isLoading, isPending } = useContact(id);
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
   const { isVisible } = useBalanceVisibility();
@@ -123,7 +123,16 @@ export default function ContactDetailPage() {
     }
   }
 
-  if (isLoading) {
+  // Veri henüz yüklenmediyse veya ilk fetch devam ediyorsa spinner göster
+  // isPending: TanStack Query henüz hiç data almadı (ilk fetch veya cache boş)
+  // isLoading: isPending && isFetching (aktif olarak yükleniyor)
+  useEffect(() => {
+    if (!isPending && !contact) {
+      router.replace("/contacts");
+    }
+  }, [isPending, contact, router]);
+
+  if (isPending) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -132,7 +141,6 @@ export default function ContactDetailPage() {
   }
 
   if (!contact) {
-    router.replace("/contacts");
     return null;
   }
 
