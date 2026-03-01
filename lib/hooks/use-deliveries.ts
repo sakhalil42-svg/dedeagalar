@@ -95,7 +95,7 @@ export interface TodayDelivery extends Delivery {
     contact_id: string;
     unit_price: number;
     feed_type_id: string;
-    contact?: { id: string; name: string; phone: string | null };
+    contact?: { id: string; name: string; phone: string | null; address: string | null; latitude: number | null; longitude: number | null };
     feed_type?: { id: string; name: string };
   } | null;
   purchase?: {
@@ -114,7 +114,7 @@ export function useTodayDeliveries() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("deliveries")
-        .select("*, sale:sales(contact_id, unit_price, feed_type_id, contact:contacts(id, name, phone), feed_type:feed_types(id, name)), purchase:purchases(contact_id, unit_price, contact:contacts(id, name, phone))")
+        .select("*, sale:sales(contact_id, unit_price, feed_type_id, contact:contacts(id, name, phone, address, latitude, longitude), feed_type:feed_types(id, name)), purchase:purchases(contact_id, unit_price, contact:contacts(id, name, phone))")
         .eq("delivery_date", today)
         .is("deleted_at", null)
         .order("created_at", { ascending: false });

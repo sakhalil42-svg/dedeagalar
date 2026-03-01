@@ -9,6 +9,8 @@ export interface Contact {
   address: string | null;
   city: string | null;
   notes: string | null;
+  latitude: number | null;
+  longitude: number | null;
   credit_limit: number | null;
   created_at: string;
 }
@@ -21,6 +23,8 @@ export interface ContactInsert {
   address?: string | null;
   city?: string | null;
   notes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   credit_limit?: number | null;
 }
 

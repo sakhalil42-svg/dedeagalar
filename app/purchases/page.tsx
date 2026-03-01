@@ -27,7 +27,9 @@ import {
 } from "@/lib/utils/format";
 import {
   buildSevkiyatMessage,
+  buildNakliyeciBildirimMessage,
   formatPhoneForWhatsApp,
+  openWhatsAppMessage,
 } from "@/lib/utils/whatsapp";
 import type { TodayDelivery } from "@/lib/hooks/use-deliveries";
 import type { FreightPayer } from "@/lib/types/database.types";
@@ -783,6 +785,25 @@ function DeliveryCard({
     setWaSent(true);
   };
 
+  const carrierPhone = d.carrier_phone || driverPhone;
+  const hasCarrierPhone = !!formatPhoneForWhatsApp(carrierPhone);
+
+  const handleCarrierWhatsApp = () => {
+    if (!carrierPhone) return;
+    const contact = d.sale?.contact;
+    const msg = buildNakliyeciBildirimMessage({
+      customerName: contact?.name || "—",
+      customerPhone: contact?.phone,
+      address: contact?.address,
+      latitude: contact?.latitude,
+      longitude: contact?.longitude,
+      feedType: d.sale?.feed_type?.name,
+      netWeight: d.net_weight,
+      baleCount: d.bale_count,
+    });
+    openWhatsAppMessage(carrierPhone, msg);
+  };
+
   const purchaseAmount = d.net_weight * (d.purchase?.unit_price || 0);
 
   return (
@@ -905,6 +926,15 @@ function DeliveryCard({
           </span>
         )}
         {!d.freight_cost && <span className="mr-auto" />}
+        {hasCarrierPhone && (
+          <button
+            onClick={handleCarrierWhatsApp}
+            className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+            title="Nakliyeciye gönder"
+          >
+            <Truck className="h-4.5 w-4.5" />
+          </button>
+        )}
         {hasPhone && (
           <button
             onClick={handleWhatsApp}

@@ -34,7 +34,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Loader2, Pencil, Trash2, Phone, MessageCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Trash2, Phone, MessageCircle, MapPin, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { formatPhoneForWhatsApp, openPhoneDialer, openWhatsAppMessage, buildGunlukOzetMessage, buildOdemeHatirlatmaMessage } from "@/lib/utils/whatsapp";
@@ -43,12 +43,15 @@ import { formatCurrency, capitalizeWords } from "@/lib/utils/format";
 import { useDeliveriesByContact } from "@/lib/hooks/use-deliveries-by-contact";
 import { Copy, Send } from "lucide-react";
 import { TYPE_LABELS, TYPE_COLORS } from "@/lib/constants/contact";
+import { parseLocationInput, getGoogleMapsLink } from "@/lib/utils/location";
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [locationParsed, setLocationParsed] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState(false);
 
   const { data: contact, isLoading, isPending } = useContact(id);
   const updateContact = useUpdateContact();
@@ -69,6 +72,9 @@ export default function ContactDetailPage() {
 
   function startEditing() {
     if (!contact) return;
+    const existingLocation = contact.latitude && contact.longitude
+      ? getGoogleMapsLink(contact.latitude, contact.longitude)
+      : "";
     reset({
       type: contact.type,
       name: contact.name,
@@ -77,21 +83,32 @@ export default function ContactDetailPage() {
       address: contact.address || "",
       city: contact.city || "",
       notes: contact.notes || "",
+      location_url: existingLocation,
       credit_limit: contact.credit_limit != null ? String(contact.credit_limit) : "",
     });
+    if (contact.latitude && contact.longitude) {
+      setLocationParsed({ lat: contact.latitude, lng: contact.longitude });
+    } else {
+      setLocationParsed(null);
+    }
+    setLocationError(false);
     setEditing(true);
   }
 
   async function onSubmit(values: ContactFormValues) {
     try {
+      const coords = values.location_url ? parseLocationInput(values.location_url) : null;
+      const { location_url: _locationUrl, ...rest } = values;
       const payload = {
         id,
-        ...values,
+        ...rest,
         phone: values.phone || null,
         email: values.email || null,
         address: values.address || null,
         city: values.city || null,
         notes: values.notes || null,
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
         credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
       };
       await updateContact.mutateAsync(payload);
@@ -272,6 +289,43 @@ export default function ContactDetailPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="location_url">Konum (Google Maps linki yapıştır)</Label>
+                <div className="relative">
+                  <Input
+                    id="location_url"
+                    {...register("location_url", {
+                      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                        const val = e.target.value;
+                        if (!val) {
+                          setLocationParsed(null);
+                          setLocationError(false);
+                          return;
+                        }
+                        const parsed = parseLocationInput(val);
+                        if (parsed) {
+                          setLocationParsed(parsed);
+                          setLocationError(false);
+                        } else {
+                          setLocationParsed(null);
+                          setLocationError(true);
+                        }
+                      },
+                    })}
+                    placeholder="https://maps.google.com/?q=37.1234,38.5678"
+                  />
+                  {locationParsed && (
+                    <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                  )}
+                </div>
+                {locationParsed && (
+                  <p className="text-xs text-green-600">Konum kaydedilecek: {locationParsed.lat.toFixed(5)}, {locationParsed.lng.toFixed(5)}</p>
+                )}
+                {locationError && (
+                  <p className="text-xs text-destructive">Geçerli bir Google Maps linki veya koordinat yapıştırın</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="notes">Notlar</Label>
                 <Textarea id="notes" {...register("notes")} rows={2} />
               </div>
@@ -375,6 +429,25 @@ export default function ContactDetailPage() {
                   <div className="flex flex-col gap-1">
                     <span className="text-sm text-muted-foreground">Adres</span>
                     <span className="text-sm break-words">{contact.address}</span>
+                  </div>
+                  <Separator />
+                </>
+              )}
+              {contact.latitude && contact.longitude && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" />
+                      Konum
+                    </span>
+                    <a
+                      href={getGoogleMapsLink(contact.latitude, contact.longitude)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
+                      Haritada Aç
+                    </a>
                   </div>
                   <Separator />
                 </>

@@ -40,6 +40,7 @@ export function openPhoneDialer(phone: string | null | undefined) {
 
 export type TemplateKey =
   | "sevkiyat_bildirimi"
+  | "nakliyeci_bildirim"
   | "odeme_hatirlatma"
   | "cek_vade_hatirlatma"
   | "ekstre_paylasim"
@@ -50,6 +51,8 @@ export type TemplateKey =
 const DEFAULT_TEMPLATES: Record<TemplateKey, string> = {
   sevkiyat_bildirimi:
     "Sayın {müşteri},\n{tarih} tarihinde {tonaj} kg {yem_türü} yüklenmiştir.\nPlaka: {plaka}\n{şoför}Birim Fiyat: {birim_fiyat} ₺/kg\nTutar: {tutar} ₺\n{nakliye}Dedeağalar Grup",
+  nakliyeci_bildirim:
+    "🚛 Yeni Yükleme Bilgisi\n\nMüşteri: {müşteri}\n{telefon}{adres}{konum}\nÜrün: {yem_türü}\nTonaj: {tonaj} kg\n{balya}\nDedeağalar Grup",
   odeme_hatirlatma:
     "Sayın {kişi}, güncel bakiyeniz {bakiye} tutarındadır. Ödeme planlamanız için bilgilerinize sunarız. Dedeağalar Grup",
   cek_vade_hatirlatma:
@@ -89,6 +92,7 @@ export function resetTemplate(key: TemplateKey) {
 export function getAllTemplates(): Record<TemplateKey, string> {
   return {
     sevkiyat_bildirimi: getTemplate("sevkiyat_bildirimi"),
+    nakliyeci_bildirim: getTemplate("nakliyeci_bildirim"),
     odeme_hatirlatma: getTemplate("odeme_hatirlatma"),
     cek_vade_hatirlatma: getTemplate("cek_vade_hatirlatma"),
     ekstre_paylasim: getTemplate("ekstre_paylasim"),
@@ -181,6 +185,42 @@ export function buildEkstreMessage(params: {
   });
 }
 
+export function buildNakliyeciBildirimMessage(params: {
+  customerName: string;
+  customerPhone?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  feedType?: string;
+  netWeight: number;
+  baleCount?: number | null;
+}): string {
+  const phoneLine = params.customerPhone
+    ? `Telefon: ${params.customerPhone}\n`
+    : "";
+  const addressLine = params.address
+    ? `Adres: ${params.address}\n`
+    : "";
+  const locationLine =
+    params.latitude && params.longitude
+      ? `Konum: https://maps.google.com/?q=${params.latitude},${params.longitude}\n`
+      : "";
+  const baleeLine =
+    params.baleCount && params.baleCount > 0
+      ? `Balya: ${params.baleCount} adet\n`
+      : "";
+
+  return applyTemplate(getTemplate("nakliyeci_bildirim"), {
+    müşteri: params.customerName,
+    telefon: phoneLine,
+    adres: addressLine,
+    konum: locationLine,
+    yem_türü: params.feedType || "yem",
+    tonaj: params.netWeight.toLocaleString("tr-TR"),
+    balya: baleeLine,
+  });
+}
+
 export function buildGunlukOzetMessage(params: {
   contactName: string;
   date: string;
@@ -223,6 +263,12 @@ export const TEMPLATE_META: {
     label: "Sevkiyat Bildirimi",
     description: "Yeni sevkiyat kaydedildikten sonra müşteriye gönderilir",
     variables: ["{müşteri}", "{tarih}", "{tonaj}", "{yem_türü}", "{plaka}", "{şoför}", "{birim_fiyat}", "{tutar}", "{nakliye}"],
+  },
+  {
+    key: "nakliyeci_bildirim",
+    label: "Nakliyeci Bildirim",
+    description: "Sevkiyat kaydedildikten sonra nakliyeciye müşteri bilgileri ile gönderilir",
+    variables: ["{müşteri}", "{telefon}", "{adres}", "{konum}", "{yem_türü}", "{tonaj}", "{balya}"],
   },
   {
     key: "odeme_hatirlatma",

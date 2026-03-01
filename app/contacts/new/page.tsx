@@ -17,14 +17,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { capitalizeWords } from "@/lib/utils/format";
+import { parseLocationInput } from "@/lib/utils/location";
+import { useState } from "react";
 
 export default function NewContactPage() {
   const router = useRouter();
   const createContact = useCreateContact();
+  const [locationParsed, setLocationParsed] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState(false);
 
   const {
     register,
@@ -41,19 +45,24 @@ export default function NewContactPage() {
       address: "",
       city: "",
       notes: "",
+      location_url: "",
       credit_limit: "",
     },
   });
 
   async function onSubmit(values: ContactFormValues) {
     try {
+      const coords = values.location_url ? parseLocationInput(values.location_url) : null;
+      const { location_url: _locationUrl, ...rest } = values;
       const payload = {
-        ...values,
+        ...rest,
         phone: values.phone || null,
         email: values.email || null,
         address: values.address || null,
         city: values.city || null,
         notes: values.notes || null,
+        latitude: coords?.lat ?? null,
+        longitude: coords?.lng ?? null,
         credit_limit: values.credit_limit ? Number(values.credit_limit) : null,
       };
       await createContact.mutateAsync(payload);
@@ -145,6 +154,43 @@ export default function NewContactPage() {
             <div className="space-y-2">
               <Label htmlFor="address">Adres</Label>
               <Textarea id="address" {...register("address")} placeholder="Açık adres" rows={2} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location_url">Konum (Google Maps linki yapıştır)</Label>
+              <div className="relative">
+                <Input
+                  id="location_url"
+                  {...register("location_url", {
+                    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                      const val = e.target.value;
+                      if (!val) {
+                        setLocationParsed(null);
+                        setLocationError(false);
+                        return;
+                      }
+                      const parsed = parseLocationInput(val);
+                      if (parsed) {
+                        setLocationParsed(parsed);
+                        setLocationError(false);
+                      } else {
+                        setLocationParsed(null);
+                        setLocationError(true);
+                      }
+                    },
+                  })}
+                  placeholder="https://maps.google.com/?q=37.1234,38.5678"
+                />
+                {locationParsed && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+                )}
+              </div>
+              {locationParsed && (
+                <p className="text-xs text-green-600">Konum kaydedilecek: {locationParsed.lat.toFixed(5)}, {locationParsed.lng.toFixed(5)}</p>
+              )}
+              {locationError && (
+                <p className="text-xs text-destructive">Geçerli bir Google Maps linki veya koordinat yapıştırın</p>
+              )}
             </div>
 
             <div className="space-y-2">

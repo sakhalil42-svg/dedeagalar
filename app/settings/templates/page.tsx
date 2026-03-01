@@ -16,6 +16,7 @@ export default function TemplatesPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [templates, setTemplates] = useState<Record<TemplateKey, string>>({
     sevkiyat_bildirimi: "",
+    nakliyeci_bildirim: "",
     odeme_hatirlatma: "",
     cek_vade_hatirlatma: "",
     ekstre_paylasim: "",
