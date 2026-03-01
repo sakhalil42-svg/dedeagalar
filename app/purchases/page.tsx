@@ -56,6 +56,9 @@ import {
   MessageCircle,
   AlertTriangle,
   Plus,
+  Phone,
+  FileText,
+  ArrowDownLeft,
 } from "lucide-react";
 import {
   Dialog,
@@ -770,14 +773,22 @@ function DeliveryCard({
     setWaSent(true);
   };
 
+  const purchaseAmount = d.net_weight * (d.purchase?.unit_price || 0);
+
   return (
     <div className="rounded-xl bg-card p-4 shadow-sm">
-      {/* Top row: date + profit badge */}
+      {/* Top row: date + ticket_no + total badge */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground flex items-center gap-1.5">
           {formatDateShort(d.delivery_date)}
           {d.sale?.feed_type?.name && (
-            <span className="ml-2 text-foreground font-medium">{d.sale.feed_type.name}</span>
+            <span className="text-foreground font-medium">{d.sale.feed_type.name}</span>
+          )}
+          {d.ticket_no && (
+            <span className="inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground">
+              <FileText className="h-2.5 w-2.5" />
+              {d.ticket_no}
+            </span>
           )}
         </span>
         <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
@@ -785,12 +796,49 @@ function DeliveryCard({
         </span>
       </div>
 
-      {/* Customer name */}
-      <p className="text-base font-semibold mt-1.5">{d.sale?.contact?.name || "—"}</p>
+      {/* Customer name + sale unit price */}
+      <div className="flex items-baseline justify-between mt-1.5">
+        <p className="text-base font-semibold">{d.sale?.contact?.name || "—"}</p>
+        {d.sale?.unit_price ? (
+          <span className="text-xs text-muted-foreground">{masked(d.sale.unit_price)}/kg</span>
+        ) : null}
+      </div>
 
-      {/* Supplier (if available from purchase) */}
+      {/* Supplier (purchase) + purchase unit price */}
+      {d.purchase?.contact?.name && (
+        <div className="flex items-baseline justify-between">
+          <p className="text-sm text-muted-foreground flex items-center gap-1">
+            <ArrowDownLeft className="h-3 w-3" />
+            {d.purchase.contact.name}
+          </p>
+          {d.purchase.unit_price ? (
+            <span className="text-xs text-muted-foreground">{masked(d.purchase.unit_price)}/kg</span>
+          ) : null}
+        </div>
+      )}
+
+      {/* Driver + driver phone */}
       {d.driver_name && (
-        <p className="text-sm text-muted-foreground">Şoför: {d.driver_name}</p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className="text-sm text-muted-foreground">Şoför: {d.driver_name}</p>
+          {driverPhone && (
+            <a
+              href={`tel:${driverPhone}`}
+              className="text-primary hover:text-primary/80 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Phone className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Carrier name */}
+      {d.carrier_name && (
+        <p className="text-xs text-muted-foreground">
+          <Truck className="h-3 w-3 inline mr-1" />
+          {d.carrier_name}
+        </p>
       )}
 
       {/* Middle row: plate + weight */}
@@ -811,10 +859,23 @@ function DeliveryCard({
             <span className="text-2xl font-extrabold">{Math.round(d.net_weight).toLocaleString("tr-TR")}</span>
             <span className="text-sm text-muted-foreground">kg</span>
           </div>
+          {/* Gross / Tare weights */}
+          {(d.gross_weight || d.tare_weight) && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {d.gross_weight ? `B: ${Math.round(d.gross_weight).toLocaleString("tr-TR")}` : ""}
+              {d.gross_weight && d.tare_weight ? " / " : ""}
+              {d.tare_weight ? `D: ${Math.round(d.tare_weight).toLocaleString("tr-TR")}` : ""}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Bottom row: action icons */}
+      {/* Notes */}
+      {d.notes && (
+        <p className="text-xs text-muted-foreground mt-2 italic line-clamp-2">{d.notes}</p>
+      )}
+
+      {/* Bottom row: freight + action icons */}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
         {d.freight_cost != null && d.freight_cost > 0 && (
           <span className="text-xs text-muted-foreground mr-auto">

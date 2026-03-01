@@ -13,7 +13,7 @@ export function useAllDeliveries(seasonId?: string | null) {
       let query = supabase
         .from("deliveries")
         .select(
-          "*, sale:sales(contact_id, unit_price, feed_type_id, contact:contacts(id, name, phone), feed_type:feed_types(id, name))"
+          "*, sale:sales(contact_id, unit_price, feed_type_id, contact:contacts(id, name, phone), feed_type:feed_types(id, name)), purchase:purchases(contact_id, unit_price, contact:contacts(id, name, phone))"
         )
         .is("deleted_at", null)
         .order("delivery_date", { ascending: false })
