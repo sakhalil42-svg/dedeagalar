@@ -11,24 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { formatPhoneForWhatsApp } from "@/lib/utils/whatsapp";
 import { formatCurrency } from "@/lib/utils/format";
 import { FilterChips, type FilterChip } from "@/components/layout/filter-chips";
-
-const TYPE_LABELS: Record<ContactType, string> = {
-  supplier: "Üretici",
-  customer: "Müşteri",
-  both: "Üretici/Müşteri",
-};
-
-const TYPE_COLORS: Record<ContactType, string> = {
-  supplier: "bg-blue-100 text-blue-700",
-  customer: "bg-emerald-100 text-emerald-700",
-  both: "bg-purple-100 text-purple-700",
-};
-
-const AVATAR_COLORS: Record<ContactType, string> = {
-  supplier: "bg-blue-500",
-  customer: "bg-emerald-500",
-  both: "bg-purple-500",
-};
+import { TYPE_LABELS, TYPE_COLORS, AVATAR_COLORS } from "@/lib/constants/contact";
 
 type TypeFilter = ContactType | "all";
 type BalanceFilter = "all" | "debtor" | "creditor" | "zero";

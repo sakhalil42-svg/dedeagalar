@@ -40,9 +40,9 @@ import { DeliverySection } from "@/components/forms/delivery-section";
 const STATUS_LABELS: Record<SaleStatus, string> = {
   pending: "Beklemede",
   draft: "Taslak",
-  confirmed: "Onayli",
+  confirmed: "Onaylı",
   delivered: "Teslim Edildi",
-  cancelled: "Iptal",
+  cancelled: "İptal",
 };
 
 const STATUS_COLORS: Record<SaleStatus, string> = {
@@ -122,29 +122,29 @@ export default function SaleDetailPage() {
         due_date: values.due_date || null,
         notes: values.notes || null,
       });
-      toast.success("Satis guncellendi");
+      toast.success("Satış güncellendi");
       setEditing(false);
     } catch {
-      toast.error("Guncelleme sirasinda hata olustu");
+      toast.error("Güncelleme sırasında hata oluştu");
     }
   }
 
   async function handleStatusChange(newStatus: SaleStatus) {
     try {
       await updateSale.mutateAsync({ id, status: newStatus });
-      toast.success(`Durum guncellendi: ${STATUS_LABELS[newStatus]}`);
+      toast.success(`Durum güncellendi: ${STATUS_LABELS[newStatus]}`);
     } catch {
-      toast.error("Durum guncellenirken hata olustu");
+      toast.error("Durum güncellenirken hata oluştu");
     }
   }
 
   async function handleDelete() {
     try {
       await deleteSale.mutateAsync(id);
-      toast.success("Satis silindi");
+      toast.success("Satış silindi");
       router.push("/sales");
     } catch {
-      toast.error("Silme sirasinda hata olustu");
+      toast.error("Silme sırasında hata oluştu");
     }
   }
 
@@ -158,7 +158,7 @@ export default function SaleDetailPage() {
 
   if (!sale) {
     return (
-      <div className="p-4 text-center text-muted-foreground">Satis bulunamadi.</div>
+      <div className="p-4 text-center text-muted-foreground">Satış bulunamadı.</div>
     );
   }
 
@@ -195,7 +195,7 @@ export default function SaleDetailPage() {
               className="flex items-center gap-1 rounded-xl bg-muted px-3 py-2 text-sm font-medium hover:bg-muted/80 transition-colors"
             >
               <Pencil className="h-3 w-3" />
-              Duzenle
+              Düzenle
             </button>
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
               <DialogTrigger asChild>
@@ -205,9 +205,9 @@ export default function SaleDetailPage() {
               </DialogTrigger>
               <DialogContent className="rounded-2xl">
                 <DialogHeader>
-                  <DialogTitle>Satisi Sil</DialogTitle>
+                  <DialogTitle>Satışı Sil</DialogTitle>
                   <DialogDescription>
-                    &quot;{sale.sale_no}&quot; silinecek. Bu islem geri alinamaz.
+                    &quot;{sale.sale_no}&quot; silinecek. Bu işlem geri alınamaz.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="flex gap-3 pt-2">
@@ -215,7 +215,7 @@ export default function SaleDetailPage() {
                     onClick={() => setDeleteOpen(false)}
                     className="flex-1 rounded-xl py-3 text-sm font-semibold bg-muted hover:bg-muted/80 transition-colors"
                   >
-                    Iptal
+                    İptal
                   </button>
                   <button
                     onClick={handleDelete}
@@ -240,7 +240,7 @@ export default function SaleDetailPage() {
               disabled={updateSale.isPending}
               className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
-              {STATUS_LABELS[nextStatus]} Olarak Isaretle
+              {STATUS_LABELS[nextStatus]} Olarak İşaretle
             </button>
           )}
           <button
@@ -248,7 +248,7 @@ export default function SaleDetailPage() {
             disabled={updateSale.isPending}
             className="rounded-xl bg-muted px-4 py-2 text-sm font-semibold hover:bg-muted/80 disabled:opacity-50 transition-colors"
           >
-            Iptal Et
+            İptal Et
           </button>
         </div>
       )}
@@ -256,11 +256,11 @@ export default function SaleDetailPage() {
       {editing ? (
         /* Edit Form */
         <div className="rounded-xl bg-card p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-4">Satis Duzenle</h2>
+          <h2 className="text-sm font-semibold mb-4">Satış Düzenle</h2>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                Musteri *
+                Müşteri *
               </label>
               <Select
                 defaultValue={sale.contact_id}
@@ -282,7 +282,7 @@ export default function SaleDetailPage() {
 
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                Yem Turu *
+                Yem Türü *
               </label>
               <Select
                 defaultValue={sale.feed_type_id}
@@ -331,7 +331,7 @@ export default function SaleDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="sale_date" className="text-xs font-medium text-muted-foreground mb-1 block">
-                  Satis Tarihi *
+                  Satış Tarihi *
                 </label>
                 <Input id="sale_date" type="date" {...register("sale_date")} className="rounded-xl bg-muted border-0 h-12" />
               </div>
@@ -356,7 +356,7 @@ export default function SaleDetailPage() {
                 onClick={() => setEditing(false)}
                 className="flex-1 rounded-xl py-3 text-sm font-semibold bg-muted hover:bg-muted/80 transition-colors"
               >
-                Iptal
+                İptal
               </button>
               <button
                 type="submit"
@@ -378,14 +378,14 @@ export default function SaleDetailPage() {
           {/* Sale Info */}
           <div className="rounded-xl bg-card p-4 shadow-sm">
             <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Musteri</span>
+              <span className="text-sm text-muted-foreground">Müşteri</span>
               <Link href={`/contacts/${sale.contact_id}`} className="text-sm font-medium text-primary">
                 {sale.contact?.name || "\u2014"}
               </Link>
             </div>
             <div className="border-t border-border/50" />
             <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Yem Turu</span>
+              <span className="text-sm text-muted-foreground">Yem Türü</span>
               <span className="text-sm font-medium">{sale.feed_type?.name || "\u2014"}</span>
             </div>
             <div className="border-t border-border/50" />
@@ -405,7 +405,7 @@ export default function SaleDetailPage() {
             </div>
             <div className="border-t border-border/50" />
             <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">Satis Tarihi</span>
+              <span className="text-sm text-muted-foreground">Satış Tarihi</span>
               <span className="text-sm font-medium">{formatDate(sale.sale_date)}</span>
             </div>
             {sale.due_date && (
@@ -430,16 +430,16 @@ export default function SaleDetailPage() {
 
           {/* Progress Card */}
           <div className="rounded-2xl bg-card p-4 shadow-sm">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">Teslimat Ilerlemesi</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">Teslimat İlerlemesi</p>
             <div className="text-center">
               <p className="text-2xl font-extrabold">{formatWeight(deliveredQty)}</p>
               <p className="text-sm text-muted-foreground">
-                / {formatWeight(sale.quantity)} siparis
+                / {formatWeight(sale.quantity)} sipariş
               </p>
             </div>
             <div className="mt-3 space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{formatPercent(progress)} tamamlandi</span>
+                <span>{formatPercent(progress)} tamamlandı</span>
                 <span>{formatWeight(sale.quantity - deliveredQty)} kalan</span>
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
@@ -454,14 +454,14 @@ export default function SaleDetailPage() {
           {/* Nakliye Ozeti */}
           {deliveries && deliveries.length > 0 && (
             <div className="rounded-xl bg-card p-4 shadow-sm">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">Nakliye Ozeti</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-3">Nakliye Özeti</p>
               <div className="flex items-center justify-between text-sm py-1">
                 <span className="text-muted-foreground">Toplam Nakliye</span>
                 <span className="font-medium">{formatCurrency(deliveryStats.totalFreight)}</span>
               </div>
               {deliveryStats.customerFreight > 0 && (
                 <div className="flex items-center justify-between text-sm py-1">
-                  <span className="text-muted-foreground">Musteri Odedigi</span>
+                  <span className="text-muted-foreground">Müşteri Ödediği</span>
                   <span className="font-medium">{formatCurrency(deliveryStats.customerFreight)}</span>
                 </div>
               )}

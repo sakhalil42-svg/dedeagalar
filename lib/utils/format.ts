@@ -83,7 +83,7 @@ export function formatNumberInput(value: string): string {
 export function parseNumberInput(formatted: string): number {
   if (!formatted) return 0;
   // Remove thousand separators (dots), replace decimal comma with dot
-  const cleaned = formatted.replace(/\./g, "").replace(",", ".");
+  const cleaned = formatted.replace(/\./g, "").replace(/,/g, ".");
   const n = parseFloat(cleaned);
   return isNaN(n) ? 0 : n;
 }

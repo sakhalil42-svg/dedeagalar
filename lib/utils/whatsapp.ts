@@ -96,6 +96,16 @@ export function getAllTemplates(): Record<TemplateKey, string> {
   };
 }
 
+// ─── Template Helper ───
+
+function applyTemplate(template: string, vars: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replaceAll(`{${key}}`, value);
+  }
+  return result;
+}
+
 // ─── Pre-built message generators ───
 
 export function buildSevkiyatMessage(params: {
@@ -124,25 +134,27 @@ export function buildSevkiyatMessage(params: {
     ? `Nakliye: ${params.freightCost.toLocaleString("tr-TR")} ₺\n`
     : "";
 
-  return getTemplate("sevkiyat_bildirimi")
-    .replace("{müşteri}", params.customerName)
-    .replace("{tarih}", formatDateShort(params.date))
-    .replace("{tonaj}", params.netWeight.toLocaleString("tr-TR"))
-    .replace("{yem_türü}", params.feedType || "yem")
-    .replace("{plaka}", params.plate || "-")
-    .replace("{şoför}", driverLine)
-    .replace("{birim_fiyat}", params.unitPrice ? params.unitPrice.toLocaleString("tr-TR") : "-")
-    .replace("{tutar}", total ? total.toLocaleString("tr-TR") : "-")
-    .replace("{nakliye}", freightLine);
+  return applyTemplate(getTemplate("sevkiyat_bildirimi"), {
+    "müşteri": params.customerName,
+    "tarih": formatDateShort(params.date),
+    "tonaj": params.netWeight.toLocaleString("tr-TR"),
+    "yem_türü": params.feedType || "yem",
+    "plaka": params.plate || "-",
+    "şoför": driverLine,
+    "birim_fiyat": params.unitPrice ? params.unitPrice.toLocaleString("tr-TR") : "-",
+    "tutar": total ? total.toLocaleString("tr-TR") : "-",
+    "nakliye": freightLine,
+  });
 }
 
 export function buildOdemeHatirlatmaMessage(params: {
   contactName: string;
   balance: number;
 }): string {
-  return getTemplate("odeme_hatirlatma")
-    .replace("{kişi}", params.contactName)
-    .replace("{bakiye}", formatCurrency(Math.abs(params.balance)));
+  return applyTemplate(getTemplate("odeme_hatirlatma"), {
+    "kişi": params.contactName,
+    "bakiye": formatCurrency(Math.abs(params.balance)),
+  });
 }
 
 export function buildCekVadeMessage(params: {
@@ -152,19 +164,21 @@ export function buildCekVadeMessage(params: {
   serialNo?: string;
   dueDate: string;
 }): string {
-  return getTemplate("cek_vade_hatirlatma")
-    .replace("{kişi}", params.contactName)
-    .replace("{tutar}", formatCurrency(params.amount))
-    .replace("{tür}", params.type === "check" ? "çek" : "senet")
-    .replace("{seri_no}", params.serialNo || "-")
-    .replace("{vade_tarihi}", formatDateShort(params.dueDate));
+  return applyTemplate(getTemplate("cek_vade_hatirlatma"), {
+    "kişi": params.contactName,
+    "tutar": formatCurrency(params.amount),
+    "tür": params.type === "check" ? "çek" : "senet",
+    "seri_no": params.serialNo || "-",
+    "vade_tarihi": formatDateShort(params.dueDate),
+  });
 }
 
 export function buildEkstreMessage(params: {
   contactName: string;
 }): string {
-  return getTemplate("ekstre_paylasim")
-    .replace("{kişi}", params.contactName);
+  return applyTemplate(getTemplate("ekstre_paylasim"), {
+    "kişi": params.contactName,
+  });
 }
 
 export function buildGunlukOzetMessage(params: {
@@ -179,11 +193,12 @@ export function buildGunlukOzetMessage(params: {
       ).join("\n")
     : "Bugün sevkiyat yok.";
 
-  return getTemplate("gunluk_ozet")
-    .replace("{kişi}", params.contactName)
-    .replace("{tarih}", formatDateShort(params.date))
-    .replace("{sevkiyatlar}", sevkiyatLines)
-    .replace("{bakiye}", formatCurrency(Math.abs(params.balance)));
+  return applyTemplate(getTemplate("gunluk_ozet"), {
+    "kişi": params.contactName,
+    "tarih": formatDateShort(params.date),
+    "sevkiyatlar": sevkiyatLines,
+    "bakiye": formatCurrency(Math.abs(params.balance)),
+  });
 }
 
 /**

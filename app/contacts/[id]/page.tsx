@@ -42,18 +42,7 @@ import { useBalanceVisibility } from "@/lib/contexts/balance-visibility";
 import { formatCurrency, capitalizeWords } from "@/lib/utils/format";
 import { useDeliveriesByContact } from "@/lib/hooks/use-deliveries-by-contact";
 import { Copy, Send } from "lucide-react";
-
-const TYPE_LABELS: Record<ContactType, string> = {
-  supplier: "Üretici",
-  customer: "Müşteri",
-  both: "Üretici/Müşteri",
-};
-
-const TYPE_COLORS: Record<ContactType, string> = {
-  supplier: "bg-blue-100 text-blue-800",
-  customer: "bg-green-100 text-green-800",
-  both: "bg-purple-100 text-purple-800",
-};
+import { TYPE_LABELS, TYPE_COLORS } from "@/lib/constants/contact";
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();

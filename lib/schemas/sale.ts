@@ -1,10 +1,16 @@
 import { z } from "zod";
 
+const positiveNumber = (msg: string) =>
+  z.string().min(1, msg).refine(
+    (v) => { const n = parseFloat(v); return !isNaN(n) && n > 0; },
+    "Geçerli bir pozitif sayı giriniz"
+  );
+
 export const saleSchema = z.object({
   contact_id: z.string().min(1, "Müşteri seçiniz"),
   feed_type_id: z.string().min(1, "Yem türü seçiniz"),
-  quantity: z.string().min(1, "Miktar giriniz"),
-  unit_price: z.string().min(1, "Birim fiyat giriniz"),
+  quantity: positiveNumber("Miktar giriniz"),
+  unit_price: positiveNumber("Birim fiyat giriniz"),
   sale_date: z.string().min(1, "Satış tarihi giriniz"),
   due_date: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),

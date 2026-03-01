@@ -69,10 +69,10 @@ export default function NewSalePage() {
         due_date: values.due_date || null,
         notes: values.notes || null,
       });
-      toast.success("Satis kaydi olusturuldu");
+      toast.success("Satış kaydı oluşturuldu");
       router.push("/sales");
     } catch {
-      toast.error("Satis kaydi olusturulurken hata olustu");
+      toast.error("Satış kaydı oluşturulurken hata oluştu");
     }
   }
 
@@ -86,18 +86,18 @@ export default function NewSalePage() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <h1 className="text-xl font-bold">Yeni Satis</h1>
+        <h1 className="text-xl font-bold">Yeni Satış</h1>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Musteri */}
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">
-            Musteri *
+            Müşteri *
           </label>
           <Select onValueChange={(val) => setValue("contact_id", val)}>
             <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
-              <SelectValue placeholder="Musteri seciniz" />
+              <SelectValue placeholder="Müşteri seçiniz" />
             </SelectTrigger>
             <SelectContent>
               {contacts?.map((c) => (
@@ -115,11 +115,11 @@ export default function NewSalePage() {
         {/* Yem Turu */}
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">
-            Yem Turu *
+            Yem Türü *
           </label>
           <Select onValueChange={(val) => setValue("feed_type_id", val)}>
             <SelectTrigger className="rounded-xl bg-muted border-0 h-12">
-              <SelectValue placeholder="Yem turu seciniz" />
+              <SelectValue placeholder="Yem türü seçiniz" />
             </SelectTrigger>
             <SelectContent>
               {feedTypes?.map((ft) => (
@@ -180,7 +180,7 @@ export default function NewSalePage() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="sale_date" className="text-xs font-medium text-muted-foreground mb-1 block">
-              Satis Tarihi *
+              Satış Tarihi *
             </label>
             <Input
               id="sale_date"
