@@ -22,11 +22,21 @@ export function useDashboardKpis() {
       // ── Today's deliveries ──
       const { data: todayDeliveries } = await supabase
         .from("deliveries")
-        .select("net_weight")
+        .select("net_weight, status")
         .eq("delivery_date", today);
 
       const todayTruckCount = (todayDeliveries || []).length;
       const todayTonnage = (todayDeliveries || []).reduce((s, d) => s + (d.net_weight || 0), 0);
+
+      // ── In-transit deliveries ──
+      const { data: inTransitDeliveries } = await supabase
+        .from("deliveries")
+        .select("net_weight")
+        .eq("status", "in_transit")
+        .is("deleted_at", null);
+
+      const inTransitCount = (inTransitDeliveries || []).length;
+      const inTransitTonnage = (inTransitDeliveries || []).reduce((s, d) => s + (d.net_weight || 0), 0);
 
       // ── Today's profit ──
       const { data: todaySaleTxs } = await supabase
@@ -192,6 +202,8 @@ export function useDashboardKpis() {
       return {
         todayTruckCount,
         todayTonnage,
+        inTransitCount,
+        inTransitTonnage,
         todayProfit,
         monthProfit,
         monthlyRevenue,

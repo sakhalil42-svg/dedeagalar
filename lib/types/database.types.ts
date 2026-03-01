@@ -73,6 +73,7 @@ export interface WarehouseUpdate extends Partial<WarehouseInsert> {}
 
 export type FreightPayer = "customer" | "me" | "supplier";
 export type PricingModel = "nakliye_dahil" | "tir_ustu";
+export type DeliveryStatus = "in_transit" | "delivered";
 
 export interface Delivery {
   id: string;
@@ -90,6 +91,7 @@ export interface Delivery {
   carrier_phone: string | null;
   freight_cost: number | null;
   freight_payer: FreightPayer | null;
+  status: DeliveryStatus;
   notes: string | null;
   season_id: string | null;
   created_at: string;
@@ -110,6 +112,7 @@ export interface DeliveryInsert {
   carrier_phone?: string | null;
   freight_cost?: number | null;
   freight_payer?: FreightPayer | null;
+  status?: DeliveryStatus;
   notes?: string | null;
   season_id?: string | null;
 }

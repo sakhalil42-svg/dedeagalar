@@ -71,6 +71,7 @@ import {
   BookTemplate,
   Star,
   AlertTriangle,
+  CheckCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -811,8 +812,23 @@ function TodayDeliveriesList({ masked }: { masked: (amount: number) => string })
     );
   }
 
-  // Filter only positive weight (exclude returns)
-  const deliveries = (todayDeliveries || []).filter((d) => d.net_weight > 0);
+  // Filter only positive weight (exclude returns), sort in_transit first
+  const deliveries = (todayDeliveries || [])
+    .filter((d) => d.net_weight > 0)
+    .sort((a, b) => {
+      const aTransit = a.status === "in_transit" ? 0 : 1;
+      const bTransit = b.status === "in_transit" ? 0 : 1;
+      return aTransit - bTransit;
+    });
+
+  const handleDeliver = async (id: string) => {
+    try {
+      await updateDelivery.mutateAsync({ id, status: "delivered" as const });
+      toast.success("Teslim edildi");
+    } catch {
+      toast.error("Güncelleme hatası");
+    }
+  };
 
   if (deliveries.length === 0) return null;
 
@@ -860,6 +876,7 @@ function TodayDeliveriesList({ masked }: { masked: (amount: number) => string })
               onSaveEdit={() => saveEdit(d)}
               onCancelEdit={() => setEditingId(null)}
               onDelete={() => handleDelete(d)}
+              onDeliver={() => handleDeliver(d.id)}
               isDeleting={deleteDelivery.isPending}
               isSaving={updateDelivery.isPending}
             />
@@ -887,6 +904,7 @@ function TodayDeliveryRow({
   onSaveEdit,
   onCancelEdit,
   onDelete,
+  onDeliver,
   isDeleting,
   isSaving,
 }: {
@@ -905,6 +923,7 @@ function TodayDeliveryRow({
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDelete: () => void;
+  onDeliver: () => void;
   isDeleting: boolean;
   isSaving: boolean;
 }) {
@@ -975,6 +994,16 @@ function TodayDeliveryRow({
               {feedName}
             </span>
           )}
+          {delivery.status === "in_transit" ? (
+            <span className="rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 px-2 py-0.5 text-[10px] font-semibold shrink-0">
+              Yolda
+            </span>
+          ) : (
+            <span className="rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 text-[10px] font-semibold shrink-0">
+              <CheckCircle className="h-2.5 w-2.5 inline mr-0.5" />
+              Teslim
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="font-bold text-foreground">
@@ -994,6 +1023,16 @@ function TodayDeliveryRow({
 
       {/* Actions */}
       <div className="flex items-center gap-0.5 shrink-0">
+        {delivery.status === "in_transit" && (
+          <button
+            onClick={onDeliver}
+            className="flex h-8 items-center gap-1 rounded-xl bg-green-600 px-2.5 text-[11px] font-semibold text-white hover:bg-green-700 transition-colors"
+            title="Teslim edildi olarak işaretle"
+          >
+            <CheckCircle className="h-3.5 w-3.5" />
+            Teslim Et
+          </button>
+        )}
         {waUrl && (
           <a
             href={waUrl}
@@ -1300,6 +1339,7 @@ function QuickEntryForm({
           carrier_phone: carrierPhone.trim() || null,
           freight_cost: freightCost ? parseFloat(freightCost) : null,
           freight_payer: freightCost ? freightPayer : null,
+          status: "in_transit" as const,
         },
         customerContactId,
         supplierContactId,

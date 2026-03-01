@@ -19,7 +19,6 @@ import {
   AlertTriangle,
   Truck,
   CircleDollarSign,
-  Scale,
   FileText,
   Banknote,
   Plus,
@@ -181,19 +180,21 @@ export function DashboardContent() {
       {/* ═══ KPI Grid — 2 col × 4 rows ═══ */}
       <div className="grid grid-cols-2 gap-3">
         <KpiCard
+          title="Yoldaki Tırlar"
+          value={kpis ? String(kpis.inTransitCount) : "--"}
+          icon={Truck}
+          iconColor="orange"
+          loading={kpisLoading}
+          subtitle={kpis && kpis.inTransitTonnage > 0 ? formatWeight(kpis.inTransitTonnage) : undefined}
+          color={kpis && kpis.inTransitCount > 0 ? "text-orange-600" : undefined}
+        />
+        <KpiCard
           title="Bugün Tır"
           value={kpis ? String(kpis.todayTruckCount) : "--"}
           icon={Truck}
           iconColor="blue"
           loading={kpisLoading}
           subtitle={kpis && kpis.todayTonnage > 0 ? formatWeight(kpis.todayTonnage) : undefined}
-        />
-        <KpiCard
-          title="Bugün Tonaj"
-          value={kpis ? formatWeight(kpis.todayTonnage) : "--"}
-          icon={Scale}
-          iconColor="purple"
-          loading={kpisLoading}
         />
         <KpiCard
           title="Bugün Kâr"

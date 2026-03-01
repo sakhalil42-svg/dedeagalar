@@ -800,6 +800,15 @@ function DeliveryCard({
               {d.ticket_no}
             </span>
           )}
+          {d.status === "in_transit" ? (
+            <span className="rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 px-1.5 py-0.5 text-[10px] font-semibold">
+              Yolda
+            </span>
+          ) : d.status === "delivered" ? (
+            <span className="rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 text-[10px] font-semibold">
+              Teslim
+            </span>
+          ) : null}
         </span>
         <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
           {masked(customerAmount)}
