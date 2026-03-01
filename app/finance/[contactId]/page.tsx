@@ -56,14 +56,18 @@ export default function AccountDetailPage() {
   const masked = (amount: number) =>
     isVisible ? formatCurrency(amount) : "••••••";
 
-  const isCustomer = contact?.type === "customer" || contact?.type === "both";
+  const isBoth = contact?.type === "both";
+  const isCustomer = contact?.type === "customer" || isBoth;
 
   const txList = transactions || [];
 
   const sevkiyatTxs = useMemo(() => {
-    const purchaseRefType = isCustomer ? "sale" : "purchase";
-    return txList.filter((t) => t.reference_type === purchaseRefType);
-  }, [txList, isCustomer]);
+    if (isBoth) {
+      return txList.filter((t) => t.reference_type === "sale" || t.reference_type === "purchase");
+    }
+    const refType = isCustomer ? "sale" : "purchase";
+    return txList.filter((t) => t.reference_type === refType);
+  }, [txList, isCustomer, isBoth]);
 
   const odemeTxs = useMemo(
     () => txList.filter((t) => t.reference_type === "payment"),
@@ -78,17 +82,25 @@ export default function AccountDetailPage() {
   };
 
   const anaKalem = useMemo(() => {
+    if (isBoth) {
+      return txList.reduce(
+        (sum, t) => (t.type === "debit" || t.type === "credit") && (t.reference_type === "sale" || t.reference_type === "purchase")
+          ? sum + safeNum(t.amount)
+          : sum,
+        0
+      );
+    }
     const matchType = isCustomer ? "debit" : "credit";
     return txList.reduce(
       (sum, t) => (t.type === matchType ? sum + safeNum(t.amount) : sum),
       0
     );
-  }, [txList, isCustomer]);
+  }, [txList, isCustomer, isBoth]);
 
   const odenenKalem = useMemo(() => {
     const matchType = isCustomer ? "credit" : "debit";
     return txList.reduce(
-      (sum, t) => (t.type === matchType ? sum + safeNum(t.amount) : sum),
+      (sum, t) => (t.type === matchType && t.reference_type === "payment" ? sum + safeNum(t.amount) : sum),
       0
     );
   }, [txList, isCustomer]);
@@ -206,13 +218,13 @@ export default function AccountDetailPage() {
       <div className="flex gap-3 overflow-x-auto pb-2 mb-4 -mx-4 px-4 scrollbar-none">
         <div className="flex-none w-36 rounded-2xl bg-card p-4 shadow-sm text-center">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-            {isCustomer ? "Alacak" : "Borç"}
+            {isBoth ? "İşlem Toplamı" : isCustomer ? "Alacak" : "Borç"}
           </p>
           <p className="text-xl font-extrabold text-red-600">{masked(anaKalem)}</p>
         </div>
         <div className="flex-none w-36 rounded-2xl bg-card p-4 shadow-sm text-center">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-            {isCustomer ? "Tahsil Edilen" : "Ödenen"}
+            {isBoth ? "Ödenen" : isCustomer ? "Tahsil Edilen" : "Ödenen"}
           </p>
           <p className="text-xl font-extrabold text-green-600">{masked(odenenKalem)}</p>
         </div>
