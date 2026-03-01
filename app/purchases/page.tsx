@@ -59,6 +59,9 @@ import {
   Phone,
   FileText,
   ArrowDownLeft,
+  Users,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   Dialog,
@@ -95,7 +98,7 @@ const FREIGHT_PAYER_LABELS: Record<string, string> = {
 };
 
 // ─── Types ───
-type TabType = "deliveries" | "carrier";
+type TabType = "deliveries" | "carrier" | "producer";
 type DateFilter = "today" | "week" | "month" | "all" | "custom";
 type SortOption = "date_desc" | "date_asc" | "amount_desc" | "tonnage_desc";
 
@@ -146,6 +149,7 @@ export default function DeliveriesPage() {
         {([
           { key: "deliveries" as TabType, label: "Sevkiyatlar" },
           { key: "carrier" as TabType, label: "Nakliyeci Cari" },
+          { key: "producer" as TabType, label: "Üretici Özet" },
         ]).map((t) => (
           <button
             key={t.key}
@@ -161,7 +165,13 @@ export default function DeliveriesPage() {
         ))}
       </div>
 
-      {tab === "deliveries" ? <DeliveriesTab /> : <CarrierTab />}
+      {tab === "deliveries" ? (
+        <DeliveriesTab />
+      ) : tab === "carrier" ? (
+        <CarrierTab />
+      ) : (
+        <ProducerSummaryTab />
+      )}
     </div>
   );
 }
@@ -1041,5 +1051,338 @@ function CarrierTab() {
         )}
       </div>
     </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 3: Üretici Özet
+// ═══════════════════════════════════════════════════════════════
+
+type ProducerSortOption = "name_asc" | "tonnage_desc" | "amount_desc";
+
+const PRODUCER_SORT_OPTIONS: { label: string; value: ProducerSortOption }[] = [
+  { label: "A-Z", value: "name_asc" },
+  { label: "Tonaj ↓", value: "tonnage_desc" },
+  { label: "Tutar ↓", value: "amount_desc" },
+];
+
+interface ProducerGroup {
+  contactId: string;
+  name: string;
+  totalTonnage: number;
+  tripCount: number;
+  totalAmount: number;
+  lastDeliveryDate: string;
+  avgUnitPrice: number;
+  feedBreakdown: { name: string; tonnage: number }[];
+  deliveries: TodayDelivery[];
+}
+
+function ProducerSummaryTab() {
+  const { selectedSeasonId } = useSeasonFilter();
+  const { data: deliveries, isLoading } = useAllDeliveries(selectedSeasonId);
+  const { isVisible } = useBalanceVisibility();
+  const masked = (amount: number) => (isVisible ? formatCurrency(amount) : "••••••");
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<ProducerSortOption>("tonnage_desc");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+
+  const producers = useMemo(() => {
+    if (!deliveries) return [];
+
+    // Apply date filter
+    let filtered = deliveries;
+    const range = getDateRange(dateFilter);
+    if (range) {
+      filtered = deliveries.filter(
+        (d) => d.delivery_date >= range.start && d.delivery_date <= range.end
+      );
+    }
+
+    const grouped = new Map<string, ProducerGroup>();
+
+    for (const d of filtered) {
+      if (!d.purchase?.contact?.id) continue;
+      const cId = d.purchase.contact.id;
+
+      let group = grouped.get(cId);
+      if (!group) {
+        group = {
+          contactId: cId,
+          name: d.purchase.contact.name,
+          totalTonnage: 0,
+          tripCount: 0,
+          totalAmount: 0,
+          lastDeliveryDate: d.delivery_date,
+          avgUnitPrice: 0,
+          feedBreakdown: [],
+          deliveries: [],
+        };
+        grouped.set(cId, group);
+      }
+
+      group.totalTonnage += d.net_weight;
+      group.tripCount += 1;
+      group.totalAmount += d.net_weight * (d.purchase.unit_price || 0);
+      if (d.delivery_date > group.lastDeliveryDate) {
+        group.lastDeliveryDate = d.delivery_date;
+      }
+      group.deliveries.push(d);
+    }
+
+    // Calculate avgUnitPrice and feedBreakdown
+    for (const group of grouped.values()) {
+      group.avgUnitPrice = group.totalTonnage > 0 ? group.totalAmount / group.totalTonnage : 0;
+
+      const feedMap = new Map<string, number>();
+      for (const d of group.deliveries) {
+        const feedName = d.sale?.feed_type?.name || "Diğer";
+        feedMap.set(feedName, (feedMap.get(feedName) || 0) + d.net_weight);
+      }
+      group.feedBreakdown = Array.from(feedMap.entries())
+        .map(([name, tonnage]) => ({ name, tonnage }))
+        .sort((a, b) => b.tonnage - a.tonnage);
+
+      // Sort deliveries by date desc
+      group.deliveries.sort((a, b) => b.delivery_date.localeCompare(a.delivery_date) || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+
+    return Array.from(grouped.values());
+  }, [deliveries, dateFilter]);
+
+  const filtered = useMemo(() => {
+    let result = [...producers];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((p) => p.name.toLowerCase().includes(q));
+    }
+
+    result.sort((a, b) => {
+      if (sortBy === "name_asc") return a.name.localeCompare(b.name, "tr");
+      if (sortBy === "amount_desc") return b.totalAmount - a.totalAmount;
+      return b.totalTonnage - a.totalTonnage;
+    });
+
+    return result;
+  }, [producers, searchQuery, sortBy]);
+
+  const totals = useMemo(() => {
+    return {
+      producerCount: producers.length,
+      totalTonnage: producers.reduce((sum, p) => sum + p.totalTonnage, 0),
+      totalAmount: producers.reduce((sum, p) => sum + p.totalAmount, 0),
+    };
+  }, [producers]);
+
+  return (
+    <>
+      {/* Summary cards */}
+      {!isLoading && producers.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-card p-3 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30 mb-1.5">
+              <Users className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            </div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Üretici</p>
+            <p className="text-lg font-extrabold">{totals.producerCount}</p>
+          </div>
+          <div className="rounded-xl bg-card p-3 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30 mb-1.5">
+              <Scale className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            </div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Top. Tonaj</p>
+            <p className="text-lg font-extrabold">{formatWeight(totals.totalTonnage)}</p>
+          </div>
+          <div className="rounded-xl bg-card p-3 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30 mb-1.5">
+              <Banknote className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Top. Tutar</p>
+            <p className="text-lg font-extrabold text-green-600">{masked(totals.totalAmount)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Date filter pills */}
+      {!isLoading && producers.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {DATE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setDateFilter(opt.value)}
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                dateFilter === opt.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Search + sort */}
+      {!isLoading && producers.length > 0 && (
+        <>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Üretici ara..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 rounded-xl bg-muted border-0"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            {PRODUCER_SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setSortBy(opt.value)}
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  sortBy === opt.value
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Producer list */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
+        <div className="space-y-3">
+          {filtered.map((p) => (
+            <ProducerCard key={p.contactId} producer={p} masked={masked} />
+          ))}
+        </div>
+      ) : producers.length > 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="rounded-2xl bg-muted/30 p-6 mb-6">
+            <Search className="h-16 w-16 text-muted-foreground" />
+          </div>
+          <h3 className="text-xl font-bold">Sonuç Bulunamadı</h3>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+            Arama kriterlerini değiştirmeyi deneyin.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="rounded-2xl bg-muted/30 p-6 mb-6">
+            <Users className="h-16 w-16 text-muted-foreground" />
+          </div>
+          <h3 className="text-xl font-bold">Üretici Bulunamadı</h3>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+            Alım kaydı olan sevkiyatlar burada üretici bazlı gruplanır.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ProducerCard({
+  producer: p,
+  masked,
+}: {
+  producer: ProducerGroup;
+  masked: (amount: number) => string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-xl bg-card shadow-sm overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left p-4"
+      >
+        {/* Top row: name + last delivery date */}
+        <div className="flex items-center justify-between">
+          <p className="text-base font-semibold">{p.name}</p>
+          <span className="text-xs text-muted-foreground">{formatDateShort(p.lastDeliveryDate)}</span>
+        </div>
+
+        {/* Feed breakdown chips */}
+        <div className="flex gap-1.5 flex-wrap mt-2">
+          {p.feedBreakdown.map((fb) => (
+            <span
+              key={fb.name}
+              className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+            >
+              {fb.name}: {formatWeight(fb.tonnage)}
+            </span>
+          ))}
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-end justify-between mt-3">
+          <div className="flex items-baseline gap-1">
+            <span className="text-2xl font-extrabold">{formatWeight(p.totalTonnage)}</span>
+          </div>
+          <div className="text-right">
+            <span className="text-sm font-semibold">{masked(p.totalAmount)}</span>
+            <p className="text-[10px] text-muted-foreground">{masked(p.avgUnitPrice)}/kg ort.</p>
+          </div>
+        </div>
+
+        {/* Trip count + toggle */}
+        <div className="flex items-center justify-between mt-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+            <Truck className="h-3 w-3" />
+            {p.tripCount} sefer
+          </span>
+          {expanded ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+      </button>
+
+      {/* Expanded: delivery list */}
+      {expanded && (
+        <div className="border-t border-border px-4 py-3 space-y-2">
+          {p.deliveries.map((d) => {
+            const amount = d.net_weight * (d.purchase?.unit_price || 0);
+            return (
+              <div key={d.id} className="flex items-center justify-between text-sm">
+                <div className="min-w-0">
+                  <span className="text-xs text-muted-foreground">{formatDateShort(d.delivery_date)}</span>
+                  {d.ticket_no && (
+                    <span className="ml-1.5 text-[10px] font-mono text-muted-foreground">#{d.ticket_no}</span>
+                  )}
+                  {d.vehicle_plate && (
+                    <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono">{d.vehicle_plate}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 shrink-0 ml-2">
+                  <span className="font-medium">{Math.round(d.net_weight).toLocaleString("tr-TR")} kg</span>
+                  <span className="text-xs text-muted-foreground w-20 text-right">{masked(amount)}</span>
+                </div>
+              </div>
+            );
+          })}
+          <Link
+            href={`/finance/${p.contactId}`}
+            className="flex items-center justify-center gap-1.5 mt-2 pt-2 border-t border-border text-xs font-medium text-primary"
+          >
+            <Banknote className="h-3.5 w-3.5" />
+            Cari Hesap
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }
