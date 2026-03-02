@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Resolves a shortened Google Maps URL by following redirects
- * and extracting coordinates from the final page HTML.
+ * Resolves a shortened Google Maps URL to lat/lng coordinates.
  *
- * Google Maps short links often resolve to place-name URLs without
- * coordinates in the URL itself. The coordinates are embedded in the
- * HTML response as "center=lat%2Clng" in static map image URLs.
+ * Strategy:
+ * 1. Follow the first redirect (manual) to get the full Google Maps URL
+ * 2. Extract the `ftid` (feature/place ID) from that URL
+ * 3. Fetch Google Maps page using ftid directly — this reliably returns
+ *    coordinates in the HTML regardless of server location
  */
 export async function POST(req: NextRequest) {
   try {
@@ -21,14 +22,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sadece Google Maps kısa linkleri desteklenir" }, { status: 400 });
     }
 
-    // Follow redirects and get HTML content
-    const res = await fetch(url, { redirect: "follow" });
-    const finalUrl = res.url;
+    // Step 1: Follow first redirect to get the full URL with ftid
+    const redirectRes = await fetch(url, { redirect: "manual" });
+    const redirectUrl = redirectRes.headers.get("location");
 
-    // Try extracting coords from the final URL first
-    // Pattern: ?q=lat,lng or @lat,lng
-    const urlCoordMatch = finalUrl.match(/[?&]q=([-\d.]+),([-\d.]+)/) ||
-                          finalUrl.match(/@([-\d.]+),([-\d.]+)/);
+    if (!redirectUrl) {
+      return NextResponse.json({ error: "Redirect bulunamadı" }, { status: 404 });
+    }
+
+    // Try extracting coords from the redirect URL itself (?q=lat,lng or @lat,lng)
+    const urlCoordMatch = redirectUrl.match(/[?&]q=([-\d.]+),([-\d.]+)/) ||
+                          redirectUrl.match(/@([-\d.]+),([-\d.]+)/);
     if (urlCoordMatch) {
       const lat = parseFloat(urlCoordMatch[1]);
       const lng = parseFloat(urlCoordMatch[2]);
@@ -37,8 +41,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // If URL doesn't have coordinates, parse HTML for "center=lat%2Clng"
-    const html = await res.text();
+    // Step 2: Extract ftid from redirect URL
+    const ftidMatch = redirectUrl.match(/ftid=([^&]+)/);
+    if (!ftidMatch) {
+      return NextResponse.json({ error: "Place ID bulunamadı" }, { status: 404 });
+    }
+
+    // Step 3: Fetch Google Maps page using ftid — reliable regardless of server location
+    const mapsUrl = `https://www.google.com/maps?ftid=${ftidMatch[1]}&hl=tr`;
+    const mapsRes = await fetch(mapsUrl, { redirect: "follow" });
+    const html = await mapsRes.text();
+
+    // Parse "center=lat%2Clng" from static map image URLs in HTML
     const centerMatch = html.match(/center=([-\d.]+)%2C([-\d.]+)/);
     if (centerMatch) {
       const lat = parseFloat(centerMatch[1]);
