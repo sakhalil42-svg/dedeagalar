@@ -133,19 +133,21 @@ export function useDashboardKpis() {
         }
       }
 
-      // Total receivables (customers with positive balance = they owe us)
+      // Total receivables (customers with negative balance = they owe us)
+      // DB'de müşteri bakiyesi negatif = müşteriden alacağımız var
       const pendingReceivables = (accounts || []).reduce((sum, a) => {
         const c = contactMap.get(a.contact_id);
-        if (c && (c.type === "customer" || c.type === "both") && a.balance > 0) {
-          return sum + a.balance;
+        if (c && (c.type === "customer" || c.type === "both") && a.balance < 0) {
+          return sum + Math.abs(a.balance);
         }
         return sum;
       }, 0);
 
       // Total payables (suppliers with positive balance = we owe them)
+      // DB'de üretici bakiyesi pozitif = üreticiye borcumuz var
       const pendingPayables = (accounts || []).reduce((sum, a) => {
         const c = contactMap.get(a.contact_id);
-        if (c && (c.type === "supplier" || c.type === "both") && a.balance > 0) {
+        if (c && (c.type === "supplier") && a.balance > 0) {
           return sum + a.balance;
         }
         return sum;
@@ -169,16 +171,17 @@ export function useDashboardKpis() {
       // ── Monthly freight expense ──
       const monthlyFreight = monthFreight;
 
-      // ── 6.2 Balance warning lists (all contacts, sorted) ──
+      // ── 6.2 Balance warning lists (all contacts with outstanding balance, sorted) ──
+      // Müşteriler: balance < 0 (alacağımız), Üreticiler: balance > 0 (borcumuz)
       const allBalances: Array<{
         contactId: string;
         name: string;
         phone: string | null;
         type: string;
-        balance: number;
+        balance: number; // always positive (absolute) for display
         credit_limit: number | null;
       }> = (accounts || [])
-        .filter((a) => a.balance > 0 && contactMap.has(a.contact_id))
+        .filter((a) => a.balance !== 0 && contactMap.has(a.contact_id))
         .map((a) => {
           const c = contactMap.get(a.contact_id)!;
           return {
@@ -186,18 +189,22 @@ export function useDashboardKpis() {
             name: c.name,
             phone: c.phone || null,
             type: c.type,
-            balance: a.balance,
+            balance: Math.abs(a.balance),
             credit_limit: c.credit_limit,
           };
         })
         .sort((a, b) => b.balance - a.balance);
 
-      const customerBalances = allBalances.filter(
-        (b) => b.type === "customer" || b.type === "both"
-      );
-      const supplierBalances = allBalances.filter(
-        (b) => b.type === "supplier" || b.type === "both"
-      );
+      // Müşteri alacakları (DB'de negatif bakiye = bize borçlu)
+      const customerBalances = allBalances.filter((b) => {
+        const orig = (accounts || []).find((a) => a.contact_id === b.contactId);
+        return (b.type === "customer" || b.type === "both") && orig && orig.balance < 0;
+      });
+      // Üretici borçları (DB'de pozitif bakiye = biz borçluyuz)
+      const supplierBalances = allBalances.filter((b) => {
+        const orig = (accounts || []).find((a) => a.contact_id === b.contactId);
+        return (b.type === "supplier") && orig && orig.balance > 0;
+      });
 
       return {
         todayTruckCount,

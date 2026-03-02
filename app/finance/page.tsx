@@ -75,8 +75,8 @@ export default function FinancePage() {
     if (balanceFilter !== "all") {
       result = result.filter((s) => {
         const bal = s.balance ?? 0;
-        if (balanceFilter === "debtor") return bal > 0;
-        if (balanceFilter === "creditor") return bal < 0;
+        if (balanceFilter === "debtor") return bal !== 0;
+        if (balanceFilter === "creditor") return bal === 0;
         if (balanceFilter === "zero") return bal === 0;
         return true;
       });
@@ -315,17 +315,15 @@ export default function FinancePage() {
                     <div className="text-right">
                       <p
                         className={`text-lg font-bold ${
-                          s.balance > 0 ? "text-red-600" : s.balance < 0 ? "text-green-600" : ""
+                          s.balance !== 0 ? "text-red-600" : ""
                         }`}
                       >
                         {masked(Math.abs(s.balance))}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {s.balance > 0
-                          ? (tab === "customers" ? "alacak" : "borç")
-                          : s.balance < 0
-                            ? "fazla ödeme"
-                            : "denk"}
+                        {tab === "customers"
+                          ? (s.balance < 0 ? "alacak" : s.balance > 0 ? "fazla ödeme" : "denk")
+                          : (s.balance > 0 ? "borç" : s.balance < 0 ? "fazla ödeme" : "denk")}
                       </p>
                     </div>
                   </div>

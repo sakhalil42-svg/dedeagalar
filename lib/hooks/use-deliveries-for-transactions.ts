@@ -4,9 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Delivery, AccountTransaction } from "@/lib/types/database.types";
 
+export interface DeliveryTxResult {
+  deliveryMap: Map<string, Delivery>;
+  feedTypeMap: Map<string, string>; // tx.id → feed type name
+}
+
 /**
  * Given sevkiyat transactions, fetch matching deliveries from the deliveries table.
- * Returns Map<tx.id, Delivery> — each transaction is matched to its specific delivery.
+ * Returns { deliveryMap: Map<tx.id, Delivery>, feedTypeMap: Map<tx.id, feedTypeName> }
  *
  * - Supplier txs (reference_type=purchase): reference_id = delivery.id (direct match)
  * - Customer txs (reference_type=sale): reference_id = sale_id → match by amount + date
@@ -23,10 +28,12 @@ export function useDeliveriesForTransactions(
 
   return useQuery({
     queryKey: ["deliveries_for_txs", txKey, isCustomer],
-    queryFn: async () => {
-      if (sevkiyatTxs.length === 0) return new Map<string, Delivery>();
+    queryFn: async (): Promise<DeliveryTxResult> => {
+      const empty: DeliveryTxResult = { deliveryMap: new Map(), feedTypeMap: new Map() };
+      if (sevkiyatTxs.length === 0) return empty;
 
       const map = new Map<string, Delivery>();
+      const feedMap = new Map<string, string>(); // tx.id → feed type name
 
       // Split txs by type
       const purchaseTxs = sevkiyatTxs.filter((t) => t.reference_type === "purchase");
@@ -50,10 +57,33 @@ export function useDeliveriesForTransactions(
             byId.set(d.id, d);
           }
 
+          // Collect purchase_ids to fetch feed types
+          const purchaseIds = [...new Set(
+            (data || []).map((d: Delivery) => d.purchase_id).filter((id): id is string => !!id)
+          )];
+
+          const purchaseFeedMap = new Map<string, string>();
+          if (purchaseIds.length > 0) {
+            const { data: purchasesData } = await supabase
+              .from("purchases")
+              .select("id, feed_type:feed_types(name)")
+              .in("id", purchaseIds);
+            for (const p of purchasesData || []) {
+              const ftName = (p.feed_type as unknown as { name: string })?.name;
+              if (ftName) purchaseFeedMap.set(p.id, ftName);
+            }
+          }
+
           for (const tx of purchaseTxs) {
             if (tx.reference_id) {
               const del = byId.get(tx.reference_id);
-              if (del) map.set(tx.id, del);
+              if (del) {
+                map.set(tx.id, del);
+                if (del.purchase_id) {
+                  const ft = purchaseFeedMap.get(del.purchase_id);
+                  if (ft) feedMap.set(tx.id, ft);
+                }
+              }
             }
           }
         }
@@ -74,15 +104,18 @@ export function useDeliveriesForTransactions(
             .is("deleted_at", null)
             .order("created_at", { ascending: true });
 
-          // Fetch sale prices for amount matching
+          // Fetch sale prices + feed type for amount matching
           const { data: salesData } = await supabase
             .from("sales")
-            .select("id, unit_price")
+            .select("id, unit_price, feed_type:feed_types(name)")
             .in("id", saleIds);
 
           const salePriceMap = new Map<string, number>();
+          const saleFeedMap = new Map<string, string>();
           for (const s of salesData || []) {
             salePriceMap.set(s.id, s.unit_price);
+            const ftName = (s.feed_type as unknown as { name: string })?.name;
+            if (ftName) saleFeedMap.set(s.id, ftName);
           }
 
           // Group deliveries by sale_id
@@ -99,6 +132,7 @@ export function useDeliveriesForTransactions(
             const candidates = bySale.get(saleId) || [];
             const txsForSale = saleTxs.filter((t) => t.reference_id === saleId);
             const unitPrice = salePriceMap.get(saleId) || 0;
+            const feedName = saleFeedMap.get(saleId);
 
             // Track which deliveries have been claimed
             const usedDeliveryIds = new Set<string>();
@@ -136,12 +170,15 @@ export function useDeliveriesForTransactions(
                   usedDeliveryIds.add(fallback.id);
                 }
               }
+
+              // Assign feed type for this tx
+              if (feedName) feedMap.set(tx.id, feedName);
             }
           }
         }
       }
 
-      return map;
+      return { deliveryMap: map, feedTypeMap: feedMap };
     },
     enabled: sevkiyatTxs.length > 0,
   });

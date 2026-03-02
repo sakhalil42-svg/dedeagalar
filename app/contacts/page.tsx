@@ -62,19 +62,24 @@ export default function ContactsPage() {
     return map;
   }, [summaries]);
 
-  // Summary stats
+  // Summary stats — ALACAK: müşteriden alacağımız, BORÇ: üreticiye borcumuz
+  // DB'de: müşteri negatif bakiye = bize borçlu (alacak), üretici pozitif bakiye = biz borçluyuz (borç)
   const stats = useMemo(() => {
-    if (!contacts) return { total: 0, suppliers: 0, customers: 0, totalDebt: 0, totalCredit: 0 };
+    if (!contacts) return { total: 0, suppliers: 0, customers: 0, totalAlacak: 0, totalBorc: 0 };
     const suppliers = contacts.filter(c => c.type === "supplier" || c.type === "both").length;
     const customers = contacts.filter(c => c.type === "customer" || c.type === "both").length;
-    let totalDebt = 0;
-    let totalCredit = 0;
+    let totalAlacak = 0; // müşterilerden alacak (customer negative balance → abs)
+    let totalBorc = 0;   // üreticilere borç (supplier positive balance)
     contacts.forEach(c => {
       const bal = balanceMap.get(c.id) || 0;
-      if (bal > 0) totalDebt += bal;
-      else if (bal < 0) totalCredit += Math.abs(bal);
+      if (c.type === "customer" || c.type === "both") {
+        if (bal < 0) totalAlacak += Math.abs(bal); // negatif = bize borçlu
+      }
+      if (c.type === "supplier") {
+        if (bal > 0) totalBorc += bal; // pozitif = biz borçluyuz
+      }
     });
-    return { total: contacts.length, suppliers, customers, totalDebt, totalCredit };
+    return { total: contacts.length, suppliers, customers, totalAlacak, totalBorc };
   }, [contacts, balanceMap]);
 
   const filtered = useMemo(() => {
@@ -87,8 +92,8 @@ export default function ContactsPage() {
     if (balanceFilter !== "all") {
       list = list.filter((c) => {
         const bal = balanceMap.get(c.id) || 0;
-        if (balanceFilter === "debtor") return bal > 0;
-        if (balanceFilter === "creditor") return bal < 0;
+        if (balanceFilter === "debtor") return bal !== 0; // bakiyesi olan herkes
+        if (balanceFilter === "creditor") return bal === 0; // denk olanlar (eski: alacaklı)
         if (balanceFilter === "zero") return bal === 0;
         return true;
       });
@@ -157,18 +162,18 @@ export default function ContactsPage() {
             <p className="text-lg font-extrabold">{stats.total}</p>
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Toplam</p>
           </div>
-          <div className="rounded-2xl bg-card p-3 shadow-sm text-center">
+          <div className="rounded-2xl bg-card p-3 shadow-sm text-center overflow-hidden">
             <div className="flex items-center justify-center gap-1 mb-1">
               <ArrowUpRight className="h-3.5 w-3.5 text-red-500" />
             </div>
-            <p className="text-lg font-extrabold text-red-600">{formatCurrency(stats.totalDebt)}</p>
+            <p className="text-sm font-extrabold text-red-600 truncate">{formatCurrency(stats.totalAlacak)}</p>
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Alacak</p>
           </div>
-          <div className="rounded-2xl bg-card p-3 shadow-sm text-center">
+          <div className="rounded-2xl bg-card p-3 shadow-sm text-center overflow-hidden">
             <div className="flex items-center justify-center gap-1 mb-1">
               <ArrowDownLeft className="h-3.5 w-3.5 text-green-500" />
             </div>
-            <p className="text-lg font-extrabold text-green-600">{formatCurrency(stats.totalCredit)}</p>
+            <p className="text-sm font-extrabold text-green-600 truncate">{formatCurrency(stats.totalBorc)}</p>
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Borç</p>
           </div>
         </div>
@@ -268,9 +273,10 @@ export default function ContactsPage() {
         <div className="space-y-2 mt-3">
           {filtered.map((contact) => {
             const balance = balanceMap.get(contact.id) || 0;
+            const absBalance = Math.abs(balance);
             const creditLimit = contact.credit_limit;
             const hasLimit = creditLimit != null && creditLimit > 0;
-            const limitRatio = hasLimit ? (balance / creditLimit) * 100 : 0;
+            const limitRatio = hasLimit ? (absBalance / creditLimit) * 100 : 0;
             const limitBarColor = limitRatio >= 100 ? "bg-red-500" : limitRatio >= 80 ? "bg-yellow-500" : "bg-green-500";
             return (
               <Link key={contact.id} href={`/contacts/${contact.id}`}>
@@ -288,7 +294,7 @@ export default function ContactsPage() {
                         <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold shrink-0 ${TYPE_COLORS[contact.type]}`}>
                           {TYPE_LABELS[contact.type]}
                         </span>
-                        {hasLimit && balance > 0 && limitRatio >= 100 && (
+                        {hasLimit && absBalance > 0 && limitRatio >= 100 && (
                           <span className="rounded-full bg-red-100 text-red-700 text-[9px] font-semibold px-1.5 py-0.5 shrink-0">
                             LİMİT AŞIMI
                           </span>
@@ -308,7 +314,7 @@ export default function ContactsPage() {
                           </span>
                         )}
                       </div>
-                      {hasLimit && balance > 0 && (
+                      {hasLimit && absBalance > 0 && (
                         <div className="flex items-center gap-2 mt-1.5">
                           <div className="h-1.5 flex-1 rounded-full bg-muted max-w-[120px]">
                             <div className={`h-full rounded-full transition-all ${limitBarColor}`} style={{ width: `${Math.min(limitRatio, 100)}%` }} />
@@ -323,7 +329,7 @@ export default function ContactsPage() {
                     {/* Right: balance + actions */}
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       {balance !== 0 && (
-                        <span className={`text-sm font-extrabold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>
+                        <span className="text-sm font-extrabold text-red-600">
                           {formatCurrency(Math.abs(balance))}
                         </span>
                       )}

@@ -74,7 +74,9 @@ export default function AccountDetailPage() {
     [txList]
   );
 
-  const { data: deliveryMap } = useDeliveriesForTransactions(sevkiyatTxs, isCustomer);
+  const { data: deliveryTxResult } = useDeliveriesForTransactions(sevkiyatTxs, isCustomer);
+  const deliveryMap = deliveryTxResult?.deliveryMap;
+  const feedTypeMap = deliveryTxResult?.feedTypeMap;
 
   const getDelivery = (tx: AccountTransaction): Delivery | undefined => {
     if (!deliveryMap) return undefined;
@@ -154,6 +156,7 @@ export default function AccountDetailPage() {
       sevkiyatlar: sevkiyatTxs,
       odemeler: odemeTxs,
       deliveryMap: deliveryMap || undefined,
+      feedTypeMap: feedTypeMap || undefined,
       anaKalem,
       odenenKalem,
       bakiye,
@@ -230,9 +233,9 @@ export default function AccountDetailPage() {
         </div>
         <div className="flex-none w-36 rounded-2xl bg-card p-4 shadow-sm text-center">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-            {isCustomer ? (bakiye > 0 ? "Kalan Alacak" : "Bakiye") : (bakiye > 0 ? "Kalan Borç" : "Bakiye")}
+            {isCustomer ? (bakiye < 0 ? "Kalan Alacak" : "Bakiye") : (bakiye > 0 ? "Kalan Borç" : "Bakiye")}
           </p>
-          <p className={`text-xl font-extrabold ${bakiye > 0 ? "text-red-600" : "text-green-600"}`}>
+          <p className={`text-xl font-extrabold ${bakiye !== 0 ? "text-red-600" : "text-green-600"}`}>
             {masked(Math.abs(bakiye))}
           </p>
         </div>
@@ -263,7 +266,7 @@ export default function AccountDetailPage() {
           </div>
           <span className="text-[10px] font-medium">PDF</span>
         </button>
-        {contact.phone && isCustomer && bakiye > 0 ? (
+        {contact.phone && isCustomer && bakiye < 0 ? (
           <button
             onClick={handleWhatsAppHatirlatma}
             className="flex flex-col items-center gap-1.5 rounded-xl bg-card p-3 shadow-sm text-center"

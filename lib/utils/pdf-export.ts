@@ -135,6 +135,7 @@ export interface ContactPdfParams {
   sevkiyatlar: AccountTransaction[];
   odemeler: AccountTransaction[];
   deliveryMap?: Map<string, Delivery>;
+  feedTypeMap?: Map<string, string>;
   anaKalem: number;
   odenenKalem: number;
   bakiye: number;
@@ -150,6 +151,7 @@ export function generateContactPdf(params: ContactPdfParams) {
     sevkiyatlar,
     odemeler,
     deliveryMap,
+    feedTypeMap,
     anaKalem,
     odenenKalem,
     bakiye,
@@ -203,13 +205,14 @@ export function generateContactPdf(params: ContactPdfParams) {
     let colStyles: { [key: string]: Partial<Styles> };
 
     if (hasDeliveries && isCustomer) {
-      // Müşteri: Tarih | Fiş No | Plaka | Net Kg | Birim Fiyat | Tutar | Nakliye | Net Tutar
-      headers = ["Tarih", "Fi\u015F No", "Plaka", "Net Kg", "Birim Fiyat", "Tutar (\u20BA)", "Nakliye", "Net Tutar"];
+      // Müşteri: Tarih | Yem Türü | Fiş No | Plaka | Net Kg | Birim Fiyat | Tutar | Nakliye | Net Tutar
+      headers = ["Tarih", "Yem T\u00FCr\u00FC", "Fi\u015F No", "Plaka", "Net Kg", "Birim Fiyat", "Tutar (\u20BA)", "Nakliye", "Net Tutar"];
 
       let totalKg = 0, totalAmount = 0, totalFreight = 0, totalNet = 0;
 
       rows = sevkiyatlar.map((tx) => {
-        const del = tx.reference_id ? deliveryMap.get(tx.reference_id) : undefined;
+        const del = deliveryMap.get(tx.id);
+        const feedName = feedTypeMap?.get(tx.id) || "-";
         const amount = safeNum(tx.amount);
         const netKg = del ? safeNum(del.net_weight) : 0;
         const unitPrice = netKg > 0 ? amount / netKg : 0;
@@ -224,6 +227,7 @@ export function generateContactPdf(params: ContactPdfParams) {
 
         return [
           formatDateShortPdf(tx.transaction_date),
+          feedName,
           del?.ticket_no || "-",
           del?.vehicle_plate || "-",
           netKg > 0 ? fmtKg(netKg) : "-",
@@ -234,26 +238,28 @@ export function generateContactPdf(params: ContactPdfParams) {
         ];
       });
 
-      rows.push(["", "", "TOPLAM", fmtKg(totalKg), "", fmt(totalAmount), totalFreight > 0 ? fmt(totalFreight) : "-", fmt(totalNet)]);
+      rows.push(["", "", "", "TOPLAM", fmtKg(totalKg), "", fmt(totalAmount), totalFreight > 0 ? fmt(totalFreight) : "-", fmt(totalNet)]);
 
       colStyles = {
         0: { halign: "center", cellWidth: 22 },
-        1: { halign: "center", cellWidth: 16 },
-        2: { halign: "center", cellWidth: 25 },
-        3: { halign: "right", cellWidth: 22 },
-        4: { halign: "right", cellWidth: 25 },
-        5: { halign: "right", cellWidth: 28 },
-        6: { halign: "right", cellWidth: 22 },
-        7: { halign: "right", cellWidth: 28 },
+        1: { halign: "left", cellWidth: 24 },
+        2: { halign: "center", cellWidth: 14 },
+        3: { halign: "center", cellWidth: 22 },
+        4: { halign: "right", cellWidth: 20 },
+        5: { halign: "right", cellWidth: 22 },
+        6: { halign: "right", cellWidth: 26 },
+        7: { halign: "right", cellWidth: 20 },
+        8: { halign: "right", cellWidth: 26 },
       };
     } else if (hasDeliveries && !isCustomer) {
-      // Tedarikçi: Tarih | Fiş No | Plaka | Yem Türü | Net Kg | Birim Fiyat | Mal Bedeli | Nakliye | Nakliye Ödeyen | Net Tutar
-      headers = ["Tarih", "Fi\u015F No", "Plaka", "Net Kg", "Birim Fiyat", "Mal Bedeli", "Nakliye", "Nkl \u00D6d.", "Net Tutar"];
+      // Tedarikçi: Tarih | Yem Türü | Fiş No | Plaka | Net Kg | Birim Fiyat | Mal Bedeli | Nakliye | Nkl Öd. | Net Tutar
+      headers = ["Tarih", "Yem T\u00FCr\u00FC", "Fi\u015F No", "Plaka", "Net Kg", "Birim Fiyat", "Mal Bedeli", "Nakliye", "Nkl \u00D6d.", "Net Tutar"];
 
       let totalKg = 0, totalAmount = 0, totalFreight = 0, totalNet = 0;
 
       rows = sevkiyatlar.map((tx) => {
-        const del = tx.reference_id ? deliveryMap.get(tx.reference_id) : undefined;
+        const del = deliveryMap.get(tx.id);
+        const feedName = feedTypeMap?.get(tx.id) || "-";
         const amount = safeNum(tx.amount);
         const netKg = del ? safeNum(del.net_weight) : 0;
         const unitPrice = netKg > 0 ? amount / netKg : 0;
@@ -268,6 +274,7 @@ export function generateContactPdf(params: ContactPdfParams) {
 
         return [
           formatDateShortPdf(tx.transaction_date),
+          feedName,
           del?.ticket_no || "-",
           del?.vehicle_plate || "-",
           netKg > 0 ? fmtKg(netKg) : "-",
@@ -279,18 +286,19 @@ export function generateContactPdf(params: ContactPdfParams) {
         ];
       });
 
-      rows.push(["", "", "TOPLAM", fmtKg(totalKg), "", fmt(totalAmount), totalFreight > 0 ? fmt(totalFreight) : "-", "", fmt(totalNet)]);
+      rows.push(["", "", "", "TOPLAM", fmtKg(totalKg), "", fmt(totalAmount), totalFreight > 0 ? fmt(totalFreight) : "-", "", fmt(totalNet)]);
 
       colStyles = {
-        0: { halign: "center", cellWidth: 22 },
-        1: { halign: "center", cellWidth: 15 },
-        2: { halign: "center", cellWidth: 24 },
-        3: { halign: "right", cellWidth: 20 },
-        4: { halign: "right", cellWidth: 24 },
-        5: { halign: "right", cellWidth: 26 },
-        6: { halign: "right", cellWidth: 20 },
-        7: { halign: "center", cellWidth: 16 },
-        8: { halign: "right", cellWidth: 26 },
+        0: { halign: "center", cellWidth: 20 },
+        1: { halign: "left", cellWidth: 22 },
+        2: { halign: "center", cellWidth: 14 },
+        3: { halign: "center", cellWidth: 22 },
+        4: { halign: "right", cellWidth: 18 },
+        5: { halign: "right", cellWidth: 22 },
+        6: { halign: "right", cellWidth: 24 },
+        7: { halign: "right", cellWidth: 18 },
+        8: { halign: "center", cellWidth: 14 },
+        9: { halign: "right", cellWidth: 24 },
       };
     } else {
       // Fallback — no delivery data
