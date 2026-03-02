@@ -73,6 +73,7 @@ import {
   Star,
   AlertTriangle,
   CheckCircle,
+  ChevronDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -1138,6 +1139,7 @@ function QuickEntryForm({
   const [freightPayer, setFreightPayer] = useState<FreightPayer>("me");
   const [parcelId, setParcelId] = useState<string | null>(null);
   const [baleCount, setBaleCount] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastTicketNo, setLastTicketNo] = useState("");
   const [creditWarning, setCreditWarning] = useState<{
@@ -1380,7 +1382,7 @@ function QuickEntryForm({
           Kantar Fişi Gir
         </div>
       </div>
-      <div className="px-3 pb-3 space-y-3">
+      <div className="px-3 pb-3 space-y-2">
         {/* Row 1: Date + Ticket No */}
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -1408,10 +1410,10 @@ function QuickEntryForm({
           </div>
         </div>
 
-        {/* Row 2: NET WEIGHT — 3.6 formatted input */}
+        {/* Row 2: NET WEIGHT — compact */}
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Net Ağırlık (kg)</label>
-          <div className="bg-primary/10 border-2 border-primary/20 rounded-2xl p-4 text-center">
+          <div className="bg-primary/10 border-2 border-primary/20 rounded-2xl p-3 text-center">
             <input
               id="net-weight-input"
               type="text"
@@ -1419,7 +1421,7 @@ function QuickEntryForm({
               placeholder="0"
               value={displayWeight}
               onChange={handleNetWeightChange}
-              className="w-full bg-transparent text-4xl font-extrabold text-primary text-center outline-none"
+              className="w-full bg-transparent text-3xl font-extrabold text-primary text-center outline-none"
             />
             {netWeight && parseInt(netWeight) >= 1000 && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -1429,94 +1431,20 @@ function QuickEntryForm({
           </div>
         </div>
 
-        {/* Row 3: Plate + Freight */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Araç Plakası</label>
-            <PlateCombobox
-              value={vehiclePlate}
-              onChange={setVehiclePlate}
-              onVehicleSelect={handleVehicleSelect}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliye (₺)</label>
-            <Input
-              type="text"
-              inputMode="decimal"
-              placeholder="0"
-              value={freightCost ? formatNumberInput(freightCost) : ""}
-              onChange={(e) => setFreightCost(handleNumberChange(e.target.value, true))}
-              className="rounded-xl bg-muted border-0 h-12 text-sm"
-            />
-          </div>
-        </div>
-
-        {/* Row 4: Şoför Adı + Şoför Tel */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Şoför Adı</label>
-            <Input
-              placeholder="Şoför adı"
-              value={driverName}
-              onChange={(e) => setDriverName(e.target.value)}
-              className="rounded-xl bg-muted border-0 h-12 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">
-              <Phone className="inline h-3 w-3 mr-0.5" />
-              Şoför Tel
-            </label>
-            <Input
-              type="tel"
-              inputMode="tel"
-              placeholder="05XX XXX XXXX"
-              value={driverPhone}
-              onChange={(e) => setDriverPhone(e.target.value)}
-              className="rounded-xl bg-muted border-0 h-12 text-sm"
-            />
-          </div>
-        </div>
-
-        {/* Row 5: Nakliyeci */}
+        {/* Row 3: Nakliye (₺) — full width */}
         <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliyeci (firma/patron)</label>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliye (₺)</label>
           <Input
-            placeholder="Nakliyeci adı"
-            value={carrierName}
-            onChange={(e) => setCarrierName(e.target.value)}
+            type="text"
+            inputMode="decimal"
+            placeholder="0"
+            value={freightCost ? formatNumberInput(freightCost) : ""}
+            onChange={(e) => setFreightCost(handleNumberChange(e.target.value, true))}
             className="rounded-xl bg-muted border-0 h-12 text-sm"
           />
         </div>
 
-        {/* Row 6: Parsel + Balya (opsiyonel) */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Parsel</label>
-            <ParcelSelect
-              value={parcelId}
-              onChange={setParcelId}
-              seasonId={seasonId}
-              className="rounded-xl bg-muted border-0 h-12 text-sm"
-            />
-          </div>
-          {parcelId && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Balya Sayisi</label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                placeholder="0"
-                value={baleCount}
-                onChange={(e) => setBaleCount(e.target.value.replace(/[^0-9]/g, ""))}
-                className="rounded-xl bg-muted border-0 h-12 text-sm"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Row 5: Freight Payer toggle */}
+        {/* Row 4: Freight Payer toggle */}
         {freightCost && parseFloat(freightCost) > 0 && (
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliye Ödeyen</label>
@@ -1535,6 +1463,100 @@ function QuickEntryForm({
                   {opt.label}
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Collapsible: Araç & Detaylar */}
+        <button
+          type="button"
+          onClick={() => setShowDetails(!showDetails)}
+          className="w-full flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            <Truck className="h-4 w-4" />
+            Araç & Detaylar
+            {vehiclePlate && (
+              <span className="text-xs text-primary font-normal">({vehiclePlate})</span>
+            )}
+          </span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${showDetails ? "rotate-180" : ""}`} />
+        </button>
+
+        {showDetails && (
+          <div className="space-y-2 pl-1 pr-1">
+            {/* Plate */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Araç Plakası</label>
+              <PlateCombobox
+                value={vehiclePlate}
+                onChange={setVehiclePlate}
+                onVehicleSelect={handleVehicleSelect}
+              />
+            </div>
+
+            {/* Şoför Adı + Şoför Tel */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Şoför Adı</label>
+                <Input
+                  placeholder="Şoför adı"
+                  value={driverName}
+                  onChange={(e) => setDriverName(e.target.value)}
+                  className="rounded-xl bg-muted border-0 h-12 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                  <Phone className="inline h-3 w-3 mr-0.5" />
+                  Şoför Tel
+                </label>
+                <Input
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="05XX XXX XXXX"
+                  value={driverPhone}
+                  onChange={(e) => setDriverPhone(e.target.value)}
+                  className="rounded-xl bg-muted border-0 h-12 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Nakliyeci */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Nakliyeci (firma/patron)</label>
+              <Input
+                placeholder="Nakliyeci adı"
+                value={carrierName}
+                onChange={(e) => setCarrierName(e.target.value)}
+                className="rounded-xl bg-muted border-0 h-12 text-sm"
+              />
+            </div>
+
+            {/* Parsel + Balya */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Parsel</label>
+                <ParcelSelect
+                  value={parcelId}
+                  onChange={setParcelId}
+                  seasonId={seasonId}
+                  className="rounded-xl bg-muted border-0 h-12 text-sm"
+                />
+              </div>
+              {parcelId && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Balya Sayisi</label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={baleCount}
+                    onChange={(e) => setBaleCount(e.target.value.replace(/[^0-9]/g, ""))}
+                    className="rounded-xl bg-muted border-0 h-12 text-sm"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
