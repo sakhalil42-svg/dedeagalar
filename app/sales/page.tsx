@@ -5,7 +5,7 @@ import { useSales, useCreateSale } from "@/lib/hooks/use-sales";
 import { usePurchases, useCreatePurchase } from "@/lib/hooks/use-purchases";
 import { useContacts } from "@/lib/hooks/use-contacts";
 import { useFeedTypes } from "@/lib/hooks/use-feed-types";
-import { useDeliveriesBySale, useUpdateDelivery, useTodayDeliveries } from "@/lib/hooks/use-deliveries";
+import { useDeliveriesBySale, useTodayDeliveries } from "@/lib/hooks/use-deliveries";
 import type { TodayDelivery } from "@/lib/hooks/use-deliveries";
 import {
   useCreateDeliveryWithTransactions,
@@ -759,7 +759,7 @@ function ActiveOrderView({
 function TodayDeliveriesList({ masked }: { masked: (amount: number) => string }) {
   const { data: todayDeliveries, isLoading } = useTodayDeliveries();
   const deleteDelivery = useDeleteDeliveryWithTransactions();
-  const updateDelivery = useUpdateDelivery();
+  const updateDelivery = useUpdateDeliveryWithCarrierSync();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState("");

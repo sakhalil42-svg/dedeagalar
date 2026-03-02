@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { deliverySchema, type DeliveryFormValues } from "@/lib/schemas/delivery";
+import { useCreateDelivery } from "@/lib/hooks/use-deliveries";
 import {
-  useCreateDelivery,
-  useUpdateDelivery,
-  useDeleteDelivery,
-} from "@/lib/hooks/use-deliveries";
+  useUpdateDeliveryWithCarrierSync,
+  useDeleteDeliveryWithTransactions,
+} from "@/lib/hooks/use-delivery-with-transactions";
 import type { Delivery, DeliveryInsert } from "@/lib/types/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,8 +188,8 @@ export function DeliverySection({
   const [deleteTarget, setDeleteTarget] = useState<Delivery | null>(null);
 
   const createDelivery = useCreateDelivery();
-  const updateDelivery = useUpdateDelivery();
-  const deleteDelivery = useDeleteDelivery();
+  const updateDelivery = useUpdateDeliveryWithCarrierSync();
+  const deleteDelivery = useDeleteDeliveryWithTransactions();
 
   const addForm = useForm<DeliveryFormValues>({
     resolver: zodResolver(deliverySchema),
@@ -287,7 +287,11 @@ export function DeliverySection({
   async function onDelete() {
     if (!deleteTarget) return;
     try {
-      await deleteDelivery.mutateAsync(deleteTarget.id);
+      await deleteDelivery.mutateAsync({
+        deliveryId: deleteTarget.id,
+        saleId: deleteTarget.sale_id || saleId || null,
+        purchaseId: deleteTarget.purchase_id || purchaseId || null,
+      });
       toast.success("Sevkiyat silindi");
       setDeleteTarget(null);
     } catch {
