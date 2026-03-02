@@ -77,6 +77,7 @@ export default function AccountDetailPage() {
   const { data: deliveryTxResult } = useDeliveriesForTransactions(sevkiyatTxs, isCustomer);
   const deliveryMap = deliveryTxResult?.deliveryMap;
   const feedTypeMap = deliveryTxResult?.feedTypeMap;
+  const unitPriceMap = deliveryTxResult?.unitPriceMap;
 
   const getDelivery = (tx: AccountTransaction): Delivery | undefined => {
     if (!deliveryMap) return undefined;
@@ -157,6 +158,7 @@ export default function AccountDetailPage() {
       odemeler: odemeTxs,
       deliveryMap: deliveryMap || undefined,
       feedTypeMap: feedTypeMap || undefined,
+      unitPriceMap: unitPriceMap || undefined,
       anaKalem,
       odenenKalem,
       bakiye,

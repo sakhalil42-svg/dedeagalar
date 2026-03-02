@@ -136,6 +136,7 @@ export interface ContactPdfParams {
   odemeler: AccountTransaction[];
   deliveryMap?: Map<string, Delivery>;
   feedTypeMap?: Map<string, string>;
+  unitPriceMap?: Map<string, number>;
   anaKalem: number;
   odenenKalem: number;
   bakiye: number;
@@ -152,6 +153,7 @@ export function generateContactPdf(params: ContactPdfParams) {
     odemeler,
     deliveryMap,
     feedTypeMap,
+    unitPriceMap,
     anaKalem,
     odenenKalem,
     bakiye,
@@ -208,21 +210,24 @@ export function generateContactPdf(params: ContactPdfParams) {
       // Müşteri: Tarih | Yem Türü | Fiş No | Plaka | Net Kg | Birim Fiyat | Tutar | Nakliye | Net Tutar
       headers = ["Tarih", "Yem T\u00FCr\u00FC", "Fi\u015F No", "Plaka", "Net Kg", "Birim Fiyat", "Tutar (\u20BA)", "Nakliye", "Net Tutar"];
 
-      let totalKg = 0, totalAmount = 0, totalFreight = 0, totalNet = 0;
+      let totalKg = 0, totalGross = 0, totalFreight = 0, totalNet = 0;
 
       rows = sevkiyatlar.map((tx) => {
         const del = deliveryMap.get(tx.id);
         const feedName = feedTypeMap?.get(tx.id) || "-";
-        const amount = safeNum(tx.amount);
         const netKg = del ? safeNum(del.net_weight) : 0;
-        const unitPrice = netKg > 0 ? amount / netKg : 0;
+        const unitPrice = unitPriceMap?.get(tx.id) || (netKg > 0 ? safeNum(tx.amount) / netKg : 0);
+        const grossAmount = netKg > 0 ? netKg * unitPrice : safeNum(tx.amount);
         const freight = del ? safeNum(del.freight_cost) : 0;
-        const freightForMe = del?.freight_payer === "customer" ? 0 : freight;
-        const netAmount = amount;
+        const freightPayer = del?.freight_payer || "me";
+        const netAmount = freightPayer === "customer" ? grossAmount - freight : grossAmount;
+        const freightLabel = freight > 0
+          ? `${fmt(freight)} (${freightPayer === "customer" ? "M" : freightPayer === "supplier" ? "\u00DC" : "B"})`
+          : "-";
 
         totalKg += netKg;
-        totalAmount += amount;
-        totalFreight += freightForMe;
+        totalGross += grossAmount;
+        totalFreight += freight;
         totalNet += netAmount;
 
         return [
@@ -232,13 +237,13 @@ export function generateContactPdf(params: ContactPdfParams) {
           del?.vehicle_plate || "-",
           netKg > 0 ? fmtKg(netKg) : "-",
           unitPrice > 0 ? fmt(unitPrice) : "-",
-          fmt(amount),
-          freightForMe > 0 ? fmt(freightForMe) : "-",
+          fmt(grossAmount),
+          freightLabel,
           fmt(netAmount),
         ];
       });
 
-      rows.push(["", "", "", "TOPLAM", fmtKg(totalKg), "", fmt(totalAmount), totalFreight > 0 ? fmt(totalFreight) : "-", fmt(totalNet)]);
+      rows.push(["", "", "", "TOPLAM", fmtKg(totalKg), "", fmt(totalGross), totalFreight > 0 ? fmt(totalFreight) : "-", fmt(totalNet)]);
 
       colStyles = {
         0: { halign: "center", cellWidth: 22 },
@@ -255,20 +260,21 @@ export function generateContactPdf(params: ContactPdfParams) {
       // Tedarikçi: Tarih | Yem Türü | Fiş No | Plaka | Net Kg | Birim Fiyat | Mal Bedeli | Nakliye | Nkl Öd. | Net Tutar
       headers = ["Tarih", "Yem T\u00FCr\u00FC", "Fi\u015F No", "Plaka", "Net Kg", "Birim Fiyat", "Mal Bedeli", "Nakliye", "Nkl \u00D6d.", "Net Tutar"];
 
-      let totalKg = 0, totalAmount = 0, totalFreight = 0, totalNet = 0;
+      let totalKg = 0, totalGross = 0, totalFreight = 0, totalNet = 0;
 
       rows = sevkiyatlar.map((tx) => {
         const del = deliveryMap.get(tx.id);
         const feedName = feedTypeMap?.get(tx.id) || "-";
-        const amount = safeNum(tx.amount);
         const netKg = del ? safeNum(del.net_weight) : 0;
-        const unitPrice = netKg > 0 ? amount / netKg : 0;
+        const unitPrice = unitPriceMap?.get(tx.id) || (netKg > 0 ? safeNum(tx.amount) / netKg : 0);
+        const grossAmount = netKg > 0 ? netKg * unitPrice : safeNum(tx.amount);
         const freight = del ? safeNum(del.freight_cost) : 0;
-        const freightPayer = del?.freight_payer === "customer" ? "M\u00FC\u015Ft." : del?.freight_payer === "supplier" ? "\u00DCrt." : "Biz";
-        const netAmount = amount;
+        const freightPayer = del?.freight_payer || "me";
+        const freightPayerLabel = freightPayer === "customer" ? "M\u00FC\u015Ft." : freightPayer === "supplier" ? "\u00DCrt." : "Biz";
+        const netAmount = freightPayer === "supplier" ? grossAmount - freight : grossAmount;
 
         totalKg += netKg;
-        totalAmount += amount;
+        totalGross += grossAmount;
         totalFreight += freight;
         totalNet += netAmount;
 
@@ -279,14 +285,14 @@ export function generateContactPdf(params: ContactPdfParams) {
           del?.vehicle_plate || "-",
           netKg > 0 ? fmtKg(netKg) : "-",
           unitPrice > 0 ? fmt(unitPrice) : "-",
-          fmt(amount),
+          fmt(grossAmount),
           freight > 0 ? fmt(freight) : "-",
-          freight > 0 ? freightPayer : "-",
+          freight > 0 ? freightPayerLabel : "-",
           fmt(netAmount),
         ];
       });
 
-      rows.push(["", "", "", "TOPLAM", fmtKg(totalKg), "", fmt(totalAmount), totalFreight > 0 ? fmt(totalFreight) : "-", "", fmt(totalNet)]);
+      rows.push(["", "", "", "TOPLAM", fmtKg(totalKg), "", fmt(totalGross), totalFreight > 0 ? fmt(totalFreight) : "-", "", fmt(totalNet)]);
 
       colStyles = {
         0: { halign: "center", cellWidth: 20 },

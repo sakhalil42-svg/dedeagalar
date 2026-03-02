@@ -7,6 +7,7 @@ import type { Delivery, AccountTransaction } from "@/lib/types/database.types";
 export interface DeliveryTxResult {
   deliveryMap: Map<string, Delivery>;
   feedTypeMap: Map<string, string>; // tx.id → feed type name
+  unitPriceMap: Map<string, number>; // tx.id → unit price from sale/purchase
 }
 
 /**
@@ -29,11 +30,12 @@ export function useDeliveriesForTransactions(
   return useQuery({
     queryKey: ["deliveries_for_txs", txKey, isCustomer],
     queryFn: async (): Promise<DeliveryTxResult> => {
-      const empty: DeliveryTxResult = { deliveryMap: new Map(), feedTypeMap: new Map() };
+      const empty: DeliveryTxResult = { deliveryMap: new Map(), feedTypeMap: new Map(), unitPriceMap: new Map() };
       if (sevkiyatTxs.length === 0) return empty;
 
       const map = new Map<string, Delivery>();
       const feedMap = new Map<string, string>(); // tx.id → feed type name
+      const unitMap = new Map<string, number>(); // tx.id → unit price
 
       // Split txs by type
       const purchaseTxs = sevkiyatTxs.filter((t) => t.reference_type === "purchase");
@@ -63,14 +65,16 @@ export function useDeliveriesForTransactions(
           )];
 
           const purchaseFeedMap = new Map<string, string>();
+          const purchasePriceMap = new Map<string, number>();
           if (purchaseIds.length > 0) {
             const { data: purchasesData } = await supabase
               .from("purchases")
-              .select("id, feed_type:feed_types(name)")
+              .select("id, unit_price, feed_type:feed_types(name)")
               .in("id", purchaseIds);
             for (const p of purchasesData || []) {
               const ftName = (p.feed_type as unknown as { name: string })?.name;
               if (ftName) purchaseFeedMap.set(p.id, ftName);
+              if (p.unit_price) purchasePriceMap.set(p.id, p.unit_price);
             }
           }
 
@@ -82,6 +86,8 @@ export function useDeliveriesForTransactions(
                 if (del.purchase_id) {
                   const ft = purchaseFeedMap.get(del.purchase_id);
                   if (ft) feedMap.set(tx.id, ft);
+                  const up = purchasePriceMap.get(del.purchase_id);
+                  if (up) unitMap.set(tx.id, up);
                 }
               }
             }
@@ -171,14 +177,15 @@ export function useDeliveriesForTransactions(
                 }
               }
 
-              // Assign feed type for this tx
+              // Assign feed type and unit price for this tx
               if (feedName) feedMap.set(tx.id, feedName);
+              if (unitPrice > 0) unitMap.set(tx.id, unitPrice);
             }
           }
         }
       }
 
-      return { deliveryMap: map, feedTypeMap: feedMap };
+      return { deliveryMap: map, feedTypeMap: feedMap, unitPriceMap: unitMap };
     },
     enabled: sevkiyatTxs.length > 0,
   });
