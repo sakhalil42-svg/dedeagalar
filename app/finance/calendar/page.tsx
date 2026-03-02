@@ -101,7 +101,7 @@ export default function CalendarPage() {
           amount: p.total_amount,
           due_date: p.due_date!,
           status: p.status,
-          link: `/purchases/${p.id}`,
+          link: `/sales`,
         });
       });
 
@@ -116,7 +116,7 @@ export default function CalendarPage() {
           amount: s.total_amount,
           due_date: s.due_date!,
           status: s.status,
-          link: `/sales/${s.id}`,
+          link: `/sales`,
         });
       });
 

@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { Sale, SaleInsert, SaleUpdate } from "@/lib/types/database.types";
+import type { Sale, SaleInsert } from "@/lib/types/database.types";
 
 const SALES_KEY = ["sales"];
 const SELECT_WITH_JOINS = "*, contact:contacts(*), feed_type:feed_types(*), warehouse:warehouses(*)";
@@ -25,24 +25,6 @@ export function useSales(seasonId?: string | null) {
       if (error) throw error;
       return data as Sale[];
     },
-  });
-}
-
-export function useSale(id: string) {
-  const supabase = createClient();
-
-  return useQuery({
-    queryKey: [...SALES_KEY, id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select(SELECT_WITH_JOINS)
-        .eq("id", id)
-        .single();
-      if (error) throw error;
-      return data as Sale;
-    },
-    enabled: !!id,
   });
 }
 
@@ -75,43 +57,3 @@ export function useCreateSale() {
   });
 }
 
-export function useUpdateSale() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, ...values }: SaleUpdate & { id: string }) => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { total_amount: _totalAmount, ...updateValues } = values;
-      const { data, error } = await supabase
-        .from("sales")
-        .update(updateValues)
-        .eq("id", id)
-        .select(SELECT_WITH_JOINS)
-        .single();
-      if (error) throw error;
-      return data as Sale;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: SALES_KEY });
-    },
-  });
-}
-
-export function useDeleteSale() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("sales")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: SALES_KEY });
-    },
-  });
-}

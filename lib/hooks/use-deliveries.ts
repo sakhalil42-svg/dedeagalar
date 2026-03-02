@@ -25,25 +25,6 @@ export function useDeliveriesBySale(saleId: string) {
   });
 }
 
-export function useDeliveriesByPurchase(purchaseId: string) {
-  const supabase = createClient();
-
-  return useQuery({
-    queryKey: [...DELIVERIES_KEY, "purchase", purchaseId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("deliveries")
-        .select("*")
-        .eq("purchase_id", purchaseId)
-        .is("deleted_at", null)
-        .order("delivery_date", { ascending: false });
-      if (error) throw error;
-      return data as Delivery[];
-    },
-    enabled: !!purchaseId,
-  });
-}
-
 export function useCreateDelivery() {
   const supabase = createClient();
   const queryClient = useQueryClient();
@@ -53,29 +34,6 @@ export function useCreateDelivery() {
       const { data, error } = await supabase
         .from("deliveries")
         .insert(values)
-        .select()
-        .single();
-      if (error) throw error;
-      return data as Delivery;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DELIVERIES_KEY });
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["purchases"] });
-    },
-  });
-}
-
-export function useUpdateDelivery() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, ...values }: DeliveryUpdate & { id: string }) => {
-      const { data, error } = await supabase
-        .from("deliveries")
-        .update(values)
-        .eq("id", id)
         .select()
         .single();
       if (error) throw error;
@@ -124,22 +82,3 @@ export function useTodayDeliveries() {
   });
 }
 
-export function useDeleteDelivery() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("deliveries")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DELIVERIES_KEY });
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["purchases"] });
-    },
-  });
-}

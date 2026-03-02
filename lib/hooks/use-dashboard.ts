@@ -516,7 +516,7 @@ export function useRecentActivities() {
           icon: "truck",
           description: `${typeLabel}: ${contactName}${d.vehicle_plate ? ` (${d.vehicle_plate})` : ""}`,
           weight: d.net_weight,
-          href: d.sale_id ? `/sales/${d.sale_id}` : d.purchase_id ? `/purchases/${d.purchase_id}` : "/",
+          href: "/sales",
         });
       }
 
