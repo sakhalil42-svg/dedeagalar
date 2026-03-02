@@ -68,9 +68,11 @@ export async function resolveShortMapUrl(shortUrl: string): Promise<LatLng | nul
       body: JSON.stringify({ url: shortUrl.trim() }),
     });
     if (!res.ok) return null;
-    const { resolvedUrl } = await res.json();
-    if (!resolvedUrl) return null;
-    return parseLocationInput(resolvedUrl);
+    const data = await res.json();
+    if (data.lat != null && data.lng != null) {
+      return { lat: data.lat, lng: data.lng };
+    }
+    return null;
   } catch {
     return null;
   }
