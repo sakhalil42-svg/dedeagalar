@@ -43,7 +43,7 @@ import { formatCurrency, capitalizeWords } from "@/lib/utils/format";
 import { useDeliveriesByContact } from "@/lib/hooks/use-deliveries-by-contact";
 import { Copy, Send } from "lucide-react";
 import { TYPE_LABELS, TYPE_COLORS } from "@/lib/constants/contact";
-import { type LatLng, parseLocationInput, getGoogleMapsLink } from "@/lib/utils/location";
+import { type LatLng, parseLocationInput, getGoogleMapsLink, isShortMapUrl, resolveShortMapUrl } from "@/lib/utils/location";
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +52,7 @@ export default function ContactDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [locationParsed, setLocationParsed] = useState<LatLng | null>(null);
   const [locationError, setLocationError] = useState(false);
+  const [locationResolving, setLocationResolving] = useState(false);
 
   const { data: contact, isLoading, isPending } = useContact(id);
   const updateContact = useUpdateContact();
@@ -98,7 +99,10 @@ export default function ContactDetailPage() {
 
   async function onSubmit(values: ContactFormValues) {
     try {
-      const coords = values.location_url ? parseLocationInput(values.location_url) : null;
+      let coords = values.location_url ? parseLocationInput(values.location_url) : null;
+      if (!coords && values.location_url && isShortMapUrl(values.location_url)) {
+        coords = await resolveShortMapUrl(values.location_url);
+      }
       const { location_url: _locationUrl, ...rest } = values;
       const payload = {
         id,
@@ -295,7 +299,7 @@ export default function ContactDetailPage() {
                   <Input
                     id="location_url"
                     {...register("location_url", {
-                      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                      onChange: async (e: React.ChangeEvent<HTMLInputElement>) => {
                         const val = e.target.value;
                         if (!val) {
                           setLocationParsed(null);
@@ -306,6 +310,17 @@ export default function ContactDetailPage() {
                         if (parsed) {
                           setLocationParsed(parsed);
                           setLocationError(false);
+                        } else if (isShortMapUrl(val)) {
+                          setLocationResolving(true);
+                          setLocationError(false);
+                          setLocationParsed(null);
+                          const resolved = await resolveShortMapUrl(val);
+                          setLocationResolving(false);
+                          if (resolved) {
+                            setLocationParsed(resolved);
+                          } else {
+                            setLocationError(true);
+                          }
                         } else {
                           setLocationParsed(null);
                           setLocationError(true);
@@ -320,6 +335,9 @@ export default function ContactDetailPage() {
                 </div>
                 {locationParsed && (
                   <p className="text-xs text-green-600">Konum kaydedilecek: {locationParsed.lat.toFixed(5)}, {locationParsed.lng.toFixed(5)}</p>
+                )}
+                {locationResolving && (
+                  <p className="text-xs text-muted-foreground">Kısa link çözümleniyor...</p>
                 )}
                 {locationError && (
                   <p className="text-xs text-destructive">Geçerli bir Google Maps linki veya koordinat yapıştırın</p>

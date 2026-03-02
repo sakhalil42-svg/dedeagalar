@@ -21,7 +21,7 @@ import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { capitalizeWords } from "@/lib/utils/format";
-import { type LatLng, parseLocationInput } from "@/lib/utils/location";
+import { type LatLng, parseLocationInput, isShortMapUrl, resolveShortMapUrl } from "@/lib/utils/location";
 import { useState } from "react";
 
 export default function NewContactPage() {
@@ -29,6 +29,7 @@ export default function NewContactPage() {
   const createContact = useCreateContact();
   const [locationParsed, setLocationParsed] = useState<LatLng | null>(null);
   const [locationError, setLocationError] = useState(false);
+  const [locationResolving, setLocationResolving] = useState(false);
 
   const {
     register,
@@ -52,7 +53,10 @@ export default function NewContactPage() {
 
   async function onSubmit(values: ContactFormValues) {
     try {
-      const coords = values.location_url ? parseLocationInput(values.location_url) : null;
+      let coords = values.location_url ? parseLocationInput(values.location_url) : null;
+      if (!coords && values.location_url && isShortMapUrl(values.location_url)) {
+        coords = await resolveShortMapUrl(values.location_url);
+      }
       const { location_url: _locationUrl, ...rest } = values;
       const payload = {
         ...rest,
@@ -162,7 +166,7 @@ export default function NewContactPage() {
                 <Input
                   id="location_url"
                   {...register("location_url", {
-                    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                    onChange: async (e: React.ChangeEvent<HTMLInputElement>) => {
                       const val = e.target.value;
                       if (!val) {
                         setLocationParsed(null);
@@ -173,6 +177,17 @@ export default function NewContactPage() {
                       if (parsed) {
                         setLocationParsed(parsed);
                         setLocationError(false);
+                      } else if (isShortMapUrl(val)) {
+                        setLocationResolving(true);
+                        setLocationError(false);
+                        setLocationParsed(null);
+                        const resolved = await resolveShortMapUrl(val);
+                        setLocationResolving(false);
+                        if (resolved) {
+                          setLocationParsed(resolved);
+                        } else {
+                          setLocationError(true);
+                        }
                       } else {
                         setLocationParsed(null);
                         setLocationError(true);
@@ -187,6 +202,9 @@ export default function NewContactPage() {
               </div>
               {locationParsed && (
                 <p className="text-xs text-green-600">Konum kaydedilecek: {locationParsed.lat.toFixed(5)}, {locationParsed.lng.toFixed(5)}</p>
+              )}
+              {locationResolving && (
+                <p className="text-xs text-muted-foreground">Kısa link çözümleniyor...</p>
               )}
               {locationError && (
                 <p className="text-xs text-destructive">Geçerli bir Google Maps linki veya koordinat yapıştırın</p>

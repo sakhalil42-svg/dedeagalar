@@ -23,11 +23,8 @@ export function parseLocationInput(input: string): LatLng | null {
 
   const trimmed = input.trim();
 
-  // Short links that can't be parsed
-  if (
-    trimmed.includes("goo.gl/maps") ||
-    trimmed.includes("maps.app.goo.gl")
-  ) {
+  // Short links need server-side resolution — handled by resolveShortMapUrl()
+  if (isShortMapUrl(trimmed)) {
     return null;
   }
 
@@ -50,6 +47,33 @@ export function parseLocationInput(input: string): LatLng | null {
   }
 
   return null;
+}
+
+/**
+ * Check if a URL is a shortened Google Maps link.
+ */
+export function isShortMapUrl(url: string): boolean {
+  return url.includes("goo.gl/maps") || url.includes("maps.app.goo.gl");
+}
+
+/**
+ * Resolve a shortened Google Maps URL via our API route,
+ * then parse coordinates from the resolved full URL.
+ */
+export async function resolveShortMapUrl(shortUrl: string): Promise<LatLng | null> {
+  try {
+    const res = await fetch("/api/resolve-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: shortUrl.trim() }),
+    });
+    if (!res.ok) return null;
+    const { resolvedUrl } = await res.json();
+    if (!resolvedUrl) return null;
+    return parseLocationInput(resolvedUrl);
+  } catch {
+    return null;
+  }
 }
 
 function validateCoords(lat: number, lng: number): LatLng | null {
